@@ -3,8 +3,7 @@
 
 // Video bot API.
 extern "C" {
-using bot_callback_t = void (*)(const uint8_t *image, uint16_t width,
-                                uint16_t height);
+using bot_callback_t = void (*)(const uint8_t *image, int width, int height);
 
 struct bot_descriptor {
   uint16_t image_width;

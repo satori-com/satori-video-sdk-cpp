@@ -16,6 +16,7 @@ extern "C" {
 }
 
 #include "decoder.h"
+#include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
 
@@ -39,40 +40,6 @@ std::string decode64(const std::string& val) {
       std::string(It(std::begin(val)), It(std::end(val))),
       [](char c) { return c == '\0'; });
 }
-
-// class decoder {
-//  public:
-//   decoder() {
-//     av_log_set_level(AV_LOG_DEBUG);
-//     avcodec_register_all();
-//   }
-//   void on_data(const rapidjson::Value& msg) {
-//     if (!_ctx) {
-//       _packet = av_packet_alloc();
-//       BOOST_VERIFY(_packet);
-//       auto frame = av_frame_alloc();
-//       auto params = avcodec_parameters_alloc();
-//       params->extradata = new uint8_t[codec_data.size()];
-//       params->extradata_size = codec_data.size();
-//       memcpy(params->extradata, codec_data.data(), codec_data.size());
-
-//       auto decoder =
-//       avcodec_find_decoder_by_name(msg["codecName"].GetString());
-//       BOOST_ASSERT(decoder);
-//       _ctx = avcodec_alloc_context3(decoder);
-//       BOOST_VERIFY(_ctx);
-//       BOOST_VERIFY(!avcodec_parameters_to_context(_ctx, params));
-//       BOOST_VERIFY(!avcodec_open2(_ctx, decoder, nullptr));
-//     }
-
-//     std::string decoded_data = decode64(msg["data"].GetString());
-//     // std::cout << to_string(msg) << "\n";
-//   }
-
-// private:
-// AVCodecContext* _ctx{nullptr};
-// AVPacket* _packet{nullptr};
-// };
 
 class bot_environment : public subscription_callbacks {
  public:
@@ -140,7 +107,13 @@ class bot_environment : public subscription_callbacks {
 
     _client = std::move(rtm::new_client(endpoint, port, appkey, io_service,
                                         ssl_context, 1, *this));
-    _client->subscribe_channel(channel, _subscription, *this);
+    _client->subscribe_channel(channel, _frames_subscription, *this);
+
+    subscription_options metadata_options;
+    metadata_options.history.count = 1;
+    _client->subscribe_channel(channel + metadata_channel_suffix,
+                               _metadata_subscription, *this,
+                               &metadata_options);
 
     boost::asio::signal_set signals(io_service);
     signals.add(SIGINT);
@@ -158,20 +131,35 @@ class bot_environment : public subscription_callbacks {
     std::cerr << "ERROR: " << (int)e << " " << msg << "\n";
   }
 
-  void on_data(const rapidjson::Value& msg) override {
+  void on_data(const subscription& sub,
+               const rapidjson::Value& value) override {
+    if (&sub == &_metadata_subscription)
+      on_metadata(value);
+    else if (&sub == &_frames_subscription)
+      on_frame_data(value);
+    else
+      BOOST_ASSERT_MSG(false, "Unknown subscription");
+  }
+
+  void on_metadata(const rapidjson::Value& msg) {
     if (!_decoder) {
       _decoder.reset(new Decoder(_bot->image_width, _bot->image_height));
       BOOST_VERIFY(!_decoder->init());
-
-      std::string codec_data = decode64(msg["codecData"].GetString());
-      _decoder->set_metadata(
-          msg["codecName"].GetString(),
-          reinterpret_cast<const uint8_t*>(codec_data.data()),
-          codec_data.size());
-      std::cout << "Video decoder initialized\n";
     }
 
-    std::string frame_data = decode64(msg["data"].GetString());
+    std::string codec_data = decode64(msg["codecData"].GetString());
+    _decoder->set_metadata(msg["codecName"].GetString(),
+                           reinterpret_cast<const uint8_t*>(codec_data.data()),
+                           codec_data.size());
+    std::cout << "Video decoder initialized\n";
+  }
+
+  void on_frame_data(const rapidjson::Value& msg) {
+    if (!_decoder) {
+      return;
+    }
+
+    std::string frame_data = decode64(msg["d"].GetString());
     _decoder->process_frame(reinterpret_cast<const uint8_t*>(frame_data.data()),
                             frame_data.size());
     if (_decoder->frame_ready()) {
@@ -182,7 +170,8 @@ class bot_environment : public subscription_callbacks {
 
  private:
   const bot_descriptor* _bot{nullptr};
-  rtm::subscription _subscription;
+  rtm::subscription _frames_subscription;
+  rtm::subscription _metadata_subscription;
   std::unique_ptr<Decoder> _decoder;
   std::unique_ptr<rtm::client> _client;
 };

@@ -65,9 +65,11 @@ struct publisher {
 };
 
 // Subscription interface of RTM.
+struct subscription {};
 
 struct subscription_callbacks : public error_callbacks {
-  virtual void on_data(const rapidjson::Value & /*unused*/) {}
+  virtual void on_data(const subscription & /*subscription*/,
+                       const rapidjson::Value & /*unused*/) {}
 };
 
 struct history_options {
@@ -79,10 +81,8 @@ struct subscription_options {
   bool force{false};
   bool fast_forward{true};
   boost::optional<channel_position> position;
-  boost::optional<history_options> history;
+  history_options history;
 };
-
-struct subscription {};
 
 struct subscriber {
   virtual ~subscriber() = default;

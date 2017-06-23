@@ -41,17 +41,39 @@ static std::string to_string(const rapidjson::Value &d) {
 struct subscribe_request {
   const uint64_t id;
   const std::string channel;
-  const bool fast_forward{true};
+  boost::optional<uint64_t> age;
+  boost::optional<uint64_t> count;
 
   void serialize_to(rapidjson::Document &document) const {
     constexpr const char *tmpl =
-        R"({"action":"rtm/subscribe", "body":{"channel":"test_channel"}, "id": 2})";
+        R"({"action":"rtm/subscribe",
+            "body":{"channel":"<not_set>",
+                    "subscription_id":"<not_set>"},
+            "id": 2})";
     document.Parse(tmpl);
     BOOST_VERIFY(document.IsObject());
+    document["id"].SetInt64(id);
     auto body = document["body"].GetObject();
     body["channel"].SetString(channel.c_str(), channel.length(),
                               document.GetAllocator());
+    body["subscription_id"].SetString(channel.c_str(), channel.length(),
+                              document.GetAllocator());
+
+    if (age || count) {
+      rapidjson::Value history(rapidjson::kObjectType);
+      if (age)
+        history.AddMember("age", *age, document.GetAllocator());
+      if (count)
+        history.AddMember("count", *count, document.GetAllocator());
+
+      body.AddMember("history", history, document.GetAllocator());
+    }
   }
+};
+
+struct subscription_impl {
+  subscription &sub;
+  subscription_callbacks &callbacks;
 };
 
 class secure_client : public client {
@@ -81,19 +103,25 @@ class secure_client : public client {
     ask_for_read();
   }
 
-  virtual ~secure_client() = default;
+  ~secure_client() override = default;
 
   void publish(const std::string &channel, const rapidjson::Document &message,
-               publish_callbacks *callbacks) {
+               publish_callbacks *callbacks) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
   void subscribe_channel(const std::string &channel, subscription &sub,
                          subscription_callbacks &callbacks,
-                         const subscription_options *options) {
-    _subscription_callbacks = &callbacks;
+                         const subscription_options *options) override {
+    _subscriptions.emplace(std::make_pair(channel,
+                                          subscription_impl{sub, callbacks}));
+
     rapidjson::Document document;
     subscribe_request req{++_request_id, channel};
+    if (options) {
+      req.age = options->history.age;
+      req.count = options->history.count;
+    }
     req.serialize_to(document);
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
@@ -103,19 +131,21 @@ class secure_client : public client {
 
   void subscribe_filter(const std::string &filter, subscription &sub,
                         subscription_callbacks &callbacks,
-                        const subscription_options *options) {
+                        const subscription_options *options) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  void unsubscribe(subscription &sub) {
+  void unsubscribe(subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  const channel_position &position(subscription &sub) {
+  const channel_position &position(subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  bool is_up(subscription &sub) { BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED"); }
+  bool is_up(subscription &sub) override {
+    BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+  }
 
  private:
   void ask_for_read() {
@@ -144,13 +174,17 @@ class secure_client : public client {
     if (action == "rtm/subscription/data") {
       auto body = d["body"].GetObject();
       std::string subscription_id = body["subscription_id"].GetString();
-      BOOST_VERIFY(subscription_id == "1");
-
+      auto it = _subscriptions.find(subscription_id);
+      BOOST_VERIFY(it != _subscriptions.end());
+      subscription_impl &sub = it->second;
       for (const auto &m : body["messages"].GetArray()) {
-        if (_subscription_callbacks) {
-          (*_subscription_callbacks).on_data(m);
-        }
+        sub.callbacks.on_data(sub.sub, m);
       }
+    } else if (action == "rtm/subscribe/ok") {
+      // ignore
+    } else {
+      std::cerr << "unhandled action " << action << "\n";
+      BOOST_VERIFY(false);
     }
   }
 
@@ -162,7 +196,7 @@ class secure_client : public client {
       _ws;
   uint64_t _request_id{0};
   beast::multi_buffer _read_buffer;
-  subscription_callbacks *_subscription_callbacks{nullptr};
+  std::map<std::string, subscription_impl> _subscriptions;
 };
 
 }  // namespace
