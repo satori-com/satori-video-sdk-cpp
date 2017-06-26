@@ -166,8 +166,31 @@ class bot_environment : public subscription_callbacks {
       _bot->callback(decoder_image_data(_decoder),
                      decoder_image_width(_decoder),
                      decoder_image_height(_decoder),
-                     decoder_image_line_size(_decoder));
+                     decoder_image_line_size(_decoder), &ctx);
+      send_messages(&ctx);
     }
+  }
+
+  void send_message(struct message_list *message) {
+      if (message == nullptr) return;
+      send_message(message);
+      _client->publish("analysis", message->data);
+      cbor_decref(&message->data);
+      free(message);
+  }
+
+  void send_messages(struct bot_context *context) {
+      send_message(context->message_buffer);
+      context->message_buffer = nullptr;
+  }
+
+  void bot_message(cbor_item_t *data, struct bot_context *context) {
+    // TODO: Add static allocation for faster message processing
+    struct message_list *newmsg = (struct message_list *)malloc(sizeof(struct message_list));
+    newmsg->next = context->message_buffer;
+    newmsg->data = data;
+    cbor_incref(newmsg->data);
+    context->message_buffer = newmsg;
   }
 
  private:
@@ -176,8 +199,13 @@ class bot_environment : public subscription_callbacks {
   rtm::subscription _metadata_subscription;
   decoder* _decoder{nullptr};
   std::unique_ptr<rtm::client> _client;
+  struct bot_context ctx{nullptr};
 };
 }
+}
+
+void rtm_video_bot_message(cbor_item_t *data, struct bot_context *context) {
+  rtm::video::bot_environment::instance().bot_message(data, context);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {

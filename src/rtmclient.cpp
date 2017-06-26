@@ -31,6 +31,43 @@ static void fail(boost::system::error_code ec) {
   exit(1);
 }
 
+static rapidjson::Value cbor_to_json(const cbor_item_t *item, rapidjson::Document &document) {
+  rapidjson::Value a;
+  switch (cbor_typeof(item)) {
+    case CBOR_TYPE_NEGINT:
+    case CBOR_TYPE_UINT:
+	  a = rapidjson::Value(cbor_get_int(item));
+      break;
+    case CBOR_TYPE_TAG:
+    case CBOR_TYPE_BYTESTRING:
+      BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+      break;
+    case CBOR_TYPE_STRING:
+	  if (cbor_string_is_indefinite(item)) {
+        BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+	  } else {
+        a.SetString((const char *)cbor_string_handle(item), (int)cbor_string_length(item), document.GetAllocator());
+	  }
+	  break;
+    case CBOR_TYPE_ARRAY:
+      a = rapidjson::Value(rapidjson::kArrayType);
+	  for (size_t i = 0; i < cbor_array_size(item); i++)
+        a.PushBack(cbor_to_json(cbor_array_handle(item)[i], document), document.GetAllocator());
+      break;
+    case CBOR_TYPE_MAP:
+      a = rapidjson::Value(rapidjson::kObjectType);
+	  for (size_t i = 0; i < cbor_map_size(item); i++)
+        a.AddMember(cbor_to_json(cbor_map_handle(item)[i].key, document),
+                    cbor_to_json(cbor_map_handle(item)[i].value, document),
+                    document.GetAllocator());
+      break;
+    case CBOR_TYPE_FLOAT_CTRL:
+      a = rapidjson::Value(cbor_float_get_float(item));
+      break;
+  }
+  return a; // null json value
+}
+
 static std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -105,9 +142,25 @@ class secure_client : public client {
 
   ~secure_client() override = default;
 
-  void publish(const std::string &channel, const rapidjson::Document &message,
+  void publish(const std::string &channel, const cbor_item_t *message,
                publish_callbacks *callbacks) override {
-    BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    BOOST_VERIFY_MSG(callbacks==nullptr, "NOT IMPLEMENTED");
+    rapidjson::Document document;
+    constexpr const char *tmpl =
+        R"({"action":"rtm/publish",
+            "body":{"channel":"<not_set>"}})";
+    document.Parse(tmpl);
+    BOOST_VERIFY(document.IsObject());
+    auto body = document["body"].GetObject();
+    body["channel"].SetString(channel.c_str(), channel.length(),
+                              document.GetAllocator());
+
+    body.AddMember("message", cbor_to_json(message, document), document.GetAllocator());
+
+    rapidjson::StringBuffer buf;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
+    document.Accept(writer);
+    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
   }
 
   void subscribe_channel(const std::string &channel, subscription &sub,
