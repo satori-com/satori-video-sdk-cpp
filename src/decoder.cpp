@@ -1,6 +1,5 @@
-#pragma once
+#include "librtmvideo/decoder.h"
 
-// TODO: this is a copy of decoder from video-js
 #include <algorithm>
 #include <vector>
 
@@ -10,6 +9,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+namespace {
 struct Image {
   AVPixelFormat format;
   int width;
@@ -19,12 +19,27 @@ struct Image {
   int linesize[4];
 };
 
-class Decoder {
- public:
-  Decoder(int image_width, int image_height)
-      : _image_width(image_width), _image_height(image_height) {}
+AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
+  switch (pixel_format) {
+    case PIXEL_FORMAT_BGR:
+      return AV_PIX_FMT_BGR24;
+    case PIXEL_FORMAT_RGB0:
+      return AV_PIX_FMT_RGB0;
+    default:
+      fprintf(stderr, "Unsupported pixel format: %d\n", pixel_format);
+      return AV_PIX_FMT_BGR24;
+  }
+}
+}
 
-  ~Decoder() {
+struct decoder {
+ public:
+  decoder(int image_width, int image_height, AVPixelFormat image_pixel_format)
+      : _image_width(image_width),
+        _image_height(image_height),
+        _image_format(image_pixel_format) {}
+
+  ~decoder() {
     if (_sws_context) sws_freeContext(_sws_context);
 
     if (_image) {
@@ -120,7 +135,9 @@ class Decoder {
       int bytes = av_image_alloc(_image->data, _image->linesize, _image->width,
                                  _image->height, _image->format, 1);
       if (bytes <= 0) {
-        fprintf(stderr, "av_image_alloc failed\n");
+        fprintf(stderr, "av_image_alloc failed for %d %d (this %d %d)\n",
+                _image->width, _image->height, this->_image_width,
+                this->_image_height);
         return 1;
       }
 
@@ -158,13 +175,14 @@ class Decoder {
 
   uint64_t image_size() const { return _image->linesize[0] * _image->height; }
 
+  uint64_t image_line_size() const { return _image->linesize[0]; }
+
   bool frame_ready() const { return _frame_ready; }
 
  private:
   int _image_width{-1};
   int _image_height{-1};
-
-  const AVPixelFormat _image_format{AV_PIX_FMT_RGB0};
+  const AVPixelFormat _image_format;
 
   AVPacket *_packet{nullptr};
   AVFrame *_frame{nullptr};
@@ -178,3 +196,38 @@ class Decoder {
   bool _frame_ready{false};
   std::vector<uint8_t> _chunk_buffer;
 };
+
+extern "C" {
+void decoder_init_library() { decoder::init_library(); }
+
+decoder *decoder_new(int width, int height, image_pixel_format pixel_format) {
+  std::unique_ptr<decoder> d(
+      new decoder(width, height, to_av_pixel_format(pixel_format)));
+  int err = d->init();
+  if (err) {
+    fprintf(stderr, "Error initializing decoder: %d\n", err);
+    return nullptr;
+  }
+  return d.release();
+}
+
+void decoder_delete(decoder *d) { delete d; }
+
+int decoder_set_metadata(decoder *d, const char *codec_name,
+                         const uint8_t *metadata, size_t len) {
+  return d->set_metadata(codec_name, metadata, len);
+}
+
+int decoder_process_frame(decoder *d, const uint8_t *frame_data, size_t len) {
+  return d->process_frame(frame_data, len);
+}
+bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
+
+int decoder_image_height(decoder *d) { return d->image_height(); }
+int decoder_image_width(decoder *d) { return d->image_width(); }
+int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
+const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
+
+// new:
+// !_decoder->init()
+}

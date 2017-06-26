@@ -15,7 +15,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
-#include "decoder.h"
+#include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
@@ -100,7 +100,7 @@ class bot_environment : public subscription_callbacks {
     const std::string channel = vm["channel"].as<std::string>();
     const std::string port = vm["port"].as<std::string>();
 
-    Decoder::init_library();
+    decoder_init_library();
 
     asio::io_service io_service;
     asio::ssl::context ssl_context{asio::ssl::context::sslv23};
@@ -143,14 +143,14 @@ class bot_environment : public subscription_callbacks {
 
   void on_metadata(const rapidjson::Value& msg) {
     if (!_decoder) {
-      _decoder.reset(new Decoder(_bot->image_width, _bot->image_height));
-      BOOST_VERIFY(!_decoder->init());
+      _decoder = decoder_new(_bot->image_width, _bot->image_height,
+                             _bot->pixel_format);
+      BOOST_VERIFY(_decoder);
     }
 
     std::string codec_data = decode64(msg["codecData"].GetString());
-    _decoder->set_metadata(msg["codecName"].GetString(),
-                           reinterpret_cast<const uint8_t*>(codec_data.data()),
-                           codec_data.size());
+    decoder_set_metadata(_decoder, msg["codecName"].GetString(),
+                         (const uint8_t*)codec_data.data(), codec_data.size());
     std::cout << "Video decoder initialized\n";
   }
 
@@ -160,11 +160,12 @@ class bot_environment : public subscription_callbacks {
     }
 
     std::string frame_data = decode64(msg["d"].GetString());
-    _decoder->process_frame(reinterpret_cast<const uint8_t*>(frame_data.data()),
-                            frame_data.size());
-    if (_decoder->frame_ready()) {
-      _bot->callback(_decoder->image_data(), _decoder->image_width(),
-                     _decoder->image_height());
+    decoder_process_frame(_decoder, (const uint8_t*)frame_data.data(),
+                          frame_data.size());
+    if (decoder_frame_ready(_decoder)) {
+      _bot->callback(decoder_image_data(_decoder),
+                     decoder_image_width(_decoder),
+                     decoder_image_height(_decoder));
     }
   }
 
@@ -172,7 +173,7 @@ class bot_environment : public subscription_callbacks {
   const bot_descriptor* _bot{nullptr};
   rtm::subscription _frames_subscription;
   rtm::subscription _metadata_subscription;
-  std::unique_ptr<Decoder> _decoder;
+  decoder* _decoder{nullptr};
   std::unique_ptr<rtm::client> _client;
 };
 }

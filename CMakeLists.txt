@@ -8,7 +8,8 @@ include(cmake/ffmpeg.cmake)
 include(cmake/gsl.cmake)
 include(cmake/beast.cmake)
 
-add_library(rtmvideo 
+add_library(rtmvideo SHARED
+    src/decoder.cpp
     src/rtmclient.cpp
     src/video_bot.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
