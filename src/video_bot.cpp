@@ -22,6 +22,15 @@ extern "C" {
 
 namespace asio = boost::asio;
 
+struct bot_message {
+  cbor_item_t *data;
+  bot_message_kind kind;
+};
+
+struct bot_context {
+  std::list<bot_message> message_buffer;
+};
+
 namespace rtm {
 namespace video {
 
