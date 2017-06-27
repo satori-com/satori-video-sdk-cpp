@@ -165,7 +165,8 @@ class bot_environment : public subscription_callbacks {
     if (decoder_frame_ready(_decoder)) {
       _bot->callback(decoder_image_data(_decoder),
                      decoder_image_width(_decoder),
-                     decoder_image_height(_decoder));
+                     decoder_image_height(_decoder),
+                     decoder_image_line_size(_decoder));
     }
   }
 
