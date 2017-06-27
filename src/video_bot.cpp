@@ -115,6 +115,8 @@ class bot_environment : public subscription_callbacks {
                                _metadata_subscription, *this,
                                &metadata_options);
 
+    _channel = channel;
+
     boost::asio::signal_set signals(io_service);
     signals.add(SIGINT);
     signals.add(SIGTERM);
@@ -174,8 +176,15 @@ class bot_environment : public subscription_callbacks {
 
   void send_message(message_list *message) {
       if (message == nullptr) return;
-      send_message(message);
-      _client->publish("analysis", message->data);
+      send_message(message->next);
+      switch (message->kind) {
+          case bot_message_kind::ANALYSIS:
+            _client->publish(_channel + analysis_channel_suffix, message->data);
+            break;
+          case bot_message_kind::DEBUG:
+            _client->publish(_channel + debug_channel_suffix, message->data);
+            break;
+      }
       cbor_decref(&message->data);
       free(message);
   }
@@ -200,9 +209,10 @@ class bot_environment : public subscription_callbacks {
   const bot_descriptor* _bot{nullptr};
   rtm::subscription _frames_subscription;
   rtm::subscription _metadata_subscription;
+  std::string _channel;
   decoder* _decoder{nullptr};
   std::unique_ptr<rtm::client> _client;
-  bot_context ctx;
+  bot_context ctx{nullptr};
 };
 }
 }

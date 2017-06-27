@@ -16,3 +16,5 @@ struct message_list {
 };
 
 constexpr char metadata_channel_suffix[] = "/metadata";
+constexpr char analysis_channel_suffix[] = "/analysis";
+constexpr char debug_channel_suffix[] =    "/debug";
