@@ -46,7 +46,8 @@ static rapidjson::Value cbor_to_json(const cbor_item_t *item, rapidjson::Documen
 	  if (cbor_string_is_indefinite(item)) {
         BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
 	  } else {
-        a.SetString((const char *)cbor_string_handle(item), (int)cbor_string_length(item), document.GetAllocator());
+        // unsigned char * -> char *
+        a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)), static_cast<int>(cbor_string_length(item)), document.GetAllocator());
 	  }
 	  break;
     case CBOR_TYPE_ARRAY:
@@ -65,7 +66,7 @@ static rapidjson::Value cbor_to_json(const cbor_item_t *item, rapidjson::Documen
       a = rapidjson::Value(cbor_float_get_float(item));
       break;
   }
-  return a; // null json value
+  return a;
 }
 
 static std::string to_string(const rapidjson::Value &d) {

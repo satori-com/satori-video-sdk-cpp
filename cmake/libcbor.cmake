@@ -7,7 +7,7 @@ ExternalProject_Add(
         libcbor
         PREFIX ${LIBCBOR_PREFIX}
         GIT_REPOSITORY https://github.com/PJK/libcbor.git
-        GIT_TAG 076b491e70cdf6557299727be69f5c44eaa4d7c6
+        GIT_TAG 6ffbfc41559a6ef5a3a18a0ffe005d19eb7fd528 # v0.5.0
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
