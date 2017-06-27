@@ -21,9 +21,9 @@ struct Image {
 
 AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
   switch (pixel_format) {
-    case PIXEL_FORMAT_BGR:
+    case image_pixel_format::BGR:
       return AV_PIX_FMT_BGR24;
-    case PIXEL_FORMAT_RGB0:
+    case image_pixel_format::RGB0:
       return AV_PIX_FMT_RGB0;
     default:
       fprintf(stderr, "Unsupported pixel format: %d\n", pixel_format);
@@ -135,7 +135,7 @@ struct decoder {
       int bytes = av_image_alloc(_image->data, _image->linesize, _image->width,
                                  _image->height, _image->format, 1);
       if (bytes <= 0) {
-        fprintf(stderr, "av_image_alloc failed for %d %d (this %d %d)\n",
+        fprintf(stderr, "av_image_alloc failed for %dx%d (%dx%d)\n",
                 _image->width, _image->height, this->_image_width,
                 this->_image_height);
         return 1;
@@ -227,7 +227,4 @@ int decoder_image_height(decoder *d) { return d->image_height(); }
 int decoder_image_width(decoder *d) { return d->image_width(); }
 int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
 const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
-
-// new:
-// !_decoder->init()
 }

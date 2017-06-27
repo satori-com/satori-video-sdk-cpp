@@ -13,9 +13,11 @@ void decoder_init_library();
 decoder *decoder_new(int width, int height, image_pixel_format pixel_format);
 void decoder_delete(decoder *d);
 
+// returns 0 if successful.
 int decoder_set_metadata(decoder *d, const char *codec_name,
                          const uint8_t *metadata, size_t len);
 
+// returns 0 if successful.
 int decoder_process_frame(decoder *d, const uint8_t *frame_data, size_t len);
 bool decoder_frame_ready(decoder *d);
 
