@@ -17,6 +17,13 @@ struct bot_descriptor {
   bot_callback_t callback;
 };
 
+enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2 };
+
+struct bot_message {
+  cbor_item_t *data;
+  bot_message_kind kind;
+};
+
 struct bot_context;
 
 void rtm_video_bot_message(bot_context &context, const bot_message_kind kind,

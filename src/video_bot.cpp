@@ -174,35 +174,30 @@ class bot_environment : public subscription_callbacks {
     }
   }
 
-  void send_message(message_list *message) {
-      if (message == nullptr) return;
-      send_message(message->next);
-      switch (message->kind) {
+  void send_message(bot_message message) {
+      switch (message.kind) {
           case bot_message_kind::ANALYSIS:
-            _client->publish(_channel + analysis_channel_suffix, message->data);
+            _client->publish(_channel + analysis_channel_suffix, message.data);
             break;
           case bot_message_kind::DEBUG:
-            _client->publish(_channel + debug_channel_suffix, message->data);
+            _client->publish(_channel + debug_channel_suffix, message.data);
             break;
       }
-      cbor_decref(&message->data);
-      free(message);
+      cbor_decref(&message.data);
   }
 
   void send_messages(bot_context &context) {
-      send_message(context.message_buffer);
-      context.message_buffer = nullptr;
+    for (bot_message m : context.message_buffer) {
+        send_message(m);
+    }
+    context.message_buffer.clear();
   }
 
-  void bot_message(bot_context &context, const bot_message_kind kind,
+  void store_bot_message(bot_context &context, const bot_message_kind kind,
                              cbor_item_t *message) {
-    // TODO: Add static allocation for faster message processing
-    message_list *newmsg = (message_list *)malloc(sizeof(message_list));
-    newmsg->next = context.message_buffer;
-    newmsg->kind = kind;
-    newmsg->data = message;
+    bot_message newmsg{message, kind};
     cbor_incref(message);
-    context.message_buffer = newmsg;
+    context.message_buffer.push_back(newmsg);
   }
 
  private:
@@ -212,14 +207,14 @@ class bot_environment : public subscription_callbacks {
   std::string _channel;
   decoder* _decoder{nullptr};
   std::unique_ptr<rtm::client> _client;
-  bot_context ctx{nullptr};
+  bot_context ctx;
 };
 }
 }
 
 void rtm_video_bot_message(bot_context &context, const bot_message_kind kind,
                            cbor_item_t *message) {
-  rtm::video::bot_environment::instance().bot_message(context, kind, message);
+  rtm::video::bot_environment::instance().store_bot_message(context, kind, message);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {
