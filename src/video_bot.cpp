@@ -22,17 +22,13 @@ extern "C" {
 
 namespace asio = boost::asio;
 
+namespace rtm {
+namespace video {
+
 struct bot_message {
   cbor_item_t *data;
   bot_message_kind kind;
 };
-
-struct bot_context {
-  std::list<bot_message> message_buffer;
-};
-
-namespace rtm {
-namespace video {
 
 static std::string to_string(const rapidjson::Value& d) {
   rapidjson::StringBuffer buffer;
@@ -57,9 +53,10 @@ class bot_environment : public subscription_callbacks {
     return env;
   }
 
-  void register_bot(const bot_descriptor* bot) {
+  void register_bot(bot_context* ctx, const bot_descriptor* bot) {
     assert(!_bot);
     _bot = bot;
+    _ctx = ctx;
   }
 
   int main(int argc, char* argv[]) {
@@ -174,12 +171,12 @@ class bot_environment : public subscription_callbacks {
     decoder_process_frame(_decoder, (const uint8_t*)frame_data.data(),
                           frame_data.size());
     if (decoder_frame_ready(_decoder)) {
-      _bot->callback(ctx,
+      _bot->callback(*_ctx,
                      decoder_image_data(_decoder),
                      decoder_image_width(_decoder),
                      decoder_image_height(_decoder),
                      decoder_image_line_size(_decoder));
-      send_messages(ctx);
+      send_messages();
     }
   }
 
@@ -195,39 +192,44 @@ class bot_environment : public subscription_callbacks {
       cbor_decref(&message.data);
   }
 
-  void send_messages(bot_context &context) {
-    for (bot_message m : context.message_buffer) {
+  void send_messages() {
+    for (bot_message m : message_buffer) {
         send_message(m);
     }
-    context.message_buffer.clear();
+    message_buffer.clear();
   }
 
-  void store_bot_message(bot_context &context, const bot_message_kind kind,
-                             cbor_item_t *message) {
+  void store_bot_message(const bot_message_kind kind, cbor_item_t *message) {
     bot_message newmsg{message, kind};
     cbor_incref(message);
-    context.message_buffer.push_back(newmsg);
+    message_buffer.push_back(newmsg);
   }
 
  private:
   const bot_descriptor* _bot{nullptr};
+  bot_context* _ctx{nullptr};
   rtm::subscription _frames_subscription;
   rtm::subscription _metadata_subscription;
   std::string _channel;
   decoder* _decoder{nullptr};
   std::unique_ptr<rtm::client> _client;
-  bot_context ctx;
+  std::list<bot_message> message_buffer;
 };
 }
 }
 
-void rtm_video_bot_message(bot_context &context, const bot_message_kind kind,
+struct bot_context {
+  rtm::video::bot_environment *env;
+};
+
+void rtm_video_bot_message(bot_context &ctx, const bot_message_kind kind,
                            cbor_item_t *message) {
-  rtm::video::bot_environment::instance().store_bot_message(context, kind, message);
+  ctx.env->store_bot_message(kind, message);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {
-  rtm::video::bot_environment::instance().register_bot(&bot);
+  bot_context ctx{&(rtm::video::bot_environment::instance())};
+  ctx.env->register_bot(&ctx, &bot);
 }
 
 int rtm_video_bot_main(int argc, char* argv[]) {
