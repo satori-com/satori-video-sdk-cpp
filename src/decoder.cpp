@@ -72,6 +72,7 @@ struct decoder {
 
   int set_metadata(const char *codec_name, const uint8_t *extra_data,
                    int extra_data_length) {
+    _initialized = false;
     _decoder = avcodec_find_decoder_by_name(codec_name);
     if (!_decoder) {
       fprintf(stderr, "decoder not found: %s\n", codec_name);
@@ -89,10 +90,16 @@ struct decoder {
     int err = avcodec_parameters_to_context(_decoder_context, _params);
     if (err) return err;
 
-    return avcodec_open2(_decoder_context, _decoder, 0);
+    err = avcodec_open2(_decoder_context, _decoder, 0);
+    if (err) return err;
+
+    _initialized = true;
+    return 0;
   }
 
-  int data_received(const uint8_t *data, int length, int chunk, int chunks) {
+  int process_frame_message(const uint8_t *data, size_t length, int chunk,
+                            int chunks) {
+    if (!_initialized) return -1;
     _frame_ready = false;
     if (chunks == 1) return process_frame(data, length);
 
@@ -107,9 +114,9 @@ struct decoder {
     return err;
   }
 
-  int process_frame(const uint8_t *data, int length) {
+  int process_frame(const uint8_t *data, size_t length) {
     _packet->data = (uint8_t *)data;
-    _packet->size = length;
+    _packet->size = (int)length;
     int err = avcodec_send_packet(_decoder_context, _packet);
     if (err) {
       fprintf(stderr, "avcodec_send_packet error: %i\n", err);
@@ -193,6 +200,7 @@ struct decoder {
   Image *_image{nullptr};
   SwsContext *_sws_context{nullptr};
   std::unique_ptr<uint8_t[]> _extra_data;
+  bool _initialized{false};
 
   bool _frame_ready{false};
   std::vector<uint8_t> _chunk_buffer;
@@ -219,8 +227,12 @@ int decoder_set_metadata(decoder *d, const char *codec_name,
   return d->set_metadata(codec_name, metadata, len);
 }
 
-int decoder_process_frame(decoder *d, const uint8_t *frame_data, size_t len) {
-  return d->process_frame(frame_data, len);
+int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
+                                  uint32_t rtp_timestamp, double ntp_timestamp,
+                                  const uint8_t *frame_data, size_t len,
+                                  int chunk, int chunks) {
+  // todo pass the rest of parameters too.
+  return d->process_frame_message(frame_data, len, chunk, chunks);
 }
 bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
 

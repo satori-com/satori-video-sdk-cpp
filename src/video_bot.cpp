@@ -167,9 +167,22 @@ void bot_environment::on_frame_data(const rapidjson::Value& msg) {
     return;
   }
 
+  auto t = msg["i"].GetArray();
+  int64_t i1 = t[0].GetInt64();
+  int64_t i2 = t[1].GetInt64();
+
+  uint32_t rtp_timestamp = (uint32_t)msg["rt"].GetInt();
+  double ntp_timestamp = msg["t"].GetDouble();
+
+  int chunk = 1, chunks = 1;
+  if (msg.HasMember("c")) {
+    chunk = msg["c"].GetInt();
+    chunks = msg["s"].GetInt();
+  }
   std::string frame_data = decode64(msg["d"].GetString());
-  decoder_process_frame(_decoder, (const uint8_t*)frame_data.data(),
-                        frame_data.size());
+  decoder_process_frame_message(_decoder, i1, i2, rtp_timestamp, ntp_timestamp,
+                                (const uint8_t*)frame_data.data(),
+                                frame_data.size(), chunk, chunks);
   if (decoder_frame_ready(_decoder)) {
     _bot_descriptor->callback(*_bot_context, decoder_image_data(_decoder),
                               decoder_image_width(_decoder),

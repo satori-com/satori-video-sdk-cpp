@@ -18,7 +18,11 @@ int decoder_set_metadata(decoder *d, const char *codec_name,
                          const uint8_t *metadata, size_t len);
 
 // returns 0 if successful.
-int decoder_process_frame(decoder *d, const uint8_t *frame_data, size_t len);
+// for single-chunk messages chunk=1, chunks=1.
+int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
+                                  uint32_t rtp_timestamp, double ntp_timestamp,
+                                  const uint8_t *frame_data, size_t len,
+                                  int chunk, int chunks);
 bool decoder_frame_ready(decoder *d);
 
 int decoder_image_height(decoder *d);

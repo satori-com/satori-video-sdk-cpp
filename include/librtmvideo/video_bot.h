@@ -1,22 +1,23 @@
 #pragma once
-#include <stdint.h>
+
 #include <cbor.h>
+#include <stdint.h>
 
 #include "rtmvideo.h"
 
 #if defined(BOT_DEBUG)
-# define BOT_DEBUG 1
+#define BOT_DEBUG 1
 #else
-# define BOT_DEBUG 0
+#define BOT_DEBUG 0
 #endif
 
 // Video bot API.
 extern "C" {
 struct bot_context;
 
-using bot_callback_t = void (*)(bot_context &context,
-                                const uint8_t *image, uint16_t width,
-                                uint16_t height, uint16_t linesize);
+using bot_callback_t = void (*)(bot_context &context, const uint8_t *image,
+                                uint16_t width, uint16_t height,
+                                uint16_t linesize);
 
 struct bot_descriptor {
   uint16_t image_width;

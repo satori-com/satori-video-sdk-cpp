@@ -31,33 +31,37 @@ static void fail(boost::system::error_code ec) {
   exit(1);
 }
 
-static rapidjson::Value cbor_to_json(const cbor_item_t *item, rapidjson::Document &document) {
+static rapidjson::Value cbor_to_json(const cbor_item_t *item,
+                                     rapidjson::Document &document) {
   rapidjson::Value a;
   switch (cbor_typeof(item)) {
     case CBOR_TYPE_NEGINT:
     case CBOR_TYPE_UINT:
-	  a = rapidjson::Value(cbor_get_int(item));
+      a = rapidjson::Value(cbor_get_int(item));
       break;
     case CBOR_TYPE_TAG:
     case CBOR_TYPE_BYTESTRING:
       BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
       break;
     case CBOR_TYPE_STRING:
-	  if (cbor_string_is_indefinite(item)) {
+      if (cbor_string_is_indefinite(item)) {
         BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
-	  } else {
+      } else {
         // unsigned char * -> char *
-        a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)), static_cast<int>(cbor_string_length(item)), document.GetAllocator());
-	  }
-	  break;
+        a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)),
+                    static_cast<int>(cbor_string_length(item)),
+                    document.GetAllocator());
+      }
+      break;
     case CBOR_TYPE_ARRAY:
       a = rapidjson::Value(rapidjson::kArrayType);
-	  for (size_t i = 0; i < cbor_array_size(item); i++)
-        a.PushBack(cbor_to_json(cbor_array_handle(item)[i], document), document.GetAllocator());
+      for (size_t i = 0; i < cbor_array_size(item); i++)
+        a.PushBack(cbor_to_json(cbor_array_handle(item)[i], document),
+                   document.GetAllocator());
       break;
     case CBOR_TYPE_MAP:
       a = rapidjson::Value(rapidjson::kObjectType);
-	  for (size_t i = 0; i < cbor_map_size(item); i++)
+      for (size_t i = 0; i < cbor_map_size(item); i++)
         a.AddMember(cbor_to_json(cbor_map_handle(item)[i].key, document),
                     cbor_to_json(cbor_map_handle(item)[i].value, document),
                     document.GetAllocator());
@@ -95,14 +99,12 @@ struct subscribe_request {
     body["channel"].SetString(channel.c_str(), channel.length(),
                               document.GetAllocator());
     body["subscription_id"].SetString(channel.c_str(), channel.length(),
-                              document.GetAllocator());
+                                      document.GetAllocator());
 
     if (age || count) {
       rapidjson::Value history(rapidjson::kObjectType);
-      if (age)
-        history.AddMember("age", *age, document.GetAllocator());
-      if (count)
-        history.AddMember("count", *count, document.GetAllocator());
+      if (age) history.AddMember("age", *age, document.GetAllocator());
+      if (count) history.AddMember("count", *count, document.GetAllocator());
 
       body.AddMember("history", history, document.GetAllocator());
     }
@@ -145,7 +147,7 @@ class secure_client : public client {
 
   void publish(const std::string &channel, const cbor_item_t *message,
                publish_callbacks *callbacks) override {
-    BOOST_VERIFY_MSG(callbacks==nullptr, "NOT IMPLEMENTED");
+    BOOST_VERIFY_MSG(callbacks == nullptr, "NOT IMPLEMENTED");
     rapidjson::Document document;
     constexpr const char *tmpl =
         R"({"action":"rtm/publish",
@@ -156,7 +158,8 @@ class secure_client : public client {
     body["channel"].SetString(channel.c_str(), channel.length(),
                               document.GetAllocator());
 
-    body.AddMember("message", cbor_to_json(message, document), document.GetAllocator());
+    body.AddMember("message", cbor_to_json(message, document),
+                   document.GetAllocator());
 
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
@@ -167,8 +170,8 @@ class secure_client : public client {
   void subscribe_channel(const std::string &channel, subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
-    _subscriptions.emplace(std::make_pair(channel,
-                                          subscription_impl{sub, callbacks}));
+    _subscriptions.emplace(
+        std::make_pair(channel, subscription_impl{sub, callbacks}));
 
     rapidjson::Document document;
     subscribe_request req{++_request_id, channel};

@@ -1,13 +1,13 @@
 // RTM client interface definition.
 #pragma once
 
+#include <cbor.h>
 #include <rapidjson/document.h>
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/assert.hpp>
 #include <boost/optional.hpp>
-#include <cbor.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -60,10 +60,8 @@ struct publish_callbacks : public error_callbacks {
 struct publisher {
   virtual ~publisher() = default;
 
-  virtual void publish(const std::string &channel,
-                       const cbor_item_t *message,
+  virtual void publish(const std::string &channel, const cbor_item_t *message,
                        publish_callbacks *callbacks = nullptr) = 0;
-
 };
 
 // Subscription interface of RTM.
