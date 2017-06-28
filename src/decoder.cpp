@@ -1,6 +1,7 @@
 #include "librtmvideo/decoder.h"
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 extern "C" {
