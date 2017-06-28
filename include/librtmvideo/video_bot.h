@@ -4,6 +4,12 @@
 
 #include "rtmvideo.h"
 
+#if defined(BOT_DEBUG)
+# define BOT_DEBUG 1
+#else
+# define BOT_DEBUG 0
+#endif
+
 // Video bot API.
 extern "C" {
 struct bot_context;
