@@ -11,8 +11,12 @@ ExternalProject_Add(
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND mkdir ${LIBCBOR_PREFIX}/build &&
                           cd ${LIBCBOR_PREFIX}/build &&
-                          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${LIBCBOR_PREFIX}/install ${LIBCBOR_PREFIX}/src/project_libcbor
-        BUILD_COMMAND make -C ${LIBCBOR_PREFIX}/build -j8
+                          cmake -DCMAKE_BUILD_TYPE=Release
+                                -DCMAKE_INSTALL_PREFIX=${LIBCBOR_PREFIX}/install
+                                -DCMAKE_INSTALL_LIBDIR=lib
+                                -DCMAKE_C_FLAGS=-fPIC
+                                ${LIBCBOR_PREFIX}/src/project_libcbor
+        BUILD_COMMAND make -C ${LIBCBOR_PREFIX}/build -j8 cbor cbor_shared
         INSTALL_COMMAND make -C ${LIBCBOR_PREFIX}/build install
         BUILD_BYPRODUCTS ${LIBCBOR_PREFIX}/install/lib/libcbor.a
 

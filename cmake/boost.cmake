@@ -11,7 +11,7 @@ ExternalProject_Add(
         URL_HASH SHA256=0445c22a5ef3bd69f5dfb48354978421a85ab395254a26b1ffb0aa1bfd63a108
         PREFIX ${BoostPrefix}
         CONFIGURE_COMMAND bash -c "./bootstrap.sh --prefix=<INSTALL_DIR> --with-libraries=system,regex,program_options"
-        BUILD_COMMAND bash -c "./b2 --build-dir=<TMP_DIR>"
+        BUILD_COMMAND bash -c "./b2 cxxflags=-fPIC --build-dir=<TMP_DIR>"
         INSTALL_COMMAND bash -c "./b2 --install --build-dir=<TMP_DIR>"
         BUILD_IN_SOURCE 1
         BUILD_BYPRODUCTS 

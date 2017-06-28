@@ -16,6 +16,7 @@ ExternalProject_Add(
         CONFIGURE_COMMAND ${FFMPEG_PREFIX}/src/ffmpeg/configure --prefix=${FFMPEG_PREFIX}
                           --disable-programs --disable-everything
                           --enable-decoder=h264 --enable-decoder=mjpeg
+                          --enable-pic
                           ${FFMPEG_CONFIGURE_ARGS}
         BUILD_COMMAND make -j8
         INSTALL_COMMAND make install
