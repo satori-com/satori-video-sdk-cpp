@@ -6,6 +6,7 @@ IF(CMAKE_BUILD_TYPE MATCHES Debug)
     message("*** Building Debug Version of ffmpeg")
     set(FFMPEG_CONFIGURE_ARGS --disable-optimizations --disable-mmx --disable-stripping --enable-debug=3)
 ENDIF()
+
 ExternalProject_Add(
         ffmpeg
         PREFIX ${FFMPEG_PREFIX}
@@ -13,7 +14,8 @@ ExternalProject_Add(
         GIT_TAG n3.3
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ${FFMPEG_PREFIX}/src/ffmpeg/configure --prefix=${FFMPEG_PREFIX}
-                          --disable-programs --disable-everything --enable-decoder=h264
+                          --disable-programs --disable-everything
+                          --enable-decoder=h264 --enable-decoder=mjpeg
                           ${FFMPEG_CONFIGURE_ARGS}
         BUILD_COMMAND make -j8
         INSTALL_COMMAND make install
