@@ -15,16 +15,16 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include "bot_environment.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
-#include "bot_environment.h"
 
 namespace asio = boost::asio;
 
 struct bot_context {
-  rtm::video::bot_environment *env;
+  rtm::video::bot_environment& env;
   std::list<rtm::video::bot_message> message_buffer;
 };
 
@@ -55,20 +55,18 @@ bot_environment& bot_environment::instance() {
 }
 
 void bot_environment::register_bot(const bot_descriptor* bot) {
-  assert(!_bot);
-  _bot = bot;
-  _ctx = new bot_instance();
-  _ctx->env = this;
+  assert(!_bot_descriptor);
+  _bot_descriptor = bot;
 }
 
 int bot_environment::main(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed options");
   desc.add_options()("help", "produce help message")(
-        "endpoint", po::value<std::string>(), "app endpoint")(
-        "appkey", po::value<std::string>(), "app key")(
-        "channel", po::value<std::string>(), "channel")(
-        "port", po::value<std::string>(), "port");
+      "endpoint", po::value<std::string>(), "app endpoint")(
+      "appkey", po::value<std::string>(), "app key")(
+      "channel", po::value<std::string>(), "channel")(
+      "port", po::value<std::string>(), "port");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -120,17 +118,16 @@ int bot_environment::main(int argc, char* argv[]) {
   subscription_options metadata_options;
   metadata_options.history.count = 1;
   _client->subscribe_channel(channel + metadata_channel_suffix,
-                             _metadata_subscription, *this,
-                             &metadata_options);
+                             _metadata_subscription, *this, &metadata_options);
 
   _channel = channel;
+  _bot_context = new bot_context{*this};
 
   boost::asio::signal_set signals(io_service);
   signals.add(SIGINT);
   signals.add(SIGTERM);
   signals.add(SIGQUIT);
-  signals.async_wait(
-      boost::bind(&boost::asio::io_service::stop, &io_service));
+  signals.async_wait(boost::bind(&boost::asio::io_service::stop, &io_service));
 
   io_service.run();
 
@@ -142,7 +139,7 @@ void bot_environment::on_error(error e, const std::string& msg) {
 }
 
 void bot_environment::on_data(const subscription& sub,
-           const rapidjson::Value& value) {
+                              const rapidjson::Value& value) {
   if (&sub == &_metadata_subscription)
     on_metadata(value);
   else if (&sub == &_frames_subscription)
@@ -153,8 +150,9 @@ void bot_environment::on_data(const subscription& sub,
 
 void bot_environment::on_metadata(const rapidjson::Value& msg) {
   if (!_decoder) {
-    _decoder = decoder_new(_bot->image_width, _bot->image_height,
-                         _bot->pixel_format);
+    _decoder =
+        decoder_new(_bot_descriptor->image_width, _bot_descriptor->image_height,
+                    _bot_descriptor->pixel_format);
     BOOST_VERIFY(_decoder);
   }
 
@@ -173,11 +171,10 @@ void bot_environment::on_frame_data(const rapidjson::Value& msg) {
   decoder_process_frame(_decoder, (const uint8_t*)frame_data.data(),
                         frame_data.size());
   if (decoder_frame_ready(_decoder)) {
-    _bot->callback(*_ctx,
-                 decoder_image_data(_decoder),
-                 decoder_image_width(_decoder),
-                 decoder_image_height(_decoder),
-                 decoder_image_line_size(_decoder));
+    _bot_descriptor->callback(*_bot_context, decoder_image_data(_decoder),
+                              decoder_image_width(_decoder),
+                              decoder_image_height(_decoder),
+                              decoder_image_line_size(_decoder));
     send_messages();
   }
 }
@@ -195,23 +192,26 @@ void bot_environment::send_message(bot_message message) {
 }
 
 void bot_environment::send_messages() {
-  for (std::list<bot_message>::iterator it = _ctx->message_buffer.begin(); it != _ctx->message_buffer.end(); it++)
+  for (std::list<bot_message>::iterator it =
+           _bot_context->message_buffer.begin();
+       it != _bot_context->message_buffer.end(); it++)
     send_message(*it);
-  _ctx->message_buffer.clear();
+  _bot_context->message_buffer.clear();
 }
 
-void bot_environment::store_bot_message(const bot_message_kind kind, cbor_item_t *message) {
+void bot_environment::store_bot_message(const bot_message_kind kind,
+                                        cbor_item_t* message) {
   bot_message newmsg{message, kind};
   cbor_incref(message);
-  _ctx->message_buffer.push_back(newmsg);
+  _bot_context->message_buffer.push_back(newmsg);
 }
 
-}
-}
+}  // namespace video
+}  // namespace rtm
 
-void rtm_video_bot_message(bot_instance &ctx, const bot_message_kind kind,
-                           cbor_item_t *message) {
-  ctx.env->store_bot_message(kind, message);
+void rtm_video_bot_message(bot_instance& ctx, const bot_message_kind kind,
+                           cbor_item_t* message) {
+  ctx.env.store_bot_message(kind, message);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {
