@@ -1,5 +1,10 @@
 #pragma once
 
+#include "librtmvideo/decoder.h"
+#include "librtmvideo/rtmvideo.h"
+#include "librtmvideo/video_bot.h"
+#include "rtmclient.h"
+
 namespace rtm {
 namespace video {
 
