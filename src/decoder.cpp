@@ -10,6 +10,8 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include "librtmvideo/base.h"
+
 namespace {
 struct Image {
   AVPixelFormat format;
@@ -206,10 +208,10 @@ struct decoder {
   std::vector<uint8_t> _chunk_buffer;
 };
 
-extern "C" {
-void decoder_init_library() { decoder::init_library(); }
+EXPORT void decoder_init_library() { decoder::init_library(); }
 
-decoder *decoder_new(int width, int height, image_pixel_format pixel_format) {
+EXPORT decoder *decoder_new(int width, int height,
+                            image_pixel_format pixel_format) {
   std::unique_ptr<decoder> d(
       new decoder(width, height, to_av_pixel_format(pixel_format)));
   int err = d->init();
@@ -220,24 +222,24 @@ decoder *decoder_new(int width, int height, image_pixel_format pixel_format) {
   return d.release();
 }
 
-void decoder_delete(decoder *d) { delete d; }
+EXPORT void decoder_delete(decoder *d) { delete d; }
 
-int decoder_set_metadata(decoder *d, const char *codec_name,
-                         const uint8_t *metadata, size_t len) {
+EXPORT int decoder_set_metadata(decoder *d, const char *codec_name,
+                                const uint8_t *metadata, size_t len) {
   return d->set_metadata(codec_name, metadata, len);
 }
 
-int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
-                                  uint32_t rtp_timestamp, double ntp_timestamp,
-                                  const uint8_t *frame_data, size_t len,
-                                  int chunk, int chunks) {
+EXPORT int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
+                                         uint32_t rtp_timestamp,
+                                         double ntp_timestamp,
+                                         const uint8_t *frame_data, size_t len,
+                                         int chunk, int chunks) {
   // todo pass the rest of parameters too.
   return d->process_frame_message(frame_data, len, chunk, chunks);
 }
-bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
+EXPORT bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
 
-int decoder_image_height(decoder *d) { return d->image_height(); }
-int decoder_image_width(decoder *d) { return d->image_width(); }
-int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
-const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
-}
+EXPORT int decoder_image_height(decoder *d) { return d->image_height(); }
+EXPORT int decoder_image_width(decoder *d) { return d->image_width(); }
+EXPORT int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
+EXPORT const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }

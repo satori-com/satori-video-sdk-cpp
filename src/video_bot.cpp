@@ -18,8 +18,10 @@ extern "C" {
 #include "bot_environment.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmvideo.h"
+#include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
+#include "tele_impl.h"
 
 namespace asio = boost::asio;
 
@@ -33,12 +35,16 @@ using bot_instance = bot_context;
 namespace rtm {
 namespace video {
 
-static std::string to_string(const rapidjson::Value& d) {
-  rapidjson::StringBuffer buffer;
-  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-  d.Accept(writer);
-  return std::string(buffer.GetString());
-}
+namespace {
+
+tele::counter* frames_received =
+    tele::counter_new("vbot", "frames_received");
+tele::counter* messages_received =
+    tele::counter_new("vbot", "messages_received");
+tele::counter* bytes_received =
+    tele::counter_new("vbot", "bytes_received");
+tele::counter* metadata_received =
+    tele::counter_new("vbot", "metadata_received");
 
 std::string decode64(const std::string& val) {
   using namespace boost::archive::iterators;
@@ -48,6 +54,8 @@ std::string decode64(const std::string& val) {
       std::string(It(std::begin(val)), It(std::end(val))),
       [](char c) { return c == '\0'; });
 }
+
+}  // namespace
 
 bot_environment& bot_environment::instance() {
   static bot_environment env;
@@ -123,6 +131,8 @@ int bot_environment::main(int argc, char* argv[]) {
   _channel = channel;
   _bot_context = new bot_context{*this};
 
+  tele::publisher tele_publisher(*_client, io_service);
+
   boost::asio::signal_set signals(io_service);
   signals.add(SIGINT);
   signals.add(SIGTERM);
@@ -149,6 +159,7 @@ void bot_environment::on_data(const subscription& sub,
 }
 
 void bot_environment::on_metadata(const rapidjson::Value& msg) {
+  tele::counter_inc(metadata_received);
   if (!_decoder) {
     _decoder =
         decoder_new(_bot_descriptor->image_width, _bot_descriptor->image_height,
@@ -156,13 +167,15 @@ void bot_environment::on_metadata(const rapidjson::Value& msg) {
     BOOST_VERIFY(_decoder);
   }
 
-  std::string codec_data = decode64(msg["codecData"].GetString());
+  std::string codec_data = msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
   decoder_set_metadata(_decoder, msg["codecName"].GetString(),
                        (const uint8_t*)codec_data.data(), codec_data.size());
   std::cout << "Video decoder initialized\n";
 }
 
 void bot_environment::on_frame_data(const rapidjson::Value& msg) {
+  tele::counter_inc(messages_received);
+
   if (!_decoder) {
     return;
   }
@@ -177,19 +190,30 @@ void bot_environment::on_frame_data(const rapidjson::Value& msg) {
   int chunk = 1, chunks = 1;
   if (msg.HasMember("c")) {
     chunk = msg["c"].GetInt();
-    chunks = msg["s"].GetInt();
+    chunks = msg["l"].GetInt();
   }
-  std::string frame_data = decode64(msg["d"].GetString());
+
+  const char *encoded_data = msg["d"].GetString();
+  tele::counter_inc(bytes_received, strlen(encoded_data));
+  std::string frame_data = decode64(encoded_data);
   decoder_process_frame_message(_decoder, i1, i2, rtp_timestamp, ntp_timestamp,
                                 (const uint8_t*)frame_data.data(),
                                 frame_data.size(), chunk, chunks);
+
   if (decoder_frame_ready(_decoder)) {
+    tele::counter_inc(frames_received);
     _bot_descriptor->callback(*_bot_context, decoder_image_data(_decoder),
                               decoder_image_width(_decoder),
                               decoder_image_height(_decoder),
                               decoder_image_line_size(_decoder));
-    send_messages();
   }
+
+  send_messages();
+}
+
+void bot_environment::send_messages() {
+  for (const auto& msg : _bot_context->message_buffer) send_message(msg);
+  _bot_context->message_buffer.clear();
 }
 
 void bot_environment::send_message(bot_message message) {
@@ -202,14 +226,6 @@ void bot_environment::send_message(bot_message message) {
       break;
   }
   cbor_decref(&message.data);
-}
-
-void bot_environment::send_messages() {
-  for (std::list<bot_message>::iterator it =
-           _bot_context->message_buffer.begin();
-       it != _bot_context->message_buffer.end(); it++)
-    send_message(*it);
-  _bot_context->message_buffer.clear();
 }
 
 void bot_environment::store_bot_message(const bot_message_kind kind,
