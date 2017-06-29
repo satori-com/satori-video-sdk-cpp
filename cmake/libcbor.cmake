@@ -20,7 +20,7 @@ ExternalProject_Add(
 
 set(LIBCBOR_ROOT ${LIBCBOR_PREFIX}/install)
 set(LIBCBOR_ROOT ${LIBCBOR_PREFIX}/install PARENT_SCOPE)
-include_directories(${LIBCBOR_PREFIX}/install/include)
+set(LIBCBOR_INCLUDE_DIRS ${LIBCBOR_PREFIX}/install/include)
 
 add_library(libcbor STATIC IMPORTED)
 add_dependencies(libcbor project_cbor)

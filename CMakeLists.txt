@@ -18,4 +18,7 @@ add_dependencies(rtmvideo boost openssl rapidjson ffmpeg gsl beast project_libcb
 target_link_libraries(rtmvideo
     PRIVATE ssl crypto boost_system boost_regex boost_program_options avcodec avutil iconv swscale ${LIBCBOR_LIBS})
 target_include_directories(rtmvideo
-    PUBLIC include)
+    PUBLIC include ${LIBCBOR_INCLUDE_DIRS})
+
+set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} PARENT_SCOPE)
+set(LIBRTMVIDEO_LIBRARIES rtmvideo ${LIBCBOR_LIBRARIES} PARENT_SCOPE)
