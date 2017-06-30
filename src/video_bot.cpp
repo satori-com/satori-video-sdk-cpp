@@ -136,7 +136,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   _bot_context = new bot_context{*this};
 
-  {
+  if (_bot_descriptor->cmd_callback) {
     cbor_item_t* config;
 
     if (vm.count("config")) {

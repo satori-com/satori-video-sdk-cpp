@@ -13,7 +13,7 @@ add_library(rtmvideo SHARED
     src/decoder.cpp
     src/rtmclient.cpp
     src/tele.cpp
-    src/cbor_cmd.cpp
+    src/cbor_map.cpp
     src/video_bot.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 add_dependencies(rtmvideo boost openssl rapidjson ffmpeg gsl beast project_libcbor)

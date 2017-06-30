@@ -9,21 +9,22 @@
 // Video bot API.
 EXPORT struct bot_context;
 
-using bot_img_callback_t = void (*)(bot_context &context,
-                                const uint8_t *image, uint16_t width,
-                                uint16_t height, uint16_t linesize);
+using bot_img_callback_t = void (*)(bot_context &context, const uint8_t *image,
+                                    uint16_t width, uint16_t height,
+                                    uint16_t linesize);
 
-using bot_msg_callback_t = void (*)(bot_context &context,
-                                    cbor_item_t *message);
+using bot_msg_callback_t = void (*)(bot_context &context, cbor_item_t *message);
 
 struct bot_descriptor {
   uint16_t image_width;
   uint16_t image_height;
   image_pixel_format pixel_format;
-// Image callback is invoked on every received frame
+
+  // Image callback is invoked on every received frame
   bot_img_callback_t img_callback;
-// Command callback is invoked before the first frame with a map
-// {"action": "configure", "body":{<configure_parameters if specified>}}
+
+  // Command callback is invoked before the first frame with a map
+  // {"action": "configure", "body":{<configure_parameters if specified>}}
   bot_msg_callback_t cmd_callback;
 };
 
