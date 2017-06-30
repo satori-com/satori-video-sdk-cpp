@@ -1,4 +1,5 @@
 #include <rapidjson/document.h>
+#include <rapidjson/filereadstream.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <boost/algorithm/string.hpp>
@@ -8,6 +9,7 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/program_options.hpp>
+#include <boost/scope_exit.hpp>
 #include <iostream>
 #include <string>
 
@@ -54,8 +56,30 @@ std::string decode64(const std::string& val) {
       std::string(It(std::begin(val)), It(std::end(val))),
       [](char c) { return c == '\0'; });
 }
+}
 
-}  // namespace
+cbor_item_t* json_object_to_cbor(rapidjson::Document& d) {
+  cbor_item_t* message = cbor_new_definite_map(d.Capacity());
+  for (auto& m : d.GetObject()) {
+    cbor_map_add(
+        message,
+        (struct cbor_pair){
+            .key = cbor_move(cbor_build_string(m.name.GetString())),
+            .value = cbor_move(cbor_build_string(m.value.GetString()))});
+  }
+  return message;
+}
+
+cbor_item_t* configure_command(cbor_item_t* config) {
+  cbor_item_t* cmd = cbor_new_definite_map(2);
+  cbor_map_add(cmd, (struct cbor_pair){
+                        .key = cbor_move(cbor_build_string("action")),
+                        .value = cbor_move(cbor_build_string("configure"))});
+  cbor_map_add(cmd,
+               (struct cbor_pair){.key = cbor_move(cbor_build_string("body")),
+                                  .value = config});
+  return cmd;
+}
 
 bot_environment& bot_environment::instance() {
   static bot_environment env;
@@ -74,7 +98,8 @@ int bot_environment::main(int argc, char* argv[]) {
       "endpoint", po::value<std::string>(), "app endpoint")(
       "appkey", po::value<std::string>(), "app key")(
       "channel", po::value<std::string>(), "channel")(
-      "port", po::value<std::string>(), "port");
+      "port", po::value<std::string>(), "port")(
+      "config", po::value<std::string>(), "bot config file");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -109,6 +134,37 @@ int bot_environment::main(int argc, char* argv[]) {
     return 1;
   }
 
+  _bot_context = new bot_context{*this};
+
+  {
+    cbor_item_t* config;
+
+    if (vm.count("config")) {
+      FILE* fp = fopen(vm["config"].as<std::string>().c_str(), "r");
+      assert(fp);
+      BOOST_SCOPE_EXIT(&fp) { fclose(fp); }
+      BOOST_SCOPE_EXIT_END
+
+      char readBuffer[65536];
+      rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+      rapidjson::Document d;
+      d.ParseStream(is);
+
+      config = json_object_to_cbor(d);
+    } else {
+      config = cbor_new_definite_map(0);
+    }
+    cbor_item_t* cmd = configure_command(config);
+
+    BOOST_SCOPE_EXIT(&config, &cmd) {
+      cbor_decref(&config);
+      cbor_decref(&cmd);
+    }
+    BOOST_SCOPE_EXIT_END
+
+    _bot_descriptor->cmd_callback(*_bot_context, cmd);
+  }
+
   const std::string endpoint = vm["endpoint"].as<std::string>();
   const std::string appkey = vm["appkey"].as<std::string>();
   const std::string channel = vm["channel"].as<std::string>();
@@ -129,7 +185,6 @@ int bot_environment::main(int argc, char* argv[]) {
                              _metadata_subscription, *this, &metadata_options);
 
   _channel = channel;
-  _bot_context = new bot_context{*this};
 
   tele::publisher tele_publisher(*_client, io_service);
 
@@ -202,13 +257,12 @@ void bot_environment::on_frame_data(const rapidjson::Value& msg) {
 
   if (decoder_frame_ready(_decoder)) {
     tele::counter_inc(frames_received);
-    _bot_descriptor->callback(*_bot_context, decoder_image_data(_decoder),
-                              decoder_image_width(_decoder),
-                              decoder_image_height(_decoder),
-                              decoder_image_line_size(_decoder));
+    _bot_descriptor->img_callback(*_bot_context, decoder_image_data(_decoder),
+                                  decoder_image_width(_decoder),
+                                  decoder_image_height(_decoder),
+                                  decoder_image_line_size(_decoder));
+    send_messages();
   }
-
-  send_messages();
 }
 
 void bot_environment::send_messages() {
@@ -217,6 +271,9 @@ void bot_environment::send_messages() {
 }
 
 void bot_environment::send_message(bot_message message) {
+  BOOST_SCOPE_EXIT(&message) { cbor_decref(&message.data); }
+  BOOST_SCOPE_EXIT_END
+
   switch (message.kind) {
     case bot_message_kind::ANALYSIS:
       _client->publish(_channel + analysis_channel_suffix, message.data);
@@ -225,7 +282,6 @@ void bot_environment::send_message(bot_message message) {
       _client->publish(_channel + debug_channel_suffix, message.data);
       break;
   }
-  cbor_decref(&message.data);
 }
 
 void bot_environment::store_bot_message(const bot_message_kind kind,
