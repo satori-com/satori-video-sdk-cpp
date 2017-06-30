@@ -2,10 +2,6 @@
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-#include <boost/algorithm/string.hpp>
-#include <boost/archive/iterators/base64_from_binary.hpp>
-#include <boost/archive/iterators/binary_from_base64.hpp>
-#include <boost/archive/iterators/transform_width.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/program_options.hpp>
@@ -23,6 +19,7 @@ extern "C" {
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
+#include "base64.h"
 #include "rtmclient.h"
 #include "tele_impl.h"
 
@@ -39,18 +36,6 @@ tele::counter* messages_received =
 tele::counter* bytes_received = tele::counter_new("vbot", "bytes_received");
 tele::counter* metadata_received =
     tele::counter_new("vbot", "metadata_received");
-
-std::string decode64(const std::string& val) {
-  using namespace boost::archive::iterators;
-  using It =
-      transform_width<binary_from_base64<std::string::const_iterator>, 8, 6>;
-  auto decoded = std::string(It(std::begin(val)), It(std::end(val)));
-  auto padding = val.find("=");
-  if (padding == std::string::npos) {
-    return decoded;
-  }
-  return decoded.substr(0, decoded.size() - padding);
-}
 
 struct bot_message {
   cbor_item_t* data;

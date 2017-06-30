@@ -9,13 +9,17 @@ set(FFMPEG_CONFIGURE_ARGS
         --prefix=${FFMPEG_PREFIX}
         --enable-pic
         "--extra-ldflags=-L${LIBVPX_LIB_DIR} -lvpx" --extra-cflags=-I${LIBVPX_INCLUDE_DIR}
-        --enable-pic
         --disable-all --disable-programs --disable-everything --disable-sdl2
-        --enable-avcodec --enable-avutil --enable-swscale
+        --enable-avcodec --enable-avdevice --enable-avformat --enable-avutil --enable-swscale
 
         --enable-libvpx
         --enable-decoder=h264 --enable-decoder=mjpeg
         --enable-decoder=libvpx_vp9 --enable-encoder=libvpx_vp9
+        --enable-decoder=rawvideo
+        --enable-demuxer=mov
+        --enable-encoder=jpeg2000 --enable-encoder=mjpeg
+        --enable-protocol=file
+        --enable-indev=avfoundation
     )
     
 set(FFMPEG_PATCH_COMMAND )
@@ -59,6 +63,7 @@ ExternalProject_Add(
 )
 
 set(FFMPEG_FOUND 1)
+set(FFMPEG_LIB_DIR ${FFMPEG_PREFIX}/lib/)
 set(FFMPEG_INCLUDE_DIR ${FFMPEG_PREFIX}/include/)
 
 add_library(avcodec STATIC IMPORTED)

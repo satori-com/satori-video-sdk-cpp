@@ -20,20 +20,54 @@ add_dependencies(project_ffmpeg project_libvpx)
 
 add_subdirectory(decoder)
 
+find_package(ZLIB REQUIRED)
+
 add_library(rtmvideo SHARED
     src/rtmclient.cpp
     src/cbor_json.cpp
     src/tele.cpp
     src/cbor_map.cpp
-    src/video_bot.cpp)
+    src/video_bot.cpp
+    src/video_source.cpp
+    src/video_source_file.cpp
+    src/video_source_camera.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 add_dependencies(rtmvideo boost openssl rapidjson gsl beast)
 target_link_libraries(rtmvideo
-    PRIVATE ssl crypto boost_system boost_regex boost_program_options avcodec avutil swscale rtmvideo-decoder ${ICONV_LIBRARY} ${LIBCBOR_LIBS} ${LIBVPX_LIBS})
+    PRIVATE ssl crypto boost_system boost_regex boost_program_options avdevice avformat swscale rtmvideo-decoder
+    ${LIBCBOR_LIBS}
+    ${ZLIB_LIBRARIES})
+target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
+
+if(APPLE)
+    target_link_libraries(rtmvideo PRIVATE
+    iconv
+    "-framework AVFoundation"
+    "-framework CoreGraphics"
+    "-framework CoreMedia"
+    "-framework Foundation"
+    "-framework QuartzCore")
+endif()
+
 target_include_directories(rtmvideo
-    PRIVATE ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR}
+    PRIVATE ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS}
     PUBLIC include)
 
-set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder pthread dl cbor vpx PARENT_SCOPE)
-set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR} ${LIBVPX_LIB_DIR} PARENT_SCOPE)
+set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR})
+set(LIBRTMVIDEO_INCLUDE_DIRS ${LIBRTMVIDEO_INCLUDE_DIRS} PARENT_SCOPE)
+set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder pthread dl cbor vpx)
+set(LIBRTMVIDEO_LIBRARIES ${LIBRTMVIDEO_LIBRARIES} PARENT_SCOPE)
+set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR} ${LIBVPX_LIB_DIR})
+set(LIBRTMVIDEO_LIB_DIRS ${LIBRTMVIDEO_LIB_DIRS} PARENT_SCOPE)
+
+link_directories(${LIBRTMVIDEO_LIB_DIRS})
+add_executable(rtmvideo_publisher_cli
+    src/rtmvideo_publisher_cli.cpp)
+set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
+set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
+add_dependencies(rtmvideo_publisher_cli rtmvideo)
+target_include_directories(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_INCLUDE_DIRS})
+target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBCBOR_LIBS} rtmvideo)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES})
+endif()
