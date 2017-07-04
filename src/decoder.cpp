@@ -29,7 +29,7 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
     case image_pixel_format::RGB0:
       return AV_PIX_FMT_RGB0;
     default:
-      fprintf(stderr, "Unsupported pixel format: %d\n", pixel_format);
+      fprintf(stderr, "Unsupported pixel format: %d\n", (int)pixel_format);
       return AV_PIX_FMT_BGR24;
   }
 }

@@ -1,7 +1,7 @@
 # libcbor is a C library for parsing and generating CBOR, the general-purpose schema-less binary data format
 
 set(LIBCBOR_PREFIX ${CMAKE_BINARY_DIR}/libcbor)
-set(LIBCBOR_LIBS ${LIBCBOR_PREFIX}/install/lib/libcbor.a)
+set(LIBCBOR_LIBS libcbor)
 
 ExternalProject_Add(
         project_libcbor
@@ -9,7 +9,7 @@ ExternalProject_Add(
         GIT_REPOSITORY https://github.com/PJK/libcbor.git
         GIT_TAG v0.5.0
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND mkdir ${LIBCBOR_PREFIX}/build &&
+        CONFIGURE_COMMAND mkdir -p ${LIBCBOR_PREFIX}/build &&
                           cd ${LIBCBOR_PREFIX}/build &&
                           cmake -DCMAKE_BUILD_TYPE=Release
                                 -DCMAKE_INSTALL_PREFIX=${LIBCBOR_PREFIX}/install
@@ -25,6 +25,7 @@ ExternalProject_Add(
 set(LIBCBOR_ROOT ${LIBCBOR_PREFIX}/install)
 set(LIBCBOR_ROOT ${LIBCBOR_PREFIX}/install PARENT_SCOPE)
 set(LIBCBOR_INCLUDE_DIRS ${LIBCBOR_PREFIX}/install/include)
+set(LIBCBOR_LIB_DIRS ${LIBCBOR_PREFIX}/install/lib/)
 
 add_library(libcbor STATIC IMPORTED)
 add_dependencies(libcbor project_cbor)
