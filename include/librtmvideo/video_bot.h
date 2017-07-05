@@ -7,7 +7,10 @@
 #include "rtmvideo.h"
 
 // Video bot API.
-EXPORT struct bot_context;
+EXPORT struct bot_context {
+  // bot implementation can store state in the field.
+  void *instance_data{nullptr};
+};
 
 using bot_img_callback_t = void (*)(bot_context &context, const uint8_t *image,
                                     uint16_t width, uint16_t height,

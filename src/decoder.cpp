@@ -1,6 +1,7 @@
 #include "librtmvideo/decoder.h"
 
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -60,6 +61,15 @@ struct decoder {
   static void init_library() {
     av_log_set_level(AV_LOG_VERBOSE);
     avcodec_register_all();
+    std::cout << "libavcodec initialized.\n";
+    AVCodec *c{nullptr};
+    do {
+      c = av_codec_next(c);
+      if (!c) break;
+      std::cout << "Available codec: " << c->name
+                << " is_encoder=" << av_codec_is_encoder(c)
+                << " is_decoder=" << av_codec_is_decoder(c) << "\n";
+    } while (1);
   }
 
   int init() {

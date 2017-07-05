@@ -20,7 +20,8 @@ ExternalProject_Add(
                 ${BOOST_LIB_DIR}/libboost_program_options.a
 )
 
-include_directories(${BOOST_ROOT_DIR}/src/boost/)
+set(BOOST_INCLUDE_DIRS ${BOOST_ROOT_DIR}/src/boost/)
+set(BOOST_INCLUDE_DIRS ${BOOST_ROOT_DIR}/src/boost/ PARENT_SCOPE)
 
 add_library(boost_system STATIC IMPORTED)
 add_dependencies(boost_system boost)
