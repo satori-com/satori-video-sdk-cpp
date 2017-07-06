@@ -6,8 +6,7 @@ set(FFMPEG_CONFIGURE_ARGS
         --disable-programs --disable-everything
         --enable-libvpx
         --enable-decoder=h264 --enable-decoder=mjpeg
-        --enable-decoder=libvpx_vp8 --enable-decoder=libvpx_vp9
-        --enable-encoder=libvpx_vp8 --enable-encoder=libvpx_vp9
+        --enable-decoder=libvpx_vp9 --enable-encoder=libvpx_vp9
         --enable-pic
     )
 
@@ -35,7 +34,7 @@ ExternalProject_Add(
             ${FFMPEG_PREFIX}/lib/libswscale.a            
 )
 
-include_directories(${FFMPEG_PREFIX}/include/)
+set(FFMPEG_INCLUDE_DIR ${FFMPEG_PREFIX}/include/)
 
 add_library(avcodec STATIC IMPORTED)
 add_dependencies(avcodec project_ffmpeg)

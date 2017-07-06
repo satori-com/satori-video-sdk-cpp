@@ -35,9 +35,9 @@ add_dependencies(rtmvideo boost openssl rapidjson gsl beast)
 target_link_libraries(rtmvideo
     PRIVATE ssl crypto boost_system boost_regex boost_program_options avcodec avutil swscale ${ICONV_LIBRARY} ${LIBCBOR_LIBS} ${LIBVPX_LIBS})
 target_include_directories(rtmvideo
-    PRIVATE ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS}
+    PRIVATE ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR}
     PUBLIC include)
 
-set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} PARENT_SCOPE)
+set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR} PARENT_SCOPE)
 set(LIBRTMVIDEO_LIBRARIES rtmvideo pthread dl cbor vpx PARENT_SCOPE)
 set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR} ${LIBVPX_LIB_DIR} PARENT_SCOPE)
