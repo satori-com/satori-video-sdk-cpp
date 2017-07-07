@@ -252,7 +252,7 @@ class secure_client : public client {
       boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
   uint64_t _request_id{0};
-  beast::multi_buffer _read_buffer{65 * 1024};
+  beast::multi_buffer _read_buffer{100000};
   std::map<std::string, subscription_impl> _subscriptions;
 };
 

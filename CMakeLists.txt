@@ -24,7 +24,7 @@ include(cmake/libcbor.cmake)
 
 add_dependencies(project_ffmpeg project_libvpx)
 
-add_library(rtmvideo SHARED
+add_library(rtmvideo STATIC
     src/decoder.cpp
     src/rtmclient.cpp
     src/tele.cpp

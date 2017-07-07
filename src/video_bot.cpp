@@ -45,9 +45,12 @@ std::string decode64(const std::string& val) {
   using namespace boost::archive::iterators;
   using It =
       transform_width<binary_from_base64<std::string::const_iterator>, 8, 6>;
-  return boost::algorithm::trim_right_copy_if(
-      std::string(It(std::begin(val)), It(std::end(val))),
-      [](char c) { return c == '\0'; });
+  auto decoded = std::string(It(std::begin(val)), It(std::end(val)));
+  auto padding = val.find("=");
+  if (padding == std::string::npos) {
+    return decoded;
+  }
+  return decoded.substr(0, decoded.size() - padding);
 }
 
 struct bot_message {
@@ -99,13 +102,14 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
  private:
   void on_metadata(const rapidjson::Value& msg) {
     tele::counter_inc(metadata_received);
-    if (!_decoder) {
-      _decoder.reset(
-          decoder_new(_descriptor.image_width, _descriptor.image_height,
-                      _descriptor.pixel_format),
-          [this](decoder* d) { decoder_delete(d); });
-      BOOST_VERIFY(_decoder);
-    }
+    _decoder.reset(
+        decoder_new(_descriptor.image_width, _descriptor.image_height,
+                    _descriptor.pixel_format),
+        [this](decoder* d) {
+          std::cout << "Deleting decoder\n";
+          decoder_delete(d);
+        });
+    BOOST_VERIFY(_decoder);
 
     std::string codec_data = msg.HasMember("codecData")
                                  ? decode64(msg["codecData"].GetString())
@@ -126,9 +130,10 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     int64_t i1 = t[0].GetInt64();
     int64_t i2 = t[1].GetInt64();
 
-    uint32_t rtp_timestamp =
-        (uint32_t)msg["rt"].GetInt64();  // rjson thinks its int64
-    double ntp_timestamp = msg["t"].GetDouble();
+    uint32_t rtp_timestamp = msg.HasMember("rt")
+                                 ? (uint32_t)msg["rt"].GetInt64()
+                                 : 0;  // rjson thinks its int64
+    double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
 
     int chunk = 1, chunks = 1;
     if (msg.HasMember("c")) {

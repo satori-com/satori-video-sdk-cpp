@@ -3,13 +3,23 @@
 set(LIBVPX_PREFIX ${CMAKE_BINARY_DIR}/libvpx)
 set(LIBVPX_LIBS libvpx)
 
+set(LIBVPX_CONFIGURE_ARGS --prefix=${LIBVPX_PREFIX}/install/
+        --enable-pic --disable-examples --disable-tools --disable-docs
+        --disable-multithread)
+
+IF(CMAKE_BUILD_TYPE MATCHES Debug)
+    message("*** Building Debug Version of libvpx")
+    set(LIBVPX_CONFIGURE_ARGS ${LIBVPX_CONFIGURE_ARGS}
+            --disable-optimizations --enable-debug)
+ENDIF()
+
 ExternalProject_Add(
         project_libvpx
         PREFIX ${LIBVPX_PREFIX}
         GIT_REPOSITORY https://chromium.googlesource.com/webm/libvpx
         GIT_TAG v1.6.1
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./configure --prefix=${LIBVPX_PREFIX}/install/ --enable-pic
+        CONFIGURE_COMMAND ./configure ${LIBVPX_CONFIGURE_ARGS}
         BUILD_COMMAND make -j8
         INSTALL_COMMAND make install
         BUILD_BYPRODUCTS ${LIBVPX_PREFIX}/install/lib/libvpx.a
