@@ -32,12 +32,10 @@ namespace video {
 
 namespace {
 
-tele::counter* frames_received =
-    tele::counter_new("vbot", "frames_received");
+tele::counter* frames_received = tele::counter_new("vbot", "frames_received");
 tele::counter* messages_received =
     tele::counter_new("vbot", "messages_received");
-tele::counter* bytes_received =
-    tele::counter_new("vbot", "bytes_received");
+tele::counter* bytes_received = tele::counter_new("vbot", "bytes_received");
 tele::counter* metadata_received =
     tele::counter_new("vbot", "metadata_received");
 
@@ -57,6 +55,34 @@ struct bot_message {
   cbor_item_t* data;
   bot_message_kind kind;
 };
+}  // namespace
+
+cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
+  if (d.IsString()) return cbor_build_string(d.GetString());
+  if (d.IsInt()) {
+    int n = d.GetInt();
+    cbor_item_t* message = cbor_build_uint32(abs(n));
+    if (n < 0) cbor_mark_negint(message);
+    return message;
+  }
+  if (d.IsDouble()) return cbor_build_float8(d.GetDouble());
+  if (d.IsArray()) {
+    cbor_item_t* message = cbor_new_definite_array(d.Size());
+    for (auto& m : d.GetArray())
+      if (!cbor_array_push(message, cbor_move(json_to_cbor(m))))
+        std::cerr << "ERROR: Failed to push to array";
+  }
+  if (d.IsObject()) {
+    cbor_item_t* message = cbor_new_definite_map(d.Capacity());
+    for (auto& m : d.GetObject()) {
+      cbor_map_add(message, (struct cbor_pair){
+                                .key = cbor_move(json_to_cbor(m.name)),
+                                .value = cbor_move(json_to_cbor(m.value))});
+    }
+    return message;
+  }
+  std::cerr << "Unsupported message field";
+  return cbor_build_bool(false);
 }
 
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
@@ -65,6 +91,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
                rtm::video::bot_environment& env)
       : _descriptor(descriptor),
         _video_channel(channel),
+        _message_channel(channel + message_channel_suffix),
         _metadata_channel(channel + metadata_channel_suffix),
         _analysis_channel(channel + analysis_channel_suffix),
         _debug_channel(channel + debug_channel_suffix),
@@ -78,6 +105,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
   void subscribe(rtm::subscriber& s) {
     s.subscribe_channel(_video_channel, _frames_subscription, *this);
+    s.subscribe_channel(_message_channel, _message_subscription, *this);
 
     subscription_options metadata_options;
     metadata_options.history.count = 1;
@@ -95,6 +123,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       on_metadata(value);
     else if (&sub == &_frames_subscription)
       on_frame_data(value);
+    else if (&sub == &_message_subscription)
+      on_message_data(value);
     else
       BOOST_ASSERT_MSG(false, "Unknown subscription");
   }
@@ -117,6 +147,23 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     decoder_set_metadata(_decoder.get(), msg["codecName"].GetString(),
                          (const uint8_t*)codec_data.data(), codec_data.size());
     std::cout << "Video decoder initialized\n";
+  }
+
+  void on_message_data(const rapidjson::Value& msg) {
+    if (_descriptor.cmd_callback) {
+      if (msg.IsArray()) {
+        for (auto& m : msg.GetArray()) on_message_data(m);
+        return;
+      }
+      if (msg.IsObject()) {
+        cbor_item_t* cmd = json_to_cbor(msg);
+        auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
+        _descriptor.cmd_callback(*this, cmd);
+        send_messages();
+        return;
+      }
+      std::cerr << "ERROR: Unsupported kind of message";
+    }
   }
 
   void on_frame_data(const rapidjson::Value& msg) {
@@ -175,6 +222,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
   const bot_descriptor _descriptor;
   const std::string _video_channel;
+  const std::string _message_channel;
   const std::string _metadata_channel;
   const std::string _analysis_channel;
   const std::string _debug_channel;
@@ -182,20 +230,9 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
   rtm::subscription _frames_subscription;
+  rtm::subscription _message_subscription;
   rtm::subscription _metadata_subscription;
 };
-
-cbor_item_t* json_object_to_cbor(rapidjson::Document& d) {
-  cbor_item_t* message = cbor_new_definite_map(d.Capacity());
-  for (auto& m : d.GetObject()) {
-    cbor_map_add(
-        message,
-        (struct cbor_pair){
-            .key = cbor_move(cbor_build_string(m.name.GetString())),
-            .value = cbor_move(cbor_build_string(m.value.GetString()))});
-  }
-  return message;
-}
 
 cbor_item_t* configure_command(cbor_item_t* config) {
   cbor_item_t* cmd = cbor_new_definite_map(2);
@@ -277,7 +314,7 @@ int bot_environment::main(int argc, char* argv[]) {
       rapidjson::Document d;
       d.ParseStream(is);
 
-      config = json_object_to_cbor(d);
+      config = json_to_cbor(d);
     } else {
       config = cbor_new_definite_map(0);
     }
