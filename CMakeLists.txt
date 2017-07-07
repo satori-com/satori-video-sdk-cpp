@@ -16,7 +16,7 @@ add_subdirectory(decoder)
 
 find_package(ZLIB REQUIRED)
 
-add_library(rtmvideo SHARED
+add_library(rtmvideo
     src/base64.cpp
     src/cbor_json.cpp
     src/cbor_map.cpp

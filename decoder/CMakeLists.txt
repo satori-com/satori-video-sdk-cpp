@@ -7,7 +7,7 @@ if (NOT FFMPEG_FOUND)
     add_dependencies(project_ffmpeg project_libvpx)
 endif()
 
-add_library(rtmvideo-decoder SHARED
+add_library(rtmvideo-decoder
     src/base64.cpp
     src/decoder.cpp
     )
