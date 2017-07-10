@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "rtmclient.h"
+#include "cbor_json.h"
 
 namespace asio = boost::asio;
 

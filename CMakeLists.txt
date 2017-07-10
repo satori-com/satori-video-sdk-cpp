@@ -27,6 +27,7 @@ add_dependencies(project_ffmpeg project_libvpx)
 add_library(rtmvideo SHARED
     src/decoder.cpp
     src/rtmclient.cpp
+    src/cbor_json.cpp
     src/tele.cpp
     src/cbor_map.cpp
     src/video_bot.cpp)

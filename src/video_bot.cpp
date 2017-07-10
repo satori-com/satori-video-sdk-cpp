@@ -18,6 +18,7 @@ extern "C" {
 }
 
 #include "bot_environment.h"
+#include "cbor_json.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
@@ -56,34 +57,6 @@ struct bot_message {
   bot_message_kind kind;
 };
 }  // namespace
-
-cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
-  if (d.IsString()) return cbor_build_string(d.GetString());
-  if (d.IsInt()) {
-    int n = d.GetInt();
-    cbor_item_t* message = cbor_build_uint32(abs(n));
-    if (n < 0) cbor_mark_negint(message);
-    return message;
-  }
-  if (d.IsDouble()) return cbor_build_float8(d.GetDouble());
-  if (d.IsArray()) {
-    cbor_item_t* message = cbor_new_definite_array(d.Size());
-    for (auto& m : d.GetArray())
-      if (!cbor_array_push(message, cbor_move(json_to_cbor(m))))
-        std::cerr << "ERROR: Failed to push to array";
-  }
-  if (d.IsObject()) {
-    cbor_item_t* message = cbor_new_definite_map(d.Capacity());
-    for (auto& m : d.GetObject()) {
-      cbor_map_add(message, (struct cbor_pair){
-                                .key = cbor_move(json_to_cbor(m.name)),
-                                .value = cbor_move(json_to_cbor(m.value))});
-    }
-    return message;
-  }
-  std::cerr << "Unsupported message field";
-  return cbor_build_bool(false);
-}
 
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
  public:
@@ -150,20 +123,19 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   }
 
   void on_message_data(const rapidjson::Value& msg) {
-    if (_descriptor.cmd_callback) {
-      if (msg.IsArray()) {
-        for (auto& m : msg.GetArray()) on_message_data(m);
-        return;
-      }
-      if (msg.IsObject()) {
-        cbor_item_t* cmd = json_to_cbor(msg);
-        auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
-        _descriptor.cmd_callback(*this, cmd);
-        send_messages();
-        return;
-      }
-      std::cerr << "ERROR: Unsupported kind of message";
+    if (!_descriptor.cmd_callback) return;
+    if (msg.IsArray()) {
+      for (auto& m : msg.GetArray()) on_message_data(m);
+      return;
     }
+    if (msg.IsObject()) {
+      cbor_item_t* cmd = json_to_cbor(msg);
+      auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
+      _descriptor.cmd_callback(*this, cmd);
+      send_messages();
+      return;
+    }
+    std::cerr << "ERROR: Unsupported kind of message\n";
   }
 
   void on_frame_data(const rapidjson::Value& msg) {
