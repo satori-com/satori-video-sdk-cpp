@@ -123,7 +123,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   }
 
   void on_message_data(const rapidjson::Value& msg) {
-    if (!_descriptor.cmd_callback) return;
+    if (!_descriptor.ctrl_callback) return;
     if (msg.IsArray()) {
       for (auto& m : msg.GetArray()) on_message_data(m);
       return;
@@ -131,7 +131,14 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     if (msg.IsObject()) {
       cbor_item_t* cmd = json_to_cbor(msg);
       auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
-      _descriptor.cmd_callback(*this, cmd);
+      if (_descriptor.ctrl_callback(*this, cmd)) {
+        queue_message(bot_message_kind::DEBUG,
+                      cbor_move(cbor_build_string("Command execution failed")));
+        std::cerr << "Configure command failed\n";
+      } else {
+        queue_message(bot_message_kind::DEBUG,
+                      cbor_move(cbor_build_string("OK")));
+      }
       send_messages();
       return;
     }
@@ -273,7 +280,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string channel = vm["channel"].as<std::string>();
   _bot_instance.reset(new bot_instance(*_bot_descriptor, channel, *this));
 
-  if (_bot_descriptor->cmd_callback) {
+  if (_bot_descriptor->ctrl_callback) {
     cbor_item_t* config;
 
     if (vm.count("config")) {
@@ -296,7 +303,9 @@ int bot_environment::main(int argc, char* argv[]) {
       cbor_decref(&cmd);
     });
 
-    _bot_descriptor->cmd_callback(*_bot_instance, cmd);
+    if (_bot_descriptor->ctrl_callback(*_bot_instance, cmd)) {
+      std::cerr << "Configure command failed\n";
+    }
   }
 
   const std::string endpoint = vm["endpoint"].as<std::string>();
