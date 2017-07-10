@@ -2,9 +2,9 @@ cmake_minimum_required (VERSION 3.7)
 project (librtmvideo-decoder VERSION 0.1 LANGUAGES CXX)
 
 if (NOT FFMPEG_FOUND)
-    # include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/libvpx.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/libvpx.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ffmpeg.cmake)
-    # add_dependencies(project_ffmpeg project_libvpx)
+    add_dependencies(project_ffmpeg project_libvpx)
 endif()
 
 add_library(rtmvideo-decoder SHARED

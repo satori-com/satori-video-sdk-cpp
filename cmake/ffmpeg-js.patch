@@ -1,0 +1,35 @@
+diff --git a/libavcodec/log2_tab.c b/libavcodec/log2_tab.c
+index 47a1df03b7..c79c91e6a0 100644
+--- a/libavcodec/log2_tab.c
++++ b/libavcodec/log2_tab.c
+@@ -1 +1,2 @@
++#define ff_log2_tab ff_log2_tab_avcodec
+ #include "libavutil/log2_tab.c"
+diff --git a/libavcodec/reverse.c b/libavcodec/reverse.c
+index 440badaf34..326e6dea42 100644
+--- a/libavcodec/reverse.c
++++ b/libavcodec/reverse.c
+@@ -1 +1,2 @@
++#define ff_reverse ff_reverse_avutil
+ #include "libavutil/reverse.c"
+diff --git a/libavfilter/log2_tab.c b/libavfilter/log2_tab.c
+index 47a1df03b7..7f8b0c640f 100644
+--- a/libavfilter/log2_tab.c
++++ b/libavfilter/log2_tab.c
+@@ -1 +1,2 @@
++#define ff_log2_tab ff_log2_tab_avfilter
+ #include "libavutil/log2_tab.c"
+diff --git a/libswresample/log2_tab.c b/libswresample/log2_tab.c
+index 47a1df03b7..9848a7f4a6 100644
+--- a/libswresample/log2_tab.c
++++ b/libswresample/log2_tab.c
+@@ -1 +1,2 @@
++#define ff_log2_tab ff_log2_tab_swresample
+ #include "libavutil/log2_tab.c"
+diff --git a/libswscale/log2_tab.c b/libswscale/log2_tab.c
+index 47a1df03b7..fe3b4c3bbf 100644
+--- a/libswscale/log2_tab.c
++++ b/libswscale/log2_tab.c
+@@ -1 +1,2 @@
++#define ff_log2_tab ff_log2_tab_swscale
+ #include "libavutil/log2_tab.c"
