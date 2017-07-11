@@ -131,13 +131,10 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     if (msg.IsObject()) {
       cbor_item_t* cmd = json_to_cbor(msg);
       auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
-      if (_descriptor.ctrl_callback(*this, cmd)) {
-        queue_message(bot_message_kind::DEBUG,
-                      cbor_move(cbor_build_string("Command execution failed")));
-        std::cerr << "Configure command failed\n";
-      } else {
-        queue_message(bot_message_kind::DEBUG,
-                      cbor_move(cbor_build_string("OK")));
+      cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
+      if (response != nullptr) {
+        queue_message(bot_message_kind::DEBUG, response);
+        cbor_decref(&response);
       }
       send_messages();
       return;
@@ -303,9 +300,13 @@ int bot_environment::main(int argc, char* argv[]) {
       cbor_decref(&cmd);
     });
 
-    if (_bot_descriptor->ctrl_callback(*_bot_instance, cmd)) {
-      std::cerr << "Configure command failed\n";
+    cbor_item_t* response = _bot_descriptor->ctrl_callback(*_bot_instance, cmd);
+    if (response != nullptr) {
+      _bot_instance->queue_message(bot_message_kind::DEBUG, response);
+      cbor_decref(&response);
     }
+  } else if (vm.count("config")) {
+    std::cerr << "Config specified but there is no control method set\n";
   }
 
   const std::string endpoint = vm["endpoint"].as<std::string>();

@@ -16,7 +16,8 @@ using bot_img_callback_t = void (*)(bot_context &context, const uint8_t *image,
                                     uint16_t width, uint16_t height,
                                     uint16_t linesize);
 
-using bot_ctrl_callback_t = int (*)(bot_context &context, cbor_item_t *message);
+using bot_ctrl_callback_t = cbor_item_t *(*)(bot_context &context,
+                                            cbor_item_t *message);
 
 struct bot_descriptor {
   uint16_t image_width;
