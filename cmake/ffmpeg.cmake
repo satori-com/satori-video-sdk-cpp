@@ -7,7 +7,7 @@ set(FFMPEG_CONFIGURE_ARGS
         --prefix=${FFMPEG_PREFIX}
         "--extra-ldflags=-L${LIBVPX_LIB_DIR} -lvpx" --extra-cflags=-I${LIBVPX_INCLUDE_DIR}
         --enable-pic
-        --disable-programs --disable-everything --disable-sdl2
+        --disable-all --disable-programs --disable-everything --disable-sdl2
         --enable-avcodec --enable-avutil --enable-swscale
 
         --enable-libvpx
