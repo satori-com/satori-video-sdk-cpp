@@ -9,7 +9,7 @@ set(LIBVPX_CONFIGURE_ARGS --prefix=${LIBVPX_PREFIX}/install/
         --disable-multithread)
 
 IF(CMAKE_BUILD_TYPE MATCHES Debug)
-    message("*** Building Debug Version of libvpx")
+    message("    libvpx: Debug")
     set(LIBVPX_CONFIGURE_ARGS ${LIBVPX_CONFIGURE_ARGS}
             --disable-optimizations --enable-debug)
 ENDIF()
@@ -21,8 +21,8 @@ ExternalProject_Add(
         GIT_TAG v1.6.1
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./configure ${LIBVPX_CONFIGURE_ARGS}
-        BUILD_COMMAND make -j8
-        INSTALL_COMMAND make install
+        BUILD_COMMAND V=1 make -j8
+        INSTALL_COMMAND V=1 make install
         BUILD_BYPRODUCTS ${LIBVPX_PREFIX}/install/lib/libvpx.a
         BUILD_IN_SOURCE 1
 )
