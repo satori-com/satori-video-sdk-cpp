@@ -1,3 +1,5 @@
+include(ExternalProject)
+
 set(FFMPEG_PREFIX ${CMAKE_BINARY_DIR}/ffmpeg)
 
 set(FFMPEG_CONFIGURE_ARGS
@@ -34,6 +36,7 @@ ExternalProject_Add(
             ${FFMPEG_PREFIX}/lib/libswscale.a            
 )
 
+set(FFMPEG_FOUND 1)
 set(FFMPEG_INCLUDE_DIR ${FFMPEG_PREFIX}/include/)
 
 add_library(avcodec STATIC IMPORTED)

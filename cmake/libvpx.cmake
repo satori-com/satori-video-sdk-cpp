@@ -1,4 +1,5 @@
 # libvpx is vp8/vp9 encoder/decoder
+include(ExternalProject)
 
 set(LIBVPX_PREFIX ${CMAKE_BINARY_DIR}/libvpx)
 set(LIBVPX_LIBS libvpx)

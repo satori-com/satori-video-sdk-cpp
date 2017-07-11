@@ -1,5 +1,4 @@
 #pragma once
-#include <cbor.h>
 #include <list>
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };

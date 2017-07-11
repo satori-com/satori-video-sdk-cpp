@@ -61,7 +61,6 @@ struct decoder {
   static void init_library() {
     av_log_set_level(AV_LOG_VERBOSE);
     avcodec_register_all();
-    std::cout << "libavcodec initialized.\n";
     AVCodec *c{nullptr};
     do {
       c = av_codec_next(c);
@@ -70,6 +69,7 @@ struct decoder {
                 << " is_encoder=" << av_codec_is_encoder(c)
                 << " is_decoder=" << av_codec_is_decoder(c) << "\n";
     } while (1);
+    std::cout << "libavcodec initialized.\n";
   }
 
   int init() {
@@ -251,5 +251,8 @@ EXPORT bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
 
 EXPORT int decoder_image_height(decoder *d) { return d->image_height(); }
 EXPORT int decoder_image_width(decoder *d) { return d->image_width(); }
+EXPORT int decoder_stream_height(decoder *d) { return d->stream_height(); }
+EXPORT int decoder_stream_width(decoder *d) { return d->stream_width(); }
 EXPORT int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
+EXPORT int decoder_image_size(decoder *d) { return d->image_size(); }
 EXPORT const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
