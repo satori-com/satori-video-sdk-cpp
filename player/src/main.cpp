@@ -1,6 +1,4 @@
-#include <assert.h>
 #include <librtmvideo/video_bot.h>
-#include <iostream>
 #include <opencv2/opencv.hpp>
 
 namespace player {
