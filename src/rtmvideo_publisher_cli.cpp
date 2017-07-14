@@ -1,61 +1,46 @@
 #include <iostream>
-#include <boost/bind.hpp>
 #include <boost/program_options.hpp>
 #include <librtmvideo/rtmpacket.h>
 #include <librtmvideo/rtmvideo.h>
-#include <librtmvideo/video_source.h>
 
 #include "base64.h"
 #include "rtmclient.h"
+#include "video_source_camera.h"
+#include "video_source_file.h"
 
 namespace {
 
-struct rtm_errors_handler : public rtm::error_callbacks {
+struct publisher : public rtm::error_callbacks {
+ public:
+  publisher(
+      const std::string &rtm_endpoint,
+      const std::string &rtm_port,
+      const std::string &rtm_appkey,
+      const std::string &rtm_channel)
+      : _frames_channel(rtm_channel),
+        _metadata_channel(rtm_channel + metadata_channel_suffix) {
+
+    _rtm_client = rtm::new_client(
+        rtm_endpoint, rtm_port, rtm_appkey, _io_service, _ssl_context, 1, *this);
+  }
+
   void on_error(rtm::error e, const std::string &msg) override {
     std::cerr << "ERROR: " << (int)e << " " << msg << "\n";
   }
-};
 
-struct publisher {
- public:
-  publisher(
-      video_source *video_source,
-      boost::asio::io_service &io_service,
-      std::unique_ptr<rtm::client> rtm_client,
-      const std::string &rtm_channel)
-      : _video_source(video_source),
-        _io_service(io_service),
-        _rtm_client(std::move(rtm_client)),
-        _frames_channel(rtm_channel),
-        _metadata_channel(rtm_channel + metadata_channel_suffix),
-        _frames_interval(boost::posix_time::milliseconds(1000.0 / video_source_fps(_video_source))),
-        _metadata_interval(boost::posix_time::seconds(10)),
-        _frames_timer(io_service),
-        _metadata_timer(io_service)
-  {}
-
-  void start() {
-    _frames_timer.expires_from_now(_frames_interval);
-    _frames_timer.async_wait(boost::bind(&publisher::frames_tick, this));
-
-    _metadata_timer.expires_from_now(boost::posix_time::seconds(0));
-    _metadata_timer.async_wait(boost::bind(&publisher::metadata_tick, this));
-
-    _io_service.run();
-  }
-
- private:
-  void frames_tick() {
-    uint8_t *raw_data = nullptr;
-    int raw_data_size = video_source_next_packet(_video_source, &raw_data);
-    if(raw_data_size <= 0) {
-      _io_service.stop();
-      return;
+  void publish_metadata(const char *codec_name, size_t data_len, const uint8_t *data) {
+    std::string encoded;
+    if(data_len > 0) {
+      encoded = std::move(rtm::video::encode64({data, data + data_len}));
     }
 
-    std::string encoded = std::move(rtm::video::encode64({raw_data, raw_data + raw_data_size}));
-    delete[] raw_data;
+    cbor_item_t *packet = rtm::video::metadata_packet(codec_name, encoded);
+    _rtm_client->publish(_metadata_channel, packet, nullptr);
+    cbor_decref(&packet);
+  }
 
+  void publish_frame(size_t data_len, const uint8_t *data) {
+    std::string encoded = std::move(rtm::video::encode64({data, data + data_len}));
     size_t nb_chunks = std::ceil((double) encoded.length() / rtm::video::max_payload_size);
 
     for(size_t i = 0; i < nb_chunks; i++) {
@@ -74,40 +59,14 @@ struct publisher {
     if(_seq_id % 100 == 0) {
       std::cout << "Published " << _seq_id << " frames\n";
     }
-
-    _frames_timer.expires_at(_frames_timer.expires_at() + _frames_interval);
-    _frames_timer.async_wait(boost::bind(&publisher::frames_tick, this));
-  }
-
-  void metadata_tick() {
-    std::string codec_name(video_source_codec_name(_video_source));
-    uint8_t *raw_data = nullptr;
-    int raw_data_size = video_source_codec_data(_video_source, &raw_data);
-
-    std::string encoded;
-    if(raw_data_size > 0) {
-      encoded = std::move(rtm::video::encode64({raw_data, raw_data + raw_data_size}));
-      delete[] raw_data;
-    }
-
-    cbor_item_t *packet = rtm::video::metadata_packet(codec_name, encoded);
-    _rtm_client->publish(_metadata_channel, packet, nullptr);
-    cbor_decref(&packet);
-
-    _metadata_timer.expires_at(_metadata_timer.expires_at() + _metadata_interval);
-    _metadata_timer.async_wait(boost::bind(&publisher::metadata_tick, this));
   }
 
  private:
-  video_source *_video_source{nullptr};
-  boost::asio::io_service &_io_service;
+  boost::asio::io_service _io_service;
+  boost::asio::ssl::context _ssl_context{boost::asio::ssl::context::sslv23};
   std::unique_ptr<rtm::client> _rtm_client;
   std::string _frames_channel;
   std::string _metadata_channel;
-  boost::posix_time::time_duration _frames_interval;
-  boost::posix_time::time_duration _metadata_interval;
-  boost::asio::deadline_timer _frames_timer;
-  boost::asio::deadline_timer _metadata_timer;
   uint64_t _seq_id{0};
 };
 }
@@ -170,36 +129,41 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  video_source *video_source;
-  video_source_init_library();
+  rtm::video::initialize_sources_library();
+  std::unique_ptr<rtm::video::source> video_source;
+  
   if(source_type == "camera") {
-    video_source = video_source_camera_new(vm["dimensions"].as<std::string>().c_str());
+    video_source = std::make_unique<rtm::video::camera_source>(vm["dimensions"].as<std::string>());
   } else if(source_type == "file") {
     if(!vm.count("file")) {
       std::cerr << "*** File was not specified\n";
       return -1;
     }
-    video_source = video_source_file_new(vm["file"].as<std::string>().c_str(), vm.count("replayed"));
+    video_source = std::make_unique<rtm::video::file_source>(vm["file"].as<std::string>(), vm.count("replayed"));
   } else {
     std::cerr << "*** Unsupported input type " << source_type << "\n";
     return -1;
   }
 
-  if(!video_source) {
-    std::cerr << "*** Failed to initialize video source\n";
+  int err = video_source->init();
+  if(err) {
+    std::cerr << "*** Error initializing video source, error code " << err << "\n";
     return -1;
   }
 
-  boost::asio::io_service io_service;
-  boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
-  rtm_errors_handler rtm_errors_handler;
-  std::unique_ptr<rtm::client> rtm_client{rtm::new_client(
+  publisher p{
       vm["rtm-endpoint"].as<std::string>(),
       vm["rtm-port"].as<std::string>(),
       vm["rtm-appkey"].as<std::string>(),
-      io_service, ssl_context, 1, rtm_errors_handler)};
+      vm["rtm-channel"].as<std::string>()};
 
-  publisher publisher{video_source, io_service, std::move(rtm_client), vm["rtm-channel"].as<std::string>()};
+  video_source->subscribe(
+      [&p](const char *codec_name, size_t data_len, const uint8_t *data) {
+        p.publish_metadata(codec_name, data_len, data);
+      },
+      [&p](size_t data_len, const uint8_t *data) {
+        p.publish_frame(data_len, data);
+      });
 
-  publisher.start();
+  video_source->start();
 }
