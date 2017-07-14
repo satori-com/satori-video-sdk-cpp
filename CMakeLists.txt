@@ -71,3 +71,5 @@ target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBCBOR_LIBS} rtmvideo)
 if(UNIX AND NOT APPLE)
     target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES})
 endif()
+
+add_subdirectory(player)
