@@ -2,15 +2,14 @@
 
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_service.hpp>
+#include <boost/optional.hpp>
 #include <chrono>
 #include <functional>
 
+#include "sink.h"
+
 namespace rtm {
 namespace video {
-
-using metadata_subscriber =
-    std::function<void(const char *, size_t, const uint8_t *)>;
-using frames_subscriber = std::function<void(size_t, const uint8_t *)>;
 
 void initialize_sources_library();
 void print_av_error(const char *msg, int code);
@@ -20,22 +19,19 @@ struct source {
   virtual ~source() = default;
   virtual int init() = 0;
   virtual void start() = 0;
-  void subscribe(metadata_subscriber &&metadata_subscriber,
-                 frames_subscriber &&frames_subscriber);
+  void subscribe(std::shared_ptr<sink> sink);
 
  protected:
-  std::vector<metadata_subscriber> _metadata_subscribers;
-  std::vector<frames_subscriber> _frames_subscribers;
+  std::vector<std::shared_ptr<sink>> _sinks;
 };
 
 struct timed_source : public source {
  protected:
-  void start(const std::string &codec_name, size_t codec_data_len,
-             const uint8_t *codec_data,
+  void start(const std::string &codec_name, const std::string &codec_data,
              std::chrono::milliseconds frames_interval,
              std::chrono::milliseconds metadata_interval);
   void stop_timers();
-  virtual int next_packet(uint8_t **output) = 0;  // TODO: better method API?
+  virtual boost::optional<std::string> next_packet() = 0;
 
  private:
   void metadata_tick();
@@ -48,8 +44,7 @@ struct timed_source : public source {
   std::chrono::milliseconds _metadata_interval;
   boost::asio::deadline_timer _metadata_timer{_io_service};
   std::string _codec_name;
-  size_t _codec_data_len;
-  const uint8_t *_codec_data{nullptr};
+  std::string _codec_data;
 };
 }  // namespace video
 }  // namespace rtm

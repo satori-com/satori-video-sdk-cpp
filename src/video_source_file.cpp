@@ -1,5 +1,6 @@
 #include "video_source_file.h"
 #include <cstring>
+#include <gsl/gsl>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -78,14 +79,16 @@ int file_source::init() {
 }
 
 void file_source::start() {
-  timed_source::start(_dec->name, _dec_ctx->extradata_size, _dec_ctx->extradata,
-                      std::chrono::milliseconds(static_cast<int>(
-                          (1000.0 * (double)_stream->avg_frame_rate.den) /
-                          (double)_stream->avg_frame_rate.num)),
-                      std::chrono::milliseconds(10000));
+  timed_source::start(
+      _dec->name,
+      {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size},
+      std::chrono::milliseconds(
+          static_cast<int>((1000.0 * (double)_stream->avg_frame_rate.den) /
+                           (double)_stream->avg_frame_rate.num)),
+      std::chrono::milliseconds(10000));
 }
 
-int file_source::next_packet(uint8_t **output) {
+boost::optional<std::string> file_source::next_packet() {
   while (true) {
     int ret = av_read_frame(_fmt_ctx, &_pkt);
     if (ret < 0) {
@@ -96,22 +99,17 @@ int file_source::next_packet(uint8_t **output) {
           continue;
         } else {
           stop_timers();
-          *output = nullptr;
-          return -1;
+          return boost::none;
         }
       } else {
         print_av_error("*** Failed to read frame", ret);
-        *output = nullptr;
-        return -1;
+        return boost::none;
       }
     }
 
     if (_pkt.stream_index == _stream_idx) {
-      *output = new uint8_t[_pkt.size];
-      std::memcpy(*output, _pkt.data, _pkt.size);
-      ret = _pkt.size;
-      av_packet_unref(&_pkt);
-      return ret;
+      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
+      return std::string{_pkt.data, _pkt.data + _pkt.size};
     } else {
       av_packet_unref(&_pkt);
       continue;

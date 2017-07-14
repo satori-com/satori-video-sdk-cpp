@@ -1,5 +1,6 @@
 #include "video_source_camera.h"
 #include <cstring>
+#include <gsl/gsl>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -158,30 +159,28 @@ int camera_source::init() {
 
 void camera_source::start() {
   timed_source::start(
-      _enc->name, _enc_ctx->extradata_size, _enc_ctx->extradata,
+      _enc->name,
+      {_enc_ctx->extradata, _enc_ctx->extradata + _enc_ctx->extradata_size},
       std::chrono::milliseconds(static_cast<int>(1000.0 / 30.0)),
       std::chrono::milliseconds(10000));
 }
 
-int camera_source::next_packet(uint8_t **output) {
+boost::optional<std::string> camera_source::next_packet() {
   while (true) {
     int ret = av_read_frame(_fmt_ctx, &_dec_pkt);
     if (ret < 0) {
       print_av_error("*** Failed to read frame", ret);
-      *output = nullptr;
-      return -1;
+      return boost::none;
     }
 
     if ((ret = avcodec_send_packet(_dec_ctx, &_dec_pkt)) != 0) {
       print_av_error("*** avcodec_send_packet error", ret);
-      *output = nullptr;
-      return -1;
+      return boost::none;
     }
 
     if ((ret = avcodec_receive_frame(_dec_ctx, _dec_frame)) != 0) {
       print_av_error("*** avcodec_receive_frame error", ret);
-      *output = nullptr;
-      return -1;
+      return boost::none;
     }
 
     sws_scale(_sws_ctx, _dec_frame->data, _dec_frame->linesize, 0,
@@ -189,24 +188,20 @@ int camera_source::next_packet(uint8_t **output) {
 
     if ((ret = avcodec_send_frame(_enc_ctx, _enc_frame)) != 0) {
       print_av_error("*** avcodec_send_frame error", ret);
-      *output = nullptr;
-      return -1;
+      return boost::none;
     }
 
     if ((ret = avcodec_receive_packet(_enc_ctx, &_enc_pkt)) != 0) {
       print_av_error("*** avcodec_receive_packet error", ret);
-      *output = nullptr;
-      return -1;
+      return boost::none;
     }
 
-    *output = new uint8_t[_enc_pkt.size];
-    std::memcpy(*output, _enc_pkt.data, _enc_pkt.size);
-    ret = _enc_pkt.size;
+    auto release = gsl::finally([this]() {
+      av_packet_unref(&_dec_pkt);
+      av_packet_unref(&_enc_pkt);
+    });
 
-    av_packet_unref(&_dec_pkt);
-    av_packet_unref(&_enc_pkt);
-
-    return ret;
+    return std::string{_enc_pkt.data, _enc_pkt.data + _enc_pkt.size};
   }
 }
 

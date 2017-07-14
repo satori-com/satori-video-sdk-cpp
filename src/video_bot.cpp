@@ -8,6 +8,7 @@
 #include <boost/scope_exit.hpp>
 #include <chrono>
 #include <iostream>
+#include <list>
 #include <string>
 
 extern "C" {
@@ -17,6 +18,7 @@ extern "C" {
 #include "base64.h"
 #include "bot_environment.h"
 #include "cbor_json.h"
+#include "librtmvideo/data.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmpacket.h"
 #include "librtmvideo/rtmvideo.h"
@@ -57,19 +59,6 @@ struct bot_message {
   bot_message_kind kind;
 };
 
-struct image_frame {
-  std::string image_data;
-  frame_id id;
-  uint16_t width;
-  uint16_t height;
-  uint16_t linesize;
-};
-
-struct metadata_frame {
-  std::string codec_name;
-  std::string codec_data;
-};
-
 }  // namespace
 
 class bot_api_exception : public std::runtime_error {
@@ -96,7 +85,7 @@ network_frame decode_network_frame(const rapidjson::Value& msg) {
           std::chrono::system_clock::from_time_t(ntp_timestamp), chunk, chunks};
 }
 
-metadata_frame decode_metadata_frame(const rapidjson::Value& msg) {
+metadata decode_metadata_frame(const rapidjson::Value& msg) {
   std::string codec_data =
       msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
   std::string codec_name = msg["codecName"].GetString();
@@ -158,7 +147,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
  private:
   void on_metadata(const rapidjson::Value& msg) {
-    metadata_frame new_metadata = decode_metadata_frame(msg);
+    metadata new_metadata = decode_metadata_frame(msg);
     tele::counter_inc(metadata_received);
 
     if (new_metadata.codec_data == _metadata.codec_data &&
@@ -307,7 +296,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
-  metadata_frame _metadata;
+  metadata _metadata;
 
   std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
   std::unique_ptr<threaded_worker<image_frame>> _process_worker;

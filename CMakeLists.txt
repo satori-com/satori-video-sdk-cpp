@@ -17,14 +17,18 @@ add_subdirectory(decoder)
 find_package(ZLIB REQUIRED)
 
 add_library(rtmvideo SHARED
-    src/rtmclient.cpp
+    src/base64.cpp
     src/cbor_json.cpp
-    src/tele.cpp
     src/cbor_map.cpp
+    src/data.cpp
+    src/rtmclient.cpp
+    src/rtmpacket.cpp
+    src/sink_rtm.cpp
+    src/tele.cpp
     src/video_bot.cpp
     src/video_source.cpp
-    src/video_source_file.cpp
-    src/video_source_camera.cpp)
+    src/video_source_camera.cpp
+    src/video_source_file.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
     PUBLIC 

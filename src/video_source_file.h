@@ -17,8 +17,8 @@ struct file_source : public timed_source {
   int init() override;
   void start() override;
 
- protected:
-  int next_packet(uint8_t **output) override;
+ private:
+  boost::optional<std::string> next_packet() override;
 
  private:
   AVFormatContext *_fmt_ctx{nullptr};
