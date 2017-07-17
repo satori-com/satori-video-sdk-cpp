@@ -1,5 +1,6 @@
 #pragma once
 
+// Flag shows if bot was launched in debug mode
 #if defined(BOT_DEBUG)
 #define BOT_DEBUG 1
 #else
