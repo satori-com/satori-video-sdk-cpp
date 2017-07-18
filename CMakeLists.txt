@@ -7,14 +7,12 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
-include(cmake/boost.cmake)
 include(cmake/openssl.cmake)
 include(cmake/rapidjson.cmake)
 include(cmake/libvpx.cmake)
 include(cmake/ffmpeg.cmake)
 include(cmake/gsl.cmake)
 include(cmake/beast.cmake)
-include(cmake/libcbor.cmake)
 
 add_dependencies(project_ffmpeg project_libvpx)
 
@@ -32,11 +30,10 @@ add_library(rtmvideo SHARED
     src/video_source_file.cpp
     src/video_source_camera.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
-add_dependencies(rtmvideo boost openssl rapidjson gsl beast)
+add_dependencies(rtmvideo openssl rapidjson gsl beast)
 target_link_libraries(rtmvideo
-    PRIVATE ssl crypto boost_system boost_regex boost_program_options avdevice avformat swscale rtmvideo-decoder
-    ${LIBCBOR_LIBS}
-    ${ZLIB_LIBRARIES})
+    PRIVATE ssl crypto avdevice avformat swscale rtmvideo-decoder
+    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost)
 target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
 
 if(APPLE)
@@ -55,7 +52,7 @@ target_include_directories(rtmvideo
 
 set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${LIBCBOR_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${FFMPEG_INCLUDE_DIR})
 set(LIBRTMVIDEO_INCLUDE_DIRS ${LIBRTMVIDEO_INCLUDE_DIRS} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder pthread dl cbor vpx)
+set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder pthread dl vpx CONAN_PKG::Libcbor CONAN_PKG::Boost)
 set(LIBRTMVIDEO_LIBRARIES ${LIBRTMVIDEO_LIBRARIES} PARENT_SCOPE)
 set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR} ${LIBVPX_LIB_DIR})
 set(LIBRTMVIDEO_LIB_DIRS ${LIBRTMVIDEO_LIB_DIRS} PARENT_SCOPE)
@@ -67,9 +64,6 @@ set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
 target_include_directories(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_INCLUDE_DIRS})
-target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBCBOR_LIBS} rtmvideo)
-if(UNIX AND NOT APPLE)
-    target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES})
-endif()
+target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES}) 
 
 add_subdirectory(player)

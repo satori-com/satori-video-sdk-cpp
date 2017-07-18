@@ -1,3 +1,4 @@
+include(ExternalProject)
 set(OPENSSL_PREFIX ${CMAKE_BINARY_DIR}/openssl)
 
 ExternalProject_Add(
