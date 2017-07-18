@@ -25,6 +25,8 @@ using endpoint_t = asio::ip::tcp::resolver::endpoint_type;
 
 namespace {
 
+constexpr int READ_BUFFER_SIZE = 100000;
+
 static void fail(boost::system::error_code ec) {
   std::cerr << "\nERROR " << ec.category().name() << ':' << ec.value() << " "
             << ec.message() << "\n";
@@ -129,6 +131,8 @@ class secure_client : public client {
     asio::ip::tcp::resolver tcp_resolver(io_service);
     auto endpoints = tcp_resolver.resolve({host, port}, ec);
     if (ec) fail(ec);
+
+    _ws.read_message_max(READ_BUFFER_SIZE);
 
     // tcp connect
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
@@ -253,7 +257,7 @@ class secure_client : public client {
       boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
   uint64_t _request_id{0};
-  beast::multi_buffer _read_buffer{100000};
+  beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
   std::map<std::string, subscription_impl> _subscriptions;
 };
 
