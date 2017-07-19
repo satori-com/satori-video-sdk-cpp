@@ -245,7 +245,7 @@ class secure_client : public client {
     } else if (action == "rtm/subscribe/ok") {
       // ignore
     } else {
-      std::cerr << "unhandled action " << action << "\n";
+      std::cerr << "unhandled action " << action << "\n" << to_string(d) << "\n";
       BOOST_VERIFY(false);
     }
   }
