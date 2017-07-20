@@ -191,6 +191,13 @@ struct decoder {
     return _decoder_context ? _decoder_context->height : 0;
   }
 
+  double stream_fps() const {
+    double frame_rate =
+        _decoder_context ? av_q2d(_decoder_context->framerate) : 0;
+    return frame_rate != 0 ? frame_rate
+                           : 25 /* devices often do not report frame rate */;
+  }
+
   uint8_t *image_data() const { return _image ? _image->data[0] : nullptr; }
 
   uint64_t image_size() const { return _image->linesize[0] * _image->height; }
@@ -256,3 +263,4 @@ EXPORT int decoder_stream_width(decoder *d) { return d->stream_width(); }
 EXPORT int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
 EXPORT int decoder_image_size(decoder *d) { return d->image_size(); }
 EXPORT const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
+EXPORT double decoder_stream_fps(decoder *d) { return d->stream_fps(); }
