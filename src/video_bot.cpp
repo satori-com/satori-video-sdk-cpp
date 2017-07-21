@@ -13,13 +13,13 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include "base64.h"
 #include "bot_environment.h"
 #include "cbor_json.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
-#include "base64.h"
 #include "rtmclient.h"
 #include "tele_impl.h"
 
@@ -42,6 +42,11 @@ struct bot_message {
   bot_message_kind kind;
 };
 }  // namespace
+
+class bot_api_exception : public std::runtime_error {
+ public:
+  bot_api_exception() : runtime_error("bot api error") {}
+};
 
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
  public:
@@ -73,6 +78,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
   void on_error(error e, const std::string& msg) override {
     std::cerr << "ERROR: " << (int)e << " " << msg << "\n";
+    throw bot_api_exception();
   }
 
   void on_data(const subscription& sub,
@@ -298,23 +304,35 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string appkey = vm["appkey"].as<std::string>();
   const std::string port = vm["port"].as<std::string>();
 
-  decoder_init_library();
+  while (true) {
+    try {
+      decoder_init_library();
 
-  asio::io_service io_service;
-  asio::ssl::context ssl_context{asio::ssl::context::sslv23};
+      asio::io_service io_service;
+      asio::ssl::context ssl_context{asio::ssl::context::sslv23};
 
-  _client = std::move(rtm::new_client(endpoint, port, appkey, io_service,
-                                      ssl_context, 1, *this));
-  _bot_instance->subscribe(*_client);
-  tele::publisher tele_publisher(*_client, io_service);
+      _client = std::move(rtm::new_client(endpoint, port, appkey, io_service,
+                                          ssl_context, 1, *this));
+      _bot_instance->subscribe(*_client);
+      tele::publisher tele_publisher(*_client, io_service);
 
-  boost::asio::signal_set signals(io_service);
-  signals.add(SIGINT);
-  signals.add(SIGTERM);
-  signals.add(SIGQUIT);
-  signals.async_wait(boost::bind(&boost::asio::io_service::stop, &io_service));
+      boost::asio::signal_set signals(io_service);
+      signals.add(SIGINT);
+      signals.add(SIGTERM);
+      signals.add(SIGQUIT);
+      signals.async_wait(
+          boost::bind(&boost::asio::io_service::stop, &io_service));
 
-  io_service.run();
+      io_service.run();
+      break;
+    } catch (const boost::system::system_error& e) {
+      std::cerr << "Error: " << e.code() << '\n';
+      std::cerr << e.what() << '\n';
+      if (e.code() != boost::system::errc::broken_pipe) break;  // Broken Pipe
+    } catch (const bot_api_exception& e) {
+      std::cerr << "Bot API Exception\n";
+    }
+  }
 
   return 0;
 }

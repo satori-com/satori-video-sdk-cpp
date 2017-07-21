@@ -13,8 +13,8 @@
 #include <memory>
 #include <utility>
 
-#include "rtmclient.h"
 #include "cbor_json.h"
+#include "rtmclient.h"
 
 namespace asio = boost::asio;
 
@@ -244,8 +244,11 @@ class secure_client : public client {
       }
     } else if (action == "rtm/subscribe/ok") {
       // ignore
+    } else if (action == "rtm/subscription/error") {
+      _callbacks.on_error(error::SubscriptionError, to_string(d));
     } else {
-      std::cerr << "unhandled action " << action << "\n" << to_string(d) << "\n";
+      std::cerr << "unhandled action " << action << "\n"
+                << to_string(d) << "\n";
       BOOST_VERIFY(false);
     }
   }
@@ -274,4 +277,4 @@ std::unique_ptr<client> new_client(const std::string &endpoint,
       endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);
 }
-}
+}  // namespace rtm

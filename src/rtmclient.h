@@ -18,7 +18,8 @@ enum class error : unsigned char {
   Unknown = 1,
   NotConnected = 2,
   ResponseParsingError = 3,
-  InvalidResponse = 4
+  InvalidResponse = 4,
+  SubscriptionError = 5
 };
 
 struct error_callbacks {
