@@ -12,6 +12,7 @@ extern "C" {
 }
 
 #include "librtmvideo/base.h"
+#include "base64.h"
 
 namespace {
 struct Image {
@@ -127,8 +128,10 @@ struct decoder {
   }
 
   int process_frame(const uint8_t *data, size_t length) {
-    _packet->data = (uint8_t *)data;
-    _packet->size = (int)length;
+    std::string encoded{data, data + length};
+    std::string decoded = rtm::video::decoder::base64_decode(encoded);
+    _packet->data = (uint8_t *)decoded.data();
+    _packet->size = (int)decoded.size();
     int err = avcodec_send_packet(_decoder_context, _packet);
     if (err) {
       fprintf(stderr, "avcodec_send_packet error: %i\n", err);

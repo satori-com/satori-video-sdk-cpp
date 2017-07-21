@@ -13,12 +13,14 @@ EXPORT decoder *decoder_new(int width, int height,
                             image_pixel_format pixel_format);
 EXPORT void decoder_delete(decoder *d);
 
-// returns 0 if successful.
+// Returns 0 if successful.
 EXPORT int decoder_set_metadata(decoder *d, const char *codec_name,
                                 const uint8_t *metadata, size_t len);
 
-// returns 0 if successful.
-// for single-chunk messages chunk=1, chunks=1.
+// Returns 0 if successful.
+// For single-chunk messages chunk=1, chunks=1, frame_data is Base64 encoded frame.
+// For multi-chunk messages all chunks of the same encoded frame should be
+// concatenated before applying Base64 decoding.
 EXPORT int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
                                          uint32_t rtp_timestamp,
                                          double ntp_timestamp,

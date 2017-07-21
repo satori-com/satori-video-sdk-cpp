@@ -8,6 +8,7 @@ if (NOT FFMPEG_FOUND)
 endif()
 
 add_library(rtmvideo-decoder SHARED
+    src/base64.cpp
     src/decoder.cpp
     )
 target_compile_options(rtmvideo-decoder PRIVATE "-std=c++14")

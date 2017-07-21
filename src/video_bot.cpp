@@ -150,12 +150,11 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     }
 
     const char* encoded_data = msg["d"].GetString();
-    tele::counter_inc(bytes_received, strlen(encoded_data));
-    std::string frame_data = decode64(encoded_data);
+    size_t data_len = strlen(encoded_data);
+    tele::counter_inc(bytes_received, data_len);
     decoder* decoder = _decoder.get();
     decoder_process_frame_message(decoder, i1, i2, rtp_timestamp, ntp_timestamp,
-                                  (const uint8_t*)frame_data.data(),
-                                  frame_data.size(), chunk, chunks);
+                                  (const uint8_t*)encoded_data, data_len, chunk, chunks);
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
