@@ -17,3 +17,5 @@ ExternalProject_Add(
 )
 
 include_directories(${GSL_PREFIX}/src/gsl/include/)
+set(GSL_INCLUDE_DIR ${GSL_PREFIX}/src/gsl/include/)
+set(GSL_INCLUDE_DIR ${GSL_PREFIX}/src/gsl/include/ PARENT_SCOPE)
