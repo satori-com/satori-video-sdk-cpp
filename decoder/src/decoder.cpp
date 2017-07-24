@@ -103,6 +103,9 @@ struct decoder {
     int err = avcodec_parameters_to_context(_decoder_context, _params);
     if (err) return err;
 
+    _decoder_context->thread_count = 4;
+    _decoder_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
     err = avcodec_open2(_decoder_context, _decoder, 0);
     if (err) return err;
 

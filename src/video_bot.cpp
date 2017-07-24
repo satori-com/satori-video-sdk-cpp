@@ -119,6 +119,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       for (auto& m : msg.GetArray()) on_message_data(m);
       return;
     }
+
     if (msg.IsObject()) {
       cbor_item_t* cmd = json_to_cbor(msg);
       auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
@@ -127,7 +128,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
         queue_message(bot_message_kind::DEBUG, response);
         cbor_decref(&response);
       }
-      send_messages();
+      send_messages(-1, -1);
       return;
     }
     std::cerr << "ERROR: Unsupported kind of message\n";
@@ -155,6 +156,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       chunks = msg["l"].GetInt();
     }
 
+    std::cerr << "[" << i1 << "," << i2 << "]\n";
     const char* encoded_data = msg["d"].GetString();
     size_t data_len = strlen(encoded_data);
     tele::counter_inc(bytes_received, data_len);
@@ -165,21 +167,35 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
-      _descriptor.img_callback(
-          *this, decoder_image_data(decoder), decoder_image_width(decoder),
-          decoder_image_height(decoder), decoder_image_line_size(decoder));
-      send_messages();
+      if (_descriptor.img_callback) {
+        _descriptor.img_callback(
+            *this, decoder_image_data(decoder), decoder_image_width(decoder),
+            decoder_image_height(decoder), decoder_image_line_size(decoder));
+        send_messages(i1, i2);
+      }
     }
   }
 
-  void send_messages() {
+  void send_messages(int64_t i1, int64_t i2) {
     for (auto&& msg : _message_buffer) {
+      cbor_item_t *data = msg.data;
+
+      if (i1 >= 0) {
+        cbor_item_t *is = cbor_new_definite_array(2);
+        cbor_array_set(is, 0, cbor_move(cbor_build_uint64(static_cast<uint64_t>(i1))));
+        cbor_array_set(is, 1, cbor_move(cbor_build_uint64(static_cast<uint64_t>(i2))));
+        cbor_map_add(data,
+                     (struct cbor_pair){
+                         .key = cbor_move(cbor_build_string("i")),
+                         .value = cbor_move(is)});
+      }
+
       switch (msg.kind) {
         case bot_message_kind::ANALYSIS:
-          _env.publisher().publish(_analysis_channel, msg.data);
+          _env.publisher().publish(_analysis_channel, data);
           break;
         case bot_message_kind::DEBUG:
-          _env.publisher().publish(_debug_channel, msg.data);
+          _env.publisher().publish(_debug_channel, data);
           break;
       }
       cbor_decref(&msg.data);
@@ -351,6 +367,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
 void rtm_video_bot_message(bot_context& ctx, const bot_message_kind kind,
                            cbor_item_t* message) {
+  BOOST_ASSERT_MSG(cbor_map_is_indefinite(message), "Message must be indefinite map");
   static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message);
 }
 
