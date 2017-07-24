@@ -40,7 +40,7 @@ cbor_item_t *frame_packet(std::string &&base64_data, uint64_t id1, uint64_t id2,
                           time_point.time_since_epoch().count()))});
 
   cbor_map_add(root, {.key = cbor_move(cbor_build_string("rt")),
-                      .value = cbor_move(cbor_build_float8(
+                      .value = cbor_move(cbor_build_uint64(
                           time_point.time_since_epoch().count()))});
 
   cbor_map_add(root, {.key = cbor_move(cbor_build_string("c")),

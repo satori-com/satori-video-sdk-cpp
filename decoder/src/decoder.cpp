@@ -85,31 +85,41 @@ struct decoder {
 
   int set_metadata(const char *codec_name, const uint8_t *extra_data,
                    int extra_data_length) {
-    _initialized = false;
-    _decoder = avcodec_find_decoder_by_name(codec_name);
-    if (!_decoder) {
-      fprintf(stderr, "decoder not found: %s\n", codec_name);
-      return 1;
+    bool same_metadata =
+        _initialized
+        && strlen(_decoder->name) == strlen(codec_name)
+        && strncmp(_decoder->name, codec_name, strlen(codec_name)) == 0
+        && _params->extradata_size == extra_data_length
+        && memcmp(_params->extradata, extra_data, extra_data_length) == 0;
+
+    if (!same_metadata) {
+      _initialized = false;
+      _decoder = avcodec_find_decoder_by_name(codec_name);
+      if (!_decoder) {
+        fprintf(stderr, "decoder not found: %s\n", codec_name);
+        return 1;
+      }
+
+      _decoder_context = avcodec_alloc_context3(_decoder);
+      if (!_decoder_context) return 2;
+
+      _params = avcodec_parameters_alloc();
+      _extra_data.reset(new uint8_t[extra_data_length]);
+      memcpy(_extra_data.get(), extra_data, extra_data_length);
+      _params->extradata = _extra_data.get();
+      _params->extradata_size = extra_data_length;
+      int err = avcodec_parameters_to_context(_decoder_context, _params);
+      if (err) return err;
+
+      _decoder_context->thread_count = 4;
+      _decoder_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+      err = avcodec_open2(_decoder_context, _decoder, 0);
+      if (err) return err;
+
+      _initialized = true;
     }
 
-    _decoder_context = avcodec_alloc_context3(_decoder);
-    if (!_decoder_context) return 2;
-
-    _params = avcodec_parameters_alloc();
-    _extra_data.reset(new uint8_t[extra_data_length]);
-    memcpy(_extra_data.get(), extra_data, extra_data_length);
-    _params->extradata = _extra_data.get();
-    _params->extradata_size = extra_data_length;
-    int err = avcodec_parameters_to_context(_decoder_context, _params);
-    if (err) return err;
-
-    _decoder_context->thread_count = 4;
-    _decoder_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
-
-    err = avcodec_open2(_decoder_context, _decoder, 0);
-    if (err) return err;
-
-    _initialized = true;
     return 0;
   }
 
@@ -137,13 +147,19 @@ struct decoder {
     _packet->size = (int)decoded.size();
     int err = avcodec_send_packet(_decoder_context, _packet);
     if (err) {
-      fprintf(stderr, "avcodec_send_packet error: %i\n", err);
+      char av_error[AV_ERROR_MAX_STRING_SIZE];
+      std::cerr << "avcodec_send_packet error: "
+                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err)
+                << "\n";
       return err;
     }
 
     err = avcodec_receive_frame(_decoder_context, _frame);
     if (err) {
-      fprintf(stderr, "avcodec_receive_frame error: %i\n", err);
+      char av_error[AV_ERROR_MAX_STRING_SIZE];
+      std::cerr << "avcodec_receive_frame error: "
+                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err)
+                << "\n";
       return err;
     }
 
