@@ -33,7 +33,7 @@ set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 add_dependencies(rtmvideo openssl rapidjson gsl beast)
 target_link_libraries(rtmvideo
     PRIVATE ssl crypto avdevice avformat swscale rtmvideo-decoder
-    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost)
+    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost CONAN_PKG::Opencv)
 target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
 
 if(APPLE)
