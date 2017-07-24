@@ -11,8 +11,8 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "librtmvideo/base.h"
 #include "base64.h"
+#include "librtmvideo/base.h"
 
 namespace {
 struct Image {
