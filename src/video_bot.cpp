@@ -327,12 +327,12 @@ int bot_environment::main(int argc, char* argv[]) {
 
   while (true) {
     try {
-      if (io_loop(
-              [&endpoint, &port, &appkey, &io_service, &ssl_context, this]() {
-                return rtm::new_client(endpoint, port, appkey, io_service,
-                                       ssl_context, 1, *this);
-              },
-              io_service)) {
+      auto rtm_client_factory = [&endpoint, &port, &appkey, &io_service,
+                                 &ssl_context, this]() {
+        return rtm::new_client(endpoint, port, appkey, io_service, ssl_context,
+                               1, *this);
+      };
+      if (io_loop(rtm_client_factory, io_service)) {
         break;
       }
     } catch (const boost::system::system_error& e) {
