@@ -34,6 +34,7 @@ namespace video {
 namespace {
 
 constexpr size_t network_frames_buffer_size = 1024;
+constexpr size_t image_frames_buffer_size = 10;
 
 tele::counter* frames_received = tele::counter_new("vbot", "frames_received");
 tele::counter* messages_received =
@@ -46,6 +47,15 @@ struct bot_message {
   cbor_item_t* data;
   bot_message_kind kind;
 };
+
+struct image_frame {
+  std::string image_data;
+  frame_id id;
+  uint16_t width;
+  uint16_t height;
+  uint16_t linesize;
+};
+
 }  // namespace
 
 class bot_api_exception : public std::runtime_error {
@@ -87,6 +97,9 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
         network_frames_buffer_size, [this](network_frame&& frame) {
           process_network_frame(std::move(frame));
         });
+    _process_worker = std::make_unique<threaded_worker<image_frame>>(
+        image_frames_buffer_size,
+        [this](image_frame&& frame) { process_image_frame(std::move(frame)); });
   }
 
   void queue_message(const bot_message_kind kind, cbor_item_t* message) {
@@ -189,13 +202,25 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
       if (_descriptor.img_callback) {
-        _descriptor.img_callback(
-            *this, decoder_image_data(decoder), decoder_image_width(decoder),
-            decoder_image_height(decoder), decoder_image_line_size(decoder));
-        // todo: first id should be last_frame.second + 1.
-        send_messages(frame.id.first, frame.id.second);
+        image_frame image_frame{
+            std::string((const char*)decoder_image_data(decoder),
+                        decoder_image_line_size(decoder) *
+                            decoder_image_height(decoder)),
+            frame.id, ((uint16_t)decoder_image_width(decoder)),
+            ((uint16_t)decoder_image_height(decoder)),
+            ((uint16_t)decoder_image_line_size(decoder))};
+        if (!_process_worker->try_send(std::move(image_frame))) {
+          std::cerr << "dropped image frame\n";
+        }
       }
     }
+  }
+
+  void process_image_frame(image_frame&& frame) {
+    _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
+                             frame.width, frame.height, frame.linesize);
+    // todo: first id should be last_frame.second + 1.
+    send_messages(frame.id.first, frame.id.second);
   }
 
   void send_messages(int64_t i1, int64_t i2) {
@@ -240,6 +265,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   std::shared_ptr<decoder> _decoder;
 
   std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
+  std::unique_ptr<threaded_worker<image_frame>> _process_worker;
 };
 
 cbor_item_t* configure_command(cbor_item_t* config) {

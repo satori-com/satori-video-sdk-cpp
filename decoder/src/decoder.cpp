@@ -86,11 +86,10 @@ struct decoder {
   int set_metadata(const char *codec_name, const uint8_t *extra_data,
                    int extra_data_length) {
     bool same_metadata =
-        _initialized
-        && strlen(_decoder->name) == strlen(codec_name)
-        && strncmp(_decoder->name, codec_name, strlen(codec_name)) == 0
-        && _params->extradata_size == extra_data_length
-        && memcmp(_params->extradata, extra_data, extra_data_length) == 0;
+        _initialized && strlen(_decoder->name) == strlen(codec_name) &&
+        strncmp(_decoder->name, codec_name, strlen(codec_name)) == 0 &&
+        _params->extradata_size == extra_data_length &&
+        memcmp(_params->extradata, extra_data, extra_data_length) == 0;
 
     if (!same_metadata) {
       _initialized = false;
