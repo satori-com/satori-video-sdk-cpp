@@ -113,8 +113,8 @@ struct decoder {
     return 0;
   }
 
-  int process_frame_message(const uint8_t *data, size_t length, int chunk,
-                            int chunks) {
+  int process_frame_message(const uint8_t *data, size_t length, uint32_t chunk,
+                            uint32_t chunks) {
     if (!_initialized) return -1;
     _frame_ready = false;
     if (chunks == 1) return process_frame(data, length);
@@ -252,12 +252,10 @@ EXPORT int decoder_set_metadata(decoder *d, const char *codec_name,
   return d->set_metadata(codec_name, metadata, len);
 }
 
-EXPORT int decoder_process_frame_message(decoder *d, int64_t i1, int64_t i2,
-                                         uint32_t rtp_timestamp,
-                                         double ntp_timestamp,
+EXPORT int decoder_process_frame_message(decoder *d, uint64_t i1, uint64_t i2,
                                          const uint8_t *frame_data, size_t len,
-                                         int chunk, int chunks) {
-  // todo pass the rest of parameters too.
+                                         uint32_t chunk, uint32_t chunks) {
+  // todo check id sequence
   return d->process_frame_message(frame_data, len, chunk, chunks);
 }
 EXPORT bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }

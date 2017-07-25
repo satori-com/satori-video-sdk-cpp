@@ -6,6 +6,7 @@
 #include <boost/bind.hpp>
 #include <boost/program_options.hpp>
 #include <boost/scope_exit.hpp>
+#include <chrono>
 #include <iostream>
 #include <string>
 
@@ -17,11 +18,13 @@ extern "C" {
 #include "bot_environment.h"
 #include "cbor_json.h"
 #include "librtmvideo/decoder.h"
+#include "librtmvideo/rtmpacket.h"
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
 #include "tele_impl.h"
+#include "worker.h"
 
 namespace asio = boost::asio;
 
@@ -29,6 +32,8 @@ namespace rtm {
 namespace video {
 
 namespace {
+
+constexpr size_t network_frames_buffer_size = 1024;
 
 tele::counter* frames_received = tele::counter_new("vbot", "frames_received");
 tele::counter* messages_received =
@@ -48,6 +53,25 @@ class bot_api_exception : public std::runtime_error {
   bot_api_exception() : runtime_error("bot api error") {}
 };
 
+network_frame decode_network_frame(const rapidjson::Value& msg) {
+  auto t = msg["i"].GetArray();
+  uint64_t i1 = t[0].GetUint64();
+  uint64_t i2 = t[1].GetUint64();
+
+  uint32_t rtp_timestamp = msg.HasMember("rt") ? (uint32_t)msg["rt"].GetInt64()
+                                               : 0;  // rjson thinks its int64
+  double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
+
+  uint32_t chunk = 1, chunks = 1;
+  if (msg.HasMember("c")) {
+    chunk = msg["c"].GetUint();
+    chunks = msg["l"].GetUint();
+  }
+
+  return {msg["d"].GetString(), std::make_pair(i1, i2),
+          std::chrono::system_clock::from_time_t(ntp_timestamp), chunk, chunks};
+}
+
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
  public:
   bot_instance(const bot_descriptor& descriptor, const std::string& channel,
@@ -58,7 +82,12 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
         _metadata_channel(channel + metadata_channel_suffix),
         _analysis_channel(channel + analysis_channel_suffix),
         _debug_channel(channel + debug_channel_suffix),
-        _env(env) {}
+        _env(env) {
+    _decoder_worker = std::make_unique<threaded_worker<network_frame>>(
+        network_frames_buffer_size, [this](network_frame&& frame) {
+          process_network_frame(std::move(frame));
+        });
+  }
 
   void queue_message(const bot_message_kind kind, cbor_item_t* message) {
     bot_message newmsg{message, kind};
@@ -141,29 +170,20 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       return;
     }
 
-    auto t = msg["i"].GetArray();
-    int64_t i1 = t[0].GetInt64();
-    int64_t i2 = t[1].GetInt64();
+    network_frame frame = decode_network_frame(msg);
+    tele::counter_inc(bytes_received, frame.base64_data.size());
 
-    uint32_t rtp_timestamp = msg.HasMember("rt")
-                                 ? (uint32_t)msg["rt"].GetInt64()
-                                 : 0;  // rjson thinks its int64
-    double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
-
-    int chunk = 1, chunks = 1;
-    if (msg.HasMember("c")) {
-      chunk = msg["c"].GetInt();
-      chunks = msg["l"].GetInt();
+    if (!_decoder_worker->try_send(std::move(frame))) {
+      std::cerr << "dropped network frame\n";
     }
+  }
 
-    std::cerr << "[" << i1 << "," << i2 << "]\n";
-    const char* encoded_data = msg["d"].GetString();
-    size_t data_len = strlen(encoded_data);
-    tele::counter_inc(bytes_received, data_len);
+  // called only from decoder worker.
+  void process_network_frame(network_frame&& frame) {
     decoder* decoder = _decoder.get();
-    decoder_process_frame_message(decoder, i1, i2, rtp_timestamp, ntp_timestamp,
-                                  (const uint8_t*)encoded_data, data_len, chunk,
-                                  chunks);
+    decoder_process_frame_message(decoder, frame.id.first, frame.id.second,
+                                  (const uint8_t*)frame.base64_data.c_str(),
+                                  frame.base64_data.size(), frame. chunk, frame.chunks);
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
@@ -171,23 +191,25 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
         _descriptor.img_callback(
             *this, decoder_image_data(decoder), decoder_image_width(decoder),
             decoder_image_height(decoder), decoder_image_line_size(decoder));
-        send_messages(i1, i2);
+        // todo: first id should be last_frame.second + 1.
+        send_messages(frame.id.first, frame.id.second);
       }
     }
   }
 
   void send_messages(int64_t i1, int64_t i2) {
     for (auto&& msg : _message_buffer) {
-      cbor_item_t *data = msg.data;
+      cbor_item_t* data = msg.data;
 
       if (i1 >= 0) {
-        cbor_item_t *is = cbor_new_definite_array(2);
-        cbor_array_set(is, 0, cbor_move(cbor_build_uint64(static_cast<uint64_t>(i1))));
-        cbor_array_set(is, 1, cbor_move(cbor_build_uint64(static_cast<uint64_t>(i2))));
-        cbor_map_add(data,
-                     (struct cbor_pair){
-                         .key = cbor_move(cbor_build_string("i")),
-                         .value = cbor_move(is)});
+        cbor_item_t* is = cbor_new_definite_array(2);
+        cbor_array_set(is, 0,
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(i1))));
+        cbor_array_set(is, 1,
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(i2))));
+        cbor_map_add(
+            data, (struct cbor_pair){.key = cbor_move(cbor_build_string("i")),
+                                     .value = cbor_move(is)});
       }
 
       switch (msg.kind) {
@@ -215,6 +237,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   rtm::subscription _frames_subscription;
   rtm::subscription _message_subscription;
   rtm::subscription _metadata_subscription;
+
+  std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
 };
 
 cbor_item_t* configure_command(cbor_item_t* config) {
@@ -367,7 +391,8 @@ int bot_environment::main(int argc, char* argv[]) {
 
 void rtm_video_bot_message(bot_context& ctx, const bot_message_kind kind,
                            cbor_item_t* message) {
-  BOOST_ASSERT_MSG(cbor_map_is_indefinite(message), "Message must be indefinite map");
+  BOOST_ASSERT_MSG(cbor_map_is_indefinite(message),
+                   "Message must be indefinite map");
   static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message);
 }
 
