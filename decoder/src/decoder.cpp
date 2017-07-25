@@ -35,7 +35,7 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
       return AV_PIX_FMT_BGR24;
   }
 }
-}
+}  // namespace
 
 struct decoder {
  public:

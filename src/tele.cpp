@@ -10,7 +10,7 @@ namespace tele {
 namespace {
 boost::posix_time::seconds tele_interval(1);
 
-tele::counter* messages_published =
+tele::counter *messages_published =
     tele::counter_new("tele", "messages_published");
 
 static std::string get_node_id() {

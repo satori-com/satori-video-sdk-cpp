@@ -1,9 +1,10 @@
-// RTM video stream is published to multiple RTM channels. The main video channel
-// contains video frames along with frames related metadata,
-// like timestamps, sequence id, chunk id and number of chunks.
-// A number of RTM subchannels is used to send additional information like bot control commands,
+// RTM video stream is published to multiple RTM channels. The main video
+// channel contains video frames along with frames related metadata, like
+// timestamps, sequence id, chunk id and number of chunks. A number of RTM
+// subchannels is used to send additional information like bot control commands,
 // codec metadata, bot output. Subchannels names use the following pattern:
-// "<video_channel_name>/<subchannel_suffix>", for example "test-camera/analysis".
+// "<video_channel_name>/<subchannel_suffix>", for example
+// "test-camera/analysis".
 #pragma once
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };

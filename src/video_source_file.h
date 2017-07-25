@@ -24,12 +24,12 @@ struct file_source : public timed_source {
   AVFormatContext *_fmt_ctx{nullptr};
   int _stream_idx{-1};
   AVStream *_stream{nullptr};
-  AVCodec *_dec{nullptr}; // TODO: check if possible to destroy it
+  AVCodec *_dec{nullptr};  // TODO: check if possible to destroy it
   AVCodecContext *_dec_ctx{nullptr};
   AVPacket _pkt{0};
   std::string _filename;
   bool _is_replayed{false};
 };
 
-} // namespace video
-} // namespace rtm
+}  // namespace video
+}  // namespace rtm

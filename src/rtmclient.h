@@ -113,4 +113,4 @@ std::unique_ptr<client> new_client(const std::string &endpoint,
                                    boost::asio::io_service &io_service,
                                    boost::asio::ssl::context &ssl_ctx,
                                    size_t id, error_callbacks &callbacks);
-}
+}  // namespace rtm

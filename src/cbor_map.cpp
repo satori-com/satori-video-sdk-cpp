@@ -28,7 +28,7 @@ bool map_has_str_value(cbor_item_t *map, const std::string name,
 }
 
 std::string map_get_str(cbor_item_t *map, const std::string name,
-                              const std::string default_value) {
+                        const std::string default_value) {
   cbor_item_t *value = map_get(map, name);
   if (value == nullptr) return default_value;
   return std::string(reinterpret_cast<char *>(cbor_string_handle(value)),

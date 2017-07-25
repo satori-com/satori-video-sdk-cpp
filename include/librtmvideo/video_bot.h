@@ -1,5 +1,6 @@
 // Video bot API.
-// There are two steps to define a video bot: register a bot and launch main event loop.
+// There are two steps to define a video bot: register a bot and launch main
+// event loop.
 //
 // Example:
 // int main(int argc, char *argv[]) {
@@ -18,21 +19,20 @@
 #include "rtmvideo.h"
 
 // Used to store user defined state.
-EXPORT struct bot_context {
-  void *instance_data{nullptr};
-};
+EXPORT struct bot_context { void *instance_data{nullptr}; };
 
 // API for image handler callback
-// An image may be split vertically into multiple lines, linesize defines how many lines are there.
-// "width" is a width of an image, "height" is a height of a single line.
-// In most cases there will be a single line.
+// An image may be split vertically into multiple lines, linesize defines how
+// many lines are there. "width" is a width of an image, "height" is a height of
+// a single line. In most cases there will be a single line.
 using bot_img_callback_t = void (*)(bot_context &context, const uint8_t *image,
                                     uint16_t width, uint16_t height,
                                     uint16_t linesize);
 
 // API for control command callback
 // Format of message is defined by user.
-// Recommended format is: {"action": "configure", "body":{<configure_parameters if specified>}}
+// Recommended format is: {"action": "configure", "body":{<configure_parameters
+// if specified>}}
 using bot_ctrl_callback_t = cbor_item_t *(*)(bot_context &context,
                                              cbor_item_t *message);
 
@@ -48,7 +48,8 @@ struct bot_descriptor {
   // Invoked on every received image
   bot_img_callback_t img_callback;
 
-  // Invoked on every received control command, guaranteed to be invoked during initialization
+  // Invoked on every received control command, guaranteed to be invoked during
+  // initialization
   bot_ctrl_callback_t ctrl_callback;
 };
 

@@ -6,8 +6,9 @@
 
 namespace tele {
 
-// RTM channel for telemetry data. Values of all telemetry counters are published every second.
-// Messages look like: {"id": "dummy-host-name", "counters": {"key1": 3, "key2": 2, "key3": 10}}
+// RTM channel for telemetry data. Values of all telemetry counters are
+// published every second. Messages look like: {"id": "dummy-host-name",
+// "counters": {"key1": 3, "key2": 2, "key3": 10}}
 constexpr char channel[] = "tele";
 
 // Counter struct is opaque to users.

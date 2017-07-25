@@ -22,7 +22,8 @@ struct camera_source : public timed_source {
   int next_packet(uint8_t **output) override;
 
  private:
-  void init_open_parameters(AVInputFormat **input_format, AVDictionary **options);
+  void init_open_parameters(AVInputFormat **input_format,
+                            AVDictionary **options);
 
  private:
   std::string _dimensions;
@@ -34,7 +35,7 @@ struct camera_source : public timed_source {
   // rawvideo: uyvy422 yuyv422 nv12 0rgb bgr0
   AVPixelFormat _dec_pix_fmt{AV_PIX_FMT_BGR0};
   AVCodecID _dec_id{AV_CODEC_ID_RAWVIDEO};
-  AVCodec *_dec{nullptr}; // TODO: deallocate?
+  AVCodec *_dec{nullptr};  // TODO: deallocate?
   AVCodecContext *_dec_ctx{nullptr};
   AVPacket _dec_pkt{0};
   AVFrame *_dec_frame{nullptr};
@@ -43,7 +44,7 @@ struct camera_source : public timed_source {
   // jpeg2000: rgb24 yuv444p gray yuv420p yuv422p yuv410p yuv411p
   AVPixelFormat _enc_pix_fmt{AV_PIX_FMT_YUVJ422P};
   AVCodecID _enc_id{AV_CODEC_ID_MJPEG};
-  AVCodec *_enc{nullptr}; // TODO: deallocate?
+  AVCodec *_enc{nullptr};  // TODO: deallocate?
   AVCodecContext *_enc_ctx{nullptr};
   AVPacket _enc_pkt{0};
   AVFrame *_enc_frame{nullptr};
@@ -51,5 +52,5 @@ struct camera_source : public timed_source {
   SwsContext *_sws_ctx{nullptr};
 };
 
-} // namespace video
-} // namespace rtm
+}  // namespace video
+}  // namespace rtm

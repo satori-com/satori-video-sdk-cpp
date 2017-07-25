@@ -1,15 +1,16 @@
 #pragma once
 
-#include <chrono>
-#include <functional>
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_service.hpp>
+#include <chrono>
+#include <functional>
 
 namespace rtm {
 namespace video {
 
-using metadata_subscriber = std::function<void(const char *, size_t, const uint8_t*)>;
-using frames_subscriber = std::function<void(size_t, const uint8_t*)>;
+using metadata_subscriber =
+    std::function<void(const char *, size_t, const uint8_t *)>;
+using frames_subscriber = std::function<void(size_t, const uint8_t *)>;
 
 void initialize_sources_library();
 void print_av_error(const char *msg, int code);
@@ -19,7 +20,8 @@ struct source {
   virtual ~source() = default;
   virtual int init() = 0;
   virtual void start() = 0;
-  void subscribe(metadata_subscriber &&metadata_subscriber, frames_subscriber &&frames_subscriber);
+  void subscribe(metadata_subscriber &&metadata_subscriber,
+                 frames_subscriber &&frames_subscriber);
 
  protected:
   std::vector<metadata_subscriber> _metadata_subscribers;
@@ -28,13 +30,12 @@ struct source {
 
 struct timed_source : public source {
  protected:
-  void start(const std::string &codec_name,
-             size_t codec_data_len,
+  void start(const std::string &codec_name, size_t codec_data_len,
              const uint8_t *codec_data,
              std::chrono::milliseconds frames_interval,
              std::chrono::milliseconds metadata_interval);
   void stop_timers();
-  virtual int next_packet(uint8_t **output) = 0; // TODO: better method API?
+  virtual int next_packet(uint8_t **output) = 0;  // TODO: better method API?
 
  private:
   void metadata_tick();
@@ -50,5 +51,5 @@ struct timed_source : public source {
   size_t _codec_data_len;
   const uint8_t *_codec_data{nullptr};
 };
-} // namespace video
-} // namespace rtm
+}  // namespace video
+}  // namespace rtm

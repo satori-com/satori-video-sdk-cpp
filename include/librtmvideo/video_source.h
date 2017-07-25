@@ -7,12 +7,14 @@
 
 struct video_source;
 
-using metadata_handler = void (*)(const char *codec_name, size_t data_len, const uint8_t *data);
+using metadata_handler = void (*)(const char *codec_name, size_t data_len,
+                                  const uint8_t *data);
 using frame_handler = void (*)(size_t data_len, const uint8_t *data);
 
 EXPORT void video_source_init_library();
 
-EXPORT video_source *video_source_file_new(const char *filename, int is_replayed);
+EXPORT video_source *video_source_file_new(const char *filename,
+                                           int is_replayed);
 
 EXPORT video_source *video_source_camera_new(const char *dimensions);
 

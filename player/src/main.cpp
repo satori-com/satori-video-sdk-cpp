@@ -7,7 +7,7 @@ void process_image(bot_context &context, const uint8_t *image, uint16_t width,
   // Read image
   cv::Mat original(height, width, CV_8UC3, (void *)image, linesize);
   cv::imshow("Player", original);
-  cv::waitKey(10); // it is required to make image appear
+  cv::waitKey(10);  // it is required to make image appear
   // delay 10 ms because it couldn't be more than 100 rps
 }
 }  // namespace player
