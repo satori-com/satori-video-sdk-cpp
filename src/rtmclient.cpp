@@ -115,7 +115,7 @@ struct subscribe_request {
 };
 
 struct subscription_impl {
-  subscription &sub;
+  const subscription &sub;
   subscription_callbacks &callbacks;
 };
 
@@ -172,7 +172,7 @@ class secure_client : public client {
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
   }
 
-  void subscribe_channel(const std::string &channel, subscription &sub,
+  void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
     _subscriptions.emplace(
@@ -191,21 +191,21 @@ class secure_client : public client {
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
   }
 
-  void subscribe_filter(const std::string &filter, subscription &sub,
+  void subscribe_filter(const std::string &filter, const subscription &sub,
                         subscription_callbacks &callbacks,
                         const subscription_options *options) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  void unsubscribe(subscription &sub) override {
+  void unsubscribe(const subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  const channel_position &position(subscription &sub) override {
+  const channel_position &position(const subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 
-  bool is_up(subscription &sub) override {
+  bool is_up(const subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
   }
 

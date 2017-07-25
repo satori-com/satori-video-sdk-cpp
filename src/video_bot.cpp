@@ -183,7 +183,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     decoder* decoder = _decoder.get();
     decoder_process_frame_message(decoder, frame.id.first, frame.id.second,
                                   (const uint8_t*)frame.base64_data.c_str(),
-                                  frame.base64_data.size(), frame. chunk, frame.chunks);
+                                  frame.base64_data.size(), frame.chunk,
+                                  frame.chunks);
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
@@ -231,12 +232,12 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   const std::string _metadata_channel;
   const std::string _analysis_channel;
   const std::string _debug_channel;
+  const rtm::subscription _frames_subscription{};
+  const rtm::subscription _message_subscription{};
+  const rtm::subscription _metadata_subscription{};
   rtm::video::bot_environment& _env;
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
-  rtm::subscription _frames_subscription;
-  rtm::subscription _message_subscription;
-  rtm::subscription _metadata_subscription;
 
   std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
 };

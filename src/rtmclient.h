@@ -89,20 +89,20 @@ struct subscriber {
   virtual ~subscriber() = default;
 
   virtual void subscribe_channel(
-      const std::string &channel, subscription &sub,
+      const std::string &channel, const subscription &sub,
       subscription_callbacks &callbacks,
       const subscription_options *options = nullptr) = 0;
 
   virtual void subscribe_filter(
-      const std::string &filter, subscription &sub,
+      const std::string &filter, const subscription &sub,
       subscription_callbacks &callbacks,
       const subscription_options *options = nullptr) = 0;
 
-  virtual void unsubscribe(subscription &sub) = 0;
+  virtual void unsubscribe(const subscription &sub) = 0;
 
-  virtual const channel_position &position(subscription &sub) = 0;
+  virtual const channel_position &position(const subscription &sub) = 0;
 
-  virtual bool is_up(subscription &sub) = 0;
+  virtual bool is_up(const subscription &sub) = 0;
 };
 
 class client : public publisher, public subscriber {};

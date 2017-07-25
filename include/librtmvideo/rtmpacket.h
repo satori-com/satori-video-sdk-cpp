@@ -13,7 +13,7 @@ static constexpr size_t max_payload_size = 65000;
 using frame_id = std::pair<uint64_t, uint64_t>;
 
 struct network_frame {
-    std::string base64_data;
+  std::string base64_data;
   frame_id id{0, 0};
   std::chrono::system_clock::time_point t;
   uint32_t chunk{1};
@@ -21,12 +21,9 @@ struct network_frame {
 };
 
 // todo: use network_frame
-cbor_item_t *frame_packet(std::string &&base64_data,
-    uint64_t id1,
-    uint64_t id2,
-    std::chrono::system_clock::time_point &&time_point,
-    size_t chunk_id,
-    size_t nb_chunks) {
+cbor_item_t *frame_packet(std::string &&base64_data, uint64_t id1, uint64_t id2,
+                          std::chrono::system_clock::time_point &&time_point,
+                          size_t chunk_id, size_t nb_chunks) {
   cbor_item_t *root = cbor_new_definite_map(6);
   cbor_map_add(root,
                {.key = cbor_move(cbor_build_string("d")),
