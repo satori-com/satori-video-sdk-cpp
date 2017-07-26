@@ -8,10 +8,7 @@ add_executable(player src/main.cpp)
 set_property(TARGET player PROPERTY CXX_STANDARD 14)
 add_dependencies(player rtmvideo)
 target_include_directories(player PRIVATE
-        ${LIBRTMVIDEO_INCLUDE_DIRS}
-        ${BASE_OPENCV_BOT_INCLUDE_DIRS})
+        ${LIBRTMVIDEO_INCLUDE_DIRS})
 target_link_libraries(player PRIVATE
-        ${OpenCV_LIBS}
         ${LIBRTMVIDEO_LIBRARIES}
-        ${BASE_OPENCV_BOT_LIBRARIES}
         CONAN_PKG::Opencv)
