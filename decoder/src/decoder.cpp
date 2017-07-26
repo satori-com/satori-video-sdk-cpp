@@ -83,19 +83,21 @@ struct decoder {
     return 0;
   }
 
-  int set_metadata(const char *codec_name, const uint8_t *extra_data,
+  int set_metadata(std::string codec_name, const uint8_t *extra_data,
                    int extra_data_length) {
     bool same_metadata =
-        _initialized && strlen(_decoder->name) == strlen(codec_name) &&
-        strncmp(_decoder->name, codec_name, strlen(codec_name)) == 0 &&
+        _initialized && strlen(_decoder->name) == codec_name.size() &&
+        strncmp(_decoder->name, codec_name.c_str(), codec_name.size()) == 0 &&
         _params->extradata_size == extra_data_length &&
         memcmp(_params->extradata, extra_data, extra_data_length) == 0;
 
+    if (codec_name == "vp9") codec_name = "libvpx-vp9";
+
     if (!same_metadata) {
       _initialized = false;
-      _decoder = avcodec_find_decoder_by_name(codec_name);
+      _decoder = avcodec_find_decoder_by_name(codec_name.c_str());
       if (!_decoder) {
-        fprintf(stderr, "decoder not found: %s\n", codec_name);
+        fprintf(stderr, "decoder not found: %s\n", codec_name.c_str());
         return 1;
       }
 
