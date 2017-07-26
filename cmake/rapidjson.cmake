@@ -1,3 +1,4 @@
+include(ExternalProject)
 set(RAPIDJSON_PREFIX ${CMAKE_BINARY_DIR}/rapidjson)
 
 ExternalProject_Add(
