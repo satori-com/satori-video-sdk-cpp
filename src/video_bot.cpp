@@ -23,6 +23,7 @@ extern "C" {
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
+#include "stopwatch.h"
 #include "tele_impl.h"
 #include "worker.h"
 
@@ -217,8 +218,12 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   }
 
   void process_image_frame(image_frame&& frame) {
-    _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
-                             frame.width, frame.height, frame.linesize);
+    {
+      stopwatch<> s;
+      _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
+                               frame.width, frame.height, frame.linesize);
+      std::cout << "process_image_frame: " << s.millis() << "ms\n";
+    }
     // todo: first id should be last_frame.second + 1.
     send_messages(frame.id.first, frame.id.second);
   }
