@@ -7,7 +7,6 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
-include(cmake/openssl.cmake)
 include(cmake/rapidjson.cmake)
 include(cmake/libvpx.cmake)
 include(cmake/ffmpeg.cmake)
@@ -30,10 +29,11 @@ add_library(rtmvideo SHARED
     src/video_source_file.cpp
     src/video_source_camera.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
-add_dependencies(rtmvideo openssl rapidjson gsl beast)
+add_dependencies(rtmvideo rapidjson gsl beast)
 target_link_libraries(rtmvideo
-    PRIVATE ssl crypto avdevice avformat swscale rtmvideo-decoder
-    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost)
+    PUBLIC CONAN_PKG::Openssl
+    PRIVATE avdevice avformat swscale rtmvideo-decoder
+    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost CONAN_PKG::Opencv)
 target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
 
 if(APPLE)
