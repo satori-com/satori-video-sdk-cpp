@@ -207,8 +207,6 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     tele::counter_inc(bytes_received, frame.base64_data.size());
 
 
-    std::cout << "network buffer: " << _decoder_worker->queue_size()
-              << " images buffer: " << _process_worker->queue_size() << "\n";
     if (!_decoder_worker->try_send(std::move(frame))) {
       std::cerr << "dropped network frame, clearing network buffer\n";
       _decoder_worker->clear();
@@ -226,7 +224,6 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
                                     (const uint8_t*)frame.base64_data.c_str(),
                                     frame.base64_data.size(), frame.chunk,
                                     frame.chunks);
-      std::cout << "decode_frame: " << s.millis() << "ms\n";
     }
 
     if (decoder_frame_ready(decoder)) {
@@ -251,7 +248,6 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       stopwatch<> s;
       _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
                                frame.width, frame.height, frame.linesize);
-      std::cout << "process_image_frame: " << s.millis() << "ms\n";
     }
     // todo: first id should be last_frame.second + 1.
     send_messages(frame.id.first, frame.id.second);
