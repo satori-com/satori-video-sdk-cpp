@@ -20,4 +20,12 @@ EXPORT counter *counter_new(const char *group, const char *name);
 // Increments counter value.
 EXPORT void counter_inc(counter *counter, uint64_t delta = 1);
 
+EXPORT struct gauge;
+EXPORT gauge *gauge_new(const char *group, const char *name);
+EXPORT void gauge_set(gauge *gauge, int64_t value);
+
+EXPORT struct distribution;
+EXPORT distribution *distribution_new(const char *group, const char *name);
+EXPORT void distribution_add(distribution *distribution, int64_t value);
+
 }  // namespace tele

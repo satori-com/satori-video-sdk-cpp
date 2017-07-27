@@ -34,15 +34,23 @@ namespace video {
 
 namespace {
 
-constexpr size_t network_frames_buffer_size = 1024;
-constexpr size_t image_frames_buffer_size = 2;
+constexpr size_t network_frames_max_buffer_size = 1024;
+constexpr size_t image_frames_max_buffer_size = 2;
 
-tele::counter* frames_received = tele::counter_new("vbot", "frames_received");
-tele::counter* messages_received =
-    tele::counter_new("vbot", "messages_received");
-tele::counter* bytes_received = tele::counter_new("vbot", "bytes_received");
-tele::counter* metadata_received =
-    tele::counter_new("vbot", "metadata_received");
+auto frames_received = tele::counter_new("vbot", "frames_received");
+auto messages_received = tele::counter_new("vbot", "messages_received");
+auto bytes_received = tele::counter_new("vbot", "bytes_received");
+auto metadata_received = tele::counter_new("vbot", "metadata_received");
+auto network_frame_buffer_size =
+    tele::gauge_new("vbot", "network_frame_buffer_size");
+auto image_frame_buffer_size =
+    tele::gauge_new("vbot", "image_frame_buffer_size");
+auto decoding_times_millis =
+    tele::distribution_new("vbot", "decoding_times_millis");
+auto processing_times_millis =
+    tele::distribution_new("vbot", "processing_times_millis");
+auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
+auto network_buffer_dropped = tele::counter_new("vbot", "network_buffer_dropped");
 
 struct bot_message {
   cbor_item_t* data;
@@ -107,11 +115,11 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
         _debug_channel(channel + debug_channel_suffix),
         _env(env) {
     _decoder_worker = std::make_unique<threaded_worker<network_frame>>(
-        network_frames_buffer_size, [this](network_frame&& frame) {
+        network_frames_max_buffer_size, [this](network_frame&& frame) {
           process_network_frame(std::move(frame));
         });
     _process_worker = std::make_unique<threaded_worker<image_frame>>(
-        image_frames_buffer_size,
+        image_frames_max_buffer_size,
         [this](image_frame&& frame) { process_image_frame(std::move(frame)); });
   }
 
@@ -206,8 +214,11 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     network_frame frame = decode_network_frame(msg);
     tele::counter_inc(bytes_received, frame.base64_data.size());
 
+    tele::gauge_set(network_frame_buffer_size, _decoder_worker->queue_size());
+    tele::gauge_set(image_frame_buffer_size, _process_worker->queue_size());
 
     if (!_decoder_worker->try_send(std::move(frame))) {
+      tele::counter_inc(network_buffer_dropped);
       std::cerr << "dropped network frame, clearing network buffer\n";
       _decoder_worker->clear();
     }
@@ -224,6 +235,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
                                     (const uint8_t*)frame.base64_data.c_str(),
                                     frame.base64_data.size(), frame.chunk,
                                     frame.chunks);
+      tele::distribution_add(decoding_times_millis, s.millis());
     }
 
     if (decoder_frame_ready(decoder)) {
@@ -237,7 +249,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
             ((uint16_t)decoder_image_height(decoder)),
             ((uint16_t)decoder_image_line_size(decoder))};
         if (!_process_worker->try_send(std::move(image_frame))) {
-          std::cerr << "dropped image frame\n";
+          tele::counter_inc(image_frames_dropped);
         }
       }
     }
@@ -248,6 +260,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       stopwatch<> s;
       _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
                                frame.width, frame.height, frame.linesize);
+      tele::distribution_add(processing_times_millis, s.millis());
     }
     // todo: first id should be last_frame.second + 1.
     send_messages(frame.id.first, frame.id.second);
