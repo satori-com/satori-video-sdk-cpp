@@ -44,6 +44,11 @@ class channel {
     return _buffer.size();
   }
 
+  void clear() {
+    std::lock_guard<std::mutex> guard(_mutex);
+    _buffer.clear();
+  }
+
  private:
   std::mutex _mutex;
   size_t _buffer_size;

@@ -191,7 +191,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     std::cout << "network buffer: " << _decoder_worker->queue_size()
               << " images buffer: " << _process_worker->queue_size() << "\n";
     if (!_decoder_worker->try_send(std::move(frame))) {
-      std::cerr << "dropped network frame\n";
+      std::cerr << "dropped network frame, clearing network buffer\n";
+      _decoder_worker->clear();
     }
   }
 

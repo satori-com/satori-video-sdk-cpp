@@ -33,6 +33,10 @@ class threaded_worker {
     return _channel->size();
   }
 
+  void clear() noexcept {
+    _channel->clear();
+  }
+
  private:
   void thread_loop() noexcept {
     while (true) {
