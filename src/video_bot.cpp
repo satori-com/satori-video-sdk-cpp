@@ -57,6 +57,11 @@ struct image_frame {
   uint16_t linesize;
 };
 
+struct metadata_frame {
+  std::string codec_name;
+  std::string codec_data;
+};
+
 }  // namespace
 
 class bot_api_exception : public std::runtime_error {
@@ -81,6 +86,13 @@ network_frame decode_network_frame(const rapidjson::Value& msg) {
 
   return {msg["d"].GetString(), std::make_pair(i1, i2),
           std::chrono::system_clock::from_time_t(ntp_timestamp), chunk, chunks};
+}
+
+metadata_frame decode_metadata_frame(const rapidjson::Value& msg) {
+  std::string codec_data =
+      msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
+  std::string codec_name = msg["codecName"].GetString();
+  return {codec_name, codec_data};
 }
 
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
@@ -138,21 +150,28 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
  private:
   void on_metadata(const rapidjson::Value& msg) {
+    metadata_frame new_metadata = decode_metadata_frame(msg);
     tele::counter_inc(metadata_received);
+
+    if (new_metadata.codec_data == _metadata.codec_data &&
+        new_metadata.codec_name == _metadata.codec_name)
+      return;
+
+    _metadata = new_metadata;
+    std::lock_guard<std::mutex> guard(_decoder_mutex);
+
     _decoder.reset(
         decoder_new(_descriptor.image_width, _descriptor.image_height,
                     _descriptor.pixel_format),
         [this](decoder* d) {
-          std::cout << "Deleting decoder\n";
+          std::cerr << "Deleting decoder\n";
           decoder_delete(d);
         });
     BOOST_VERIFY(_decoder);
 
-    std::string codec_data = msg.HasMember("codecData")
-                                 ? decode64(msg["codecData"].GetString())
-                                 : "";
-    decoder_set_metadata(_decoder.get(), msg["codecName"].GetString(),
-                         (const uint8_t*)codec_data.data(), codec_data.size());
+    decoder_set_metadata(_decoder.get(), _metadata.codec_name.c_str(),
+                         (const uint8_t*)_metadata.codec_data.data(),
+                         _metadata.codec_data.size());
     std::cout << "Video decoder initialized\n";
   }
 
@@ -198,6 +217,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
   // called only from decoder worker.
   void process_network_frame(network_frame&& frame) {
+    std::lock_guard<std::mutex> guard(_decoder_mutex);
+
     decoder* decoder = _decoder.get();
     {
       stopwatch<> s;
@@ -276,6 +297,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   rtm::video::bot_environment& _env;
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
+  std::mutex _decoder_mutex;
+  metadata_frame _metadata;
 
   std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
   std::unique_ptr<threaded_worker<image_frame>> _process_worker;
