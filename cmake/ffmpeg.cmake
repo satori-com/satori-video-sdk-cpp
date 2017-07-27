@@ -41,7 +41,8 @@ ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES Debug)
     message("    ffmpeg: Debug")
     set(FFMPEG_CONFIGURE_ARGS ${FFMPEG_CONFIGURE_ARGS}
-            --disable-optimizations --disable-mmx --disable-stripping --enable-debug=3)
+            # --disable-optimizations --disable-mmx
+            --disable-stripping --enable-debug=3)
 ENDIF()
 
 ExternalProject_Add(

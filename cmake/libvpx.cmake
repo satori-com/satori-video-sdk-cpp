@@ -24,7 +24,8 @@ ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES Debug)
     message("    libvpx: Debug")
     set(LIBVPX_CONFIGURE_ARGS ${LIBVPX_CONFIGURE_ARGS}
-            --disable-optimizations --enable-debug)
+            # --disable-optimizations
+            --enable-debug)
 ENDIF()
 
 ExternalProject_Add(
