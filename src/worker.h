@@ -21,17 +21,26 @@ class threaded_worker {
         std::make_unique<std::thread>(&threaded_worker::thread_loop, this);
   }
 
+  ~threaded_worker() {
+    _should_exit = true;
+    _channel->try_send(T{});
+    _worker_thread->join();
+  }
+
   bool try_send(T &&t) noexcept { return _channel->try_send(std::move(t)); }
 
  private:
   void thread_loop() noexcept {
-    // todo: shutdown
     while (true) {
       T t = _channel->recv();
+      if (_should_exit) {
+        return;
+      }
       _callback(std::move(t));
     }
   }
 
+  std::atomic_bool _should_exit{false};
   std::unique_ptr<channel<T>> _channel;
   std::unique_ptr<std::thread> _worker_thread;
   callback_t _callback;
