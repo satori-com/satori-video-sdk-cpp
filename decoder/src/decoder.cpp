@@ -97,9 +97,11 @@ struct decoder {
       _initialized = false;
       _decoder = avcodec_find_decoder_by_name(codec_name.c_str());
       if (!_decoder) {
-        fprintf(stderr, "decoder not found: %s\n", codec_name.c_str());
+        std::cerr << "decoder not found: " << codec_name << "\n";
         return 1;
       }
+
+      std::cout << "decoder found: " << codec_name << "\n";
 
       _decoder_context = avcodec_alloc_context3(_decoder);
       if (!_decoder_context) return 2;
