@@ -29,6 +29,10 @@ class threaded_worker {
 
   bool try_send(T &&t) noexcept { return _channel->try_send(std::move(t)); }
 
+  size_t queue_size() noexcept {
+    return _channel->size();
+  }
+
  private:
   void thread_loop() noexcept {
     while (true) {

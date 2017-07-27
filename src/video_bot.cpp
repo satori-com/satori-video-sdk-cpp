@@ -187,6 +187,9 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     network_frame frame = decode_network_frame(msg);
     tele::counter_inc(bytes_received, frame.base64_data.size());
 
+
+    std::cout << "network buffer: " << _decoder_worker->queue_size()
+              << " images buffer: " << _process_worker->queue_size() << "\n";
     if (!_decoder_worker->try_send(std::move(frame))) {
       std::cerr << "dropped network frame\n";
     }
@@ -195,10 +198,14 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   // called only from decoder worker.
   void process_network_frame(network_frame&& frame) {
     decoder* decoder = _decoder.get();
-    decoder_process_frame_message(decoder, frame.id.first, frame.id.second,
-                                  (const uint8_t*)frame.base64_data.c_str(),
-                                  frame.base64_data.size(), frame.chunk,
-                                  frame.chunks);
+    {
+      stopwatch<> s;
+      decoder_process_frame_message(decoder, frame.id.first, frame.id.second,
+                                    (const uint8_t*)frame.base64_data.c_str(),
+                                    frame.base64_data.size(), frame.chunk,
+                                    frame.chunks);
+      std::cout << "decode_frame: " << s.millis() << "ms\n";
+    }
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
