@@ -161,8 +161,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     std::lock_guard<std::mutex> guard(_decoder_mutex);
 
     _decoder.reset(
-        decoder_new(_descriptor.image_width, _descriptor.image_height,
-                    _descriptor.pixel_format),
+        decoder_new_keep_proportions(_descriptor.image_width, _descriptor.image_height,
+                                     _descriptor.pixel_format),
         [this](decoder* d) {
           std::cerr << "Deleting decoder\n";
           decoder_delete(d);

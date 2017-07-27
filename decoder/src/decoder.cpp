@@ -1,6 +1,7 @@
 #include "librtmvideo/decoder.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -15,6 +16,9 @@ extern "C" {
 #include "librtmvideo/base.h"
 
 namespace {
+
+constexpr double epsilon = .000001;
+
 struct Image {
   AVPixelFormat format;
   int width;
@@ -39,10 +43,11 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
 
 struct decoder {
  public:
-  decoder(int image_width, int image_height, AVPixelFormat image_pixel_format)
+  decoder(int image_width, int image_height, AVPixelFormat image_pixel_format, bool keep_proportions)
       : _image_width(image_width),
         _image_height(image_height),
-        _image_format(image_pixel_format) {}
+        _image_format(image_pixel_format),
+        _keep_proportions(keep_proportions) {}
 
   ~decoder() {
     if (_sws_context) sws_freeContext(_sws_context);
@@ -85,43 +90,36 @@ struct decoder {
 
   int set_metadata(std::string codec_name, const uint8_t *extra_data,
                    int extra_data_length) {
-    bool same_metadata =
-        _initialized && strlen(_decoder->name) == codec_name.size() &&
-        strncmp(_decoder->name, codec_name.c_str(), codec_name.size()) == 0 &&
-        _params->extradata_size == extra_data_length &&
-        memcmp(_params->extradata, extra_data, extra_data_length) == 0;
-
     if (codec_name == "vp9") codec_name = "libvpx-vp9";
 
-    if (!same_metadata) {
-      _initialized = false;
-      _decoder = avcodec_find_decoder_by_name(codec_name.c_str());
-      if (!_decoder) {
-        std::cerr << "decoder not found: " << codec_name << "\n";
-        return 1;
-      }
-
-      std::cout << "decoder found: " << codec_name << "\n";
-
-      _decoder_context = avcodec_alloc_context3(_decoder);
-      if (!_decoder_context) return 2;
-
-      _params = avcodec_parameters_alloc();
-      _extra_data.reset(new uint8_t[extra_data_length]);
-      memcpy(_extra_data.get(), extra_data, extra_data_length);
-      _params->extradata = _extra_data.get();
-      _params->extradata_size = extra_data_length;
-      int err = avcodec_parameters_to_context(_decoder_context, _params);
-      if (err) return err;
-
-      _decoder_context->thread_count = 4;
-      _decoder_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
-
-      err = avcodec_open2(_decoder_context, _decoder, 0);
-      if (err) return err;
-
-      _initialized = true;
+    std::cout << "reinitializing decoder...\n";
+    _initialized = false;
+    _decoder = avcodec_find_decoder_by_name(codec_name.c_str());
+    if (!_decoder) {
+      std::cerr << "decoder not found: " << codec_name << "\n";
+      return 1;
     }
+
+    std::cout << "decoder found: " << codec_name << "\n";
+
+    _decoder_context = avcodec_alloc_context3(_decoder);
+    if (!_decoder_context) return 2;
+
+    _params = avcodec_parameters_alloc();
+    _extra_data.reset(new uint8_t[extra_data_length]);
+    memcpy(_extra_data.get(), extra_data, extra_data_length);
+    _params->extradata = _extra_data.get();
+    _params->extradata_size = extra_data_length;
+    int err = avcodec_parameters_to_context(_decoder_context, _params);
+    if (err) return err;
+
+    _decoder_context->thread_count = 4;
+    _decoder_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+    err = avcodec_open2(_decoder_context, _decoder, 0);
+    if (err) return err;
+
+    _initialized = true;
 
     return 0;
   }
@@ -170,7 +168,20 @@ struct decoder {
       if (_image_width == -1) {
         _image_width = _frame->width;
         _image_height = _frame->height;
+      } else if (_keep_proportions) {
+        double frame_ratio = (double) _frame->width / (double) _frame->height;
+        double requested_ratio = (double) _image_width / (double) _image_height;
+
+        if (std::fabs(frame_ratio - requested_ratio) > epsilon) {
+          if (frame_ratio > requested_ratio) {
+            _image_height = (int) ((double) _image_width / frame_ratio);
+          } else {
+            _image_width = (int) ((double) _image_height * frame_ratio);
+          }
+        }
       }
+
+      std::cout << "decoder resolution is " << _image_width << "x" << _image_height << "\n";
 
       // todo: move this code into Image class.
       _image = new Image;
@@ -235,6 +246,7 @@ struct decoder {
   int _image_width{-1};
   int _image_height{-1};
   const AVPixelFormat _image_format;
+  bool _keep_proportions{false};
 
   AVPacket *_packet{nullptr};
   AVFrame *_frame{nullptr};
@@ -255,7 +267,19 @@ EXPORT void decoder_init_library() { decoder::init_library(); }
 EXPORT decoder *decoder_new(int width, int height,
                             image_pixel_format pixel_format) {
   std::unique_ptr<decoder> d(
-      new decoder(width, height, to_av_pixel_format(pixel_format)));
+      new decoder(width, height, to_av_pixel_format(pixel_format), false));
+  int err = d->init();
+  if (err) {
+    fprintf(stderr, "Error initializing decoder: %d\n", err);
+    return nullptr;
+  }
+  return d.release();
+}
+
+EXPORT decoder *decoder_new_keep_proportions(int width, int height,
+                                             image_pixel_format pixel_format) {
+  std::unique_ptr<decoder> d(
+      new decoder(width, height, to_av_pixel_format(pixel_format), true));
   int err = d->init();
   if (err) {
     fprintf(stderr, "Error initializing decoder: %d\n", err);
