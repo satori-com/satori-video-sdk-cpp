@@ -35,7 +35,7 @@ namespace video {
 namespace {
 
 constexpr size_t network_frames_buffer_size = 1024;
-constexpr size_t image_frames_buffer_size = 10;
+constexpr size_t image_frames_buffer_size = 2;
 
 tele::counter* frames_received = tele::counter_new("vbot", "frames_received");
 tele::counter* messages_received =
