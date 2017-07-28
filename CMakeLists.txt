@@ -7,11 +7,8 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
-include(cmake/rapidjson.cmake)
 include(cmake/libvpx.cmake)
 include(cmake/ffmpeg.cmake)
-include(cmake/gsl.cmake)
-include(cmake/beast.cmake)
 
 add_dependencies(project_ffmpeg project_libvpx)
 
@@ -29,11 +26,19 @@ add_library(rtmvideo SHARED
     src/video_source_file.cpp
     src/video_source_camera.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
-add_dependencies(rtmvideo rapidjson gsl beast)
 target_link_libraries(rtmvideo
-    PUBLIC CONAN_PKG::Openssl
-    PRIVATE avdevice avformat swscale rtmvideo-decoder
-    ${ZLIB_LIBRARIES} CONAN_PKG::Libcbor CONAN_PKG::Boost CONAN_PKG::Opencv)
+    PUBLIC 
+        CONAN_PKG::Openssl
+        CONAN_PKG::Rapidjson
+        CONAN_PKG::Libcbor 
+    PRIVATE 
+        CONAN_PKG::Boost 
+        CONAN_PKG::Opencv
+        CONAN_PKG::Gsl
+        CONAN_PKG::Beast
+        avdevice avformat swscale rtmvideo-decoder
+        ${ZLIB_LIBRARIES} 
+    )
 target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
 
 if(APPLE)
@@ -64,6 +69,6 @@ set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
 target_include_directories(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_INCLUDE_DIRS})
-target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES} CONAN_PKG::Opencv) 
+target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES} CONAN_PKG::Opencv CONAN_PKG::Gsl) 
 
 add_subdirectory(player)

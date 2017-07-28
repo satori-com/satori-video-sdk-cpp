@@ -1,10 +1,10 @@
 #include <assert.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-#include <beast/core.hpp>
-#include <beast/websocket.hpp>
-#include <beast/websocket/ssl.hpp>
 #include <boost/asio.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
@@ -211,7 +211,8 @@ class secure_client : public client {
 
  private:
   void ask_for_read() {
-    _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec) {
+    _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
+                                        unsigned long) {
       if (ec) fail(ec);
 
       std::string input =
@@ -256,11 +257,11 @@ class secure_client : public client {
   uint64_t _client_id;
   error_callbacks &_callbacks;
 
-  beast::websocket::stream<
+  boost::beast::websocket::stream<
       boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
   uint64_t _request_id{0};
-  beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
+  boost::beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
   std::map<std::string, subscription_impl> _subscriptions;
 };
 
