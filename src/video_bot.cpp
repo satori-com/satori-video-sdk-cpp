@@ -52,12 +52,42 @@ auto decoding_times_millis =
 auto processing_times_millis =
     tele::distribution_new("vbot", "processing_times_millis");
 auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
-auto network_buffer_dropped = tele::counter_new("vbot", "network_buffer_dropped");
+auto network_buffer_dropped =
+    tele::counter_new("vbot", "network_buffer_dropped");
 
 struct bot_message {
   cbor_item_t* data;
   bot_message_kind kind;
 };
+
+struct image_frame {
+  std::string image_data;
+  frame_id id;
+  uint16_t width;
+  uint16_t height;
+  uint16_t linesize;
+};
+
+struct metadata_frame {
+  std::string codec_name;
+  std::string codec_data;
+};
+
+struct channel_names {
+  explicit channel_names(const std::string &base_name) :
+      frames(base_name + frames_channel_suffix),
+      control(base_name + control_channel_suffix),
+      metadata(base_name + metadata_channel_suffix),
+      analysis(base_name + analysis_channel_suffix),
+      debug(base_name + debug_channel_suffix) {}
+
+  const std::string frames;
+  const std::string control;
+  const std::string metadata;
+  const std::string analysis;
+  const std::string debug;
+};
+
 
 }  // namespace
 
@@ -94,14 +124,10 @@ metadata decode_metadata_frame(const rapidjson::Value& msg) {
 
 class bot_instance : public bot_context, public rtm::subscription_callbacks {
  public:
-  bot_instance(const bot_descriptor& descriptor, const std::string& channel,
-               rtm::video::bot_environment& env)
-      : _descriptor(descriptor),
-        _video_channel(channel),
-        _message_channel(channel + message_channel_suffix),
-        _metadata_channel(channel + metadata_channel_suffix),
-        _analysis_channel(channel + analysis_channel_suffix),
-        _debug_channel(channel + debug_channel_suffix),
+  bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
+               const std::string& channel, rtm::video::bot_environment& env)
+      : _bot_id(bot_id), _descriptor(descriptor),
+        _channels(channel),
         _env(env) {
     _decoder_worker = std::make_unique<threaded_worker<network_frame>>(
         network_frames_max_buffer_size, [this](network_frame&& frame) {
@@ -119,12 +145,12 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   }
 
   void subscribe(rtm::subscriber& s) {
-    s.subscribe_channel(_video_channel, _frames_subscription, *this);
-    s.subscribe_channel(_message_channel, _message_subscription, *this);
+    s.subscribe_channel(_channels.frames, _frames_subscription, *this);
+    s.subscribe_channel(_channels.control, _control_subscription, *this);
 
     subscription_options metadata_options;
     metadata_options.history.count = 1;
-    s.subscribe_channel(_metadata_channel, _metadata_subscription, *this,
+    s.subscribe_channel(_channels.metadata, _metadata_subscription, *this,
                         &metadata_options);
   }
 
@@ -139,7 +165,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
       on_metadata(value);
     else if (&sub == &_frames_subscription)
       on_frame_data(value);
-    else if (&sub == &_message_subscription)
+    else if (&sub == &_control_subscription)
       on_message_data(value);
     else
       BOOST_ASSERT_MSG(false, "Unknown subscription");
@@ -157,13 +183,13 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     _metadata = new_metadata;
     std::lock_guard<std::mutex> guard(_decoder_mutex);
 
-    _decoder.reset(
-        decoder_new_keep_proportions(_descriptor.image_width, _descriptor.image_height,
-                                     _descriptor.pixel_format),
-        [this](decoder* d) {
-          std::cerr << "Deleting decoder\n";
-          decoder_delete(d);
-        });
+    _decoder.reset(decoder_new_keep_proportions(_descriptor.image_width,
+                                                _descriptor.image_height,
+                                                _descriptor.pixel_format),
+                   [this](decoder* d) {
+                     std::cerr << "Deleting decoder\n";
+                     decoder_delete(d);
+                   });
     BOOST_VERIFY(_decoder);
 
     decoder_set_metadata(_decoder.get(), _metadata.codec_name.c_str(),
@@ -272,10 +298,10 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
       switch (msg.kind) {
         case bot_message_kind::ANALYSIS:
-          _env.publisher().publish(_analysis_channel, data);
+          _env.publisher().publish(_channels.analysis, data);
           break;
         case bot_message_kind::DEBUG:
-          _env.publisher().publish(_debug_channel, data);
+          _env.publisher().publish(_channels.debug, data);
           break;
       }
       cbor_decref(&msg.data);
@@ -283,15 +309,13 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     _message_buffer.clear();
   }
 
+  const std::string _bot_id;
   const bot_descriptor _descriptor;
-  const std::string _video_channel;
-  const std::string _message_channel;
-  const std::string _metadata_channel;
-  const std::string _analysis_channel;
-  const std::string _debug_channel;
+  const channel_names _channels;
   const rtm::subscription _frames_subscription{};
-  const rtm::subscription _message_subscription{};
+  const rtm::subscription _control_subscription{};
   const rtm::subscription _metadata_subscription{};
+  const rtm::subscription _config_subscription{};
   rtm::video::bot_environment& _env;
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
@@ -334,7 +358,8 @@ bool bot_environment::io_loop(
   return true;
 }
 
-int bot_environment::main(int argc, char* argv[]) {
+boost::program_options::variables_map parse_command_line(int argc,
+                                                         char* argv[]) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed options");
   desc.add_options()("help", "produce help message")(
@@ -342,7 +367,8 @@ int bot_environment::main(int argc, char* argv[]) {
       "appkey", po::value<std::string>(), "app key")(
       "channel", po::value<std::string>(), "channel")(
       "port", po::value<std::string>(), "port")(
-      "config", po::value<std::string>(), "bot config file");
+      "config", po::value<std::string>(), "bot config file")(
+      "id", po::value<std::string>()->default_value(""), "bot id");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -350,41 +376,47 @@ int bot_environment::main(int argc, char* argv[]) {
 
   if (vm.count("help") || argc == 1) {
     std::cout << desc << "\n";
-    return 1;
+    exit(1);
   }
 
   if (!vm.count("endpoint")) {
     std::cerr << "Missing --endpoint argument"
               << "\n";
-    return 1;
+    exit(1);
   }
 
   if (!vm.count("appkey")) {
     std::cerr << "Missing --appkey argument"
               << "\n";
-    return 1;
+    exit(1);
   }
 
   if (!vm.count("channel")) {
     std::cerr << "Missing --channel argument"
               << "\n";
-    return 1;
+    exit(1);
   }
 
   if (!vm.count("port")) {
     std::cerr << "Missing --port argument"
               << "\n";
-    return 1;
+    exit(1);
   }
 
-  const std::string channel = vm["channel"].as<std::string>();
-  _bot_instance.reset(new bot_instance(*_bot_descriptor, channel, *this));
+  return vm;
+}
+
+int bot_environment::main(int argc, char* argv[]) {
+  auto cmd_args = parse_command_line(argc, argv);
+  const std::string channel = cmd_args["channel"].as<std::string>();
+  const std::string id = cmd_args["id"].as<std::string>();
+  _bot_instance.reset(new bot_instance(id, *_bot_descriptor, channel, *this));
 
   if (_bot_descriptor->ctrl_callback) {
     cbor_item_t* config;
 
-    if (vm.count("config")) {
-      FILE* fp = fopen(vm["config"].as<std::string>().c_str(), "r");
+    if (cmd_args.count("config")) {
+      FILE* fp = fopen(cmd_args["config"].as<std::string>().c_str(), "r");
       assert(fp);
       auto file_closer = gsl::finally([&fp]() { fclose(fp); });
 
@@ -408,13 +440,13 @@ int bot_environment::main(int argc, char* argv[]) {
       _bot_instance->queue_message(bot_message_kind::DEBUG, response);
       cbor_decref(&response);
     }
-  } else if (vm.count("config")) {
+  } else if (cmd_args.count("config")) {
     std::cerr << "Config specified but there is no control method set\n";
   }
 
-  const std::string endpoint = vm["endpoint"].as<std::string>();
-  const std::string appkey = vm["appkey"].as<std::string>();
-  const std::string port = vm["port"].as<std::string>();
+  const std::string endpoint = cmd_args["endpoint"].as<std::string>();
+  const std::string appkey = cmd_args["appkey"].as<std::string>();
+  const std::string port = cmd_args["port"].as<std::string>();
 
   decoder_init_library();
   boost::asio::io_service io_service;
