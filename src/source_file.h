@@ -1,6 +1,6 @@
 #pragma once
 
-#include "video_source_impl.h"
+#include "source.h"
 
 extern "C" {
 #include <libavformat/avformat.h>

@@ -24,11 +24,11 @@ add_library(rtmvideo SHARED
     src/rtmclient.cpp
     src/rtmpacket.cpp
     src/sink_rtm.cpp
+    src/source.cpp
+    src/source_camera.cpp
+    src/source_file.cpp
     src/tele.cpp
-    src/video_bot.cpp
-    src/video_source.cpp
-    src/video_source_camera.cpp
-    src/video_source_file.cpp)
+    src/video_bot.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
     PUBLIC 

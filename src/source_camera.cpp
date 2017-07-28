@@ -1,10 +1,11 @@
-#include "video_source_camera.h"
 #include <cstring>
 #include <gsl/gsl>
 #include <iostream>
 #include <memory>
 #include <string>
+
 #include "librtmvideo/base.h"
+#include "source_camera.h"
 
 extern "C" {
 #include <libavutil/error.h>

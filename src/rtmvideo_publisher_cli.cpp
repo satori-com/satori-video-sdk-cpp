@@ -4,8 +4,8 @@
 #include <iostream>
 #include "rtmclient.h"
 #include "sink_rtm.h"
-#include "video_source_camera.h"
-#include "video_source_file.h"
+#include "source_camera.h"
+#include "source_file.h"
 
 namespace {
 
@@ -77,24 +77,24 @@ int main(int argc, char *argv[]) {
   }
 
   rtm::video::initialize_sources_library();
-  std::unique_ptr<rtm::video::source> video_source;
+  std::unique_ptr<rtm::video::source> source;
 
   if (source_type == "camera") {
-    video_source = std::make_unique<rtm::video::camera_source>(
+    source = std::make_unique<rtm::video::camera_source>(
         vm["dimensions"].as<std::string>());
   } else if (source_type == "file") {
     if (!vm.count("file")) {
       std::cerr << "*** File was not specified\n";
       return -1;
     }
-    video_source = std::make_unique<rtm::video::file_source>(
+    source = std::make_unique<rtm::video::file_source>(
         vm["file"].as<std::string>(), vm.count("replayed"));
   } else {
     std::cerr << "*** Unsupported input type " << source_type << "\n";
     return -1;
   }
 
-  int err = video_source->init();
+  int err = source->init();
   if (err) {
     std::cerr << "*** Error initializing video source, error code " << err
               << "\n";
@@ -111,6 +111,6 @@ int main(int argc, char *argv[]) {
 
   auto sink = std::make_unique<rtm::video::rtm_sink>(
       rtm_client, vm["channel"].as<std::string>());
-  video_source->subscribe(std::move(sink));
-  video_source->start();
+  source->subscribe(std::move(sink));
+  source->start();
 }
