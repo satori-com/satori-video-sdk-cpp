@@ -1,3 +1,4 @@
+#include <librtmvideo/cbor_map.h>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/stringbuffer.h>
@@ -60,26 +61,13 @@ struct bot_message {
   bot_message_kind kind;
 };
 
-struct image_frame {
-  std::string image_data;
-  frame_id id;
-  uint16_t width;
-  uint16_t height;
-  uint16_t linesize;
-};
-
-struct metadata_frame {
-  std::string codec_name;
-  std::string codec_data;
-};
-
 struct channel_names {
-  explicit channel_names(const std::string &base_name) :
-      frames(base_name + frames_channel_suffix),
-      control(base_name + control_channel_suffix),
-      metadata(base_name + metadata_channel_suffix),
-      analysis(base_name + analysis_channel_suffix),
-      debug(base_name + debug_channel_suffix) {}
+  explicit channel_names(const std::string& base_name)
+      : frames(base_name + frames_channel_suffix),
+        control(control_channel),
+        metadata(base_name + metadata_channel_suffix),
+        analysis(base_name + analysis_channel_suffix),
+        debug(base_name + debug_channel_suffix) {}
 
   const std::string frames;
   const std::string control;
@@ -87,7 +75,6 @@ struct channel_names {
   const std::string analysis;
   const std::string debug;
 };
-
 
 }  // namespace
 
@@ -101,8 +88,6 @@ network_frame decode_network_frame(const rapidjson::Value& msg) {
   uint64_t i1 = t[0].GetUint64();
   uint64_t i2 = t[1].GetUint64();
 
-  uint32_t rtp_timestamp = msg.HasMember("rt") ? (uint32_t)msg["rt"].GetInt64()
-                                               : 0;  // rjson thinks its int64
   double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
 
   uint32_t chunk = 1, chunks = 1;
@@ -126,7 +111,8 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                const std::string& channel, rtm::video::bot_environment& env)
-      : _bot_id(bot_id), _descriptor(descriptor),
+      : _bot_id(bot_id),
+        _descriptor(descriptor),
         _channels(channel),
         _env(env) {
     _decoder_worker = std::make_unique<threaded_worker<network_frame>>(
@@ -146,12 +132,15 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
 
   void subscribe(rtm::subscriber& s) {
     s.subscribe_channel(_channels.frames, _frames_subscription, *this);
-    s.subscribe_channel(_channels.control, _control_subscription, *this);
 
     subscription_options metadata_options;
     metadata_options.history.count = 1;
     s.subscribe_channel(_channels.metadata, _metadata_subscription, *this,
                         &metadata_options);
+
+    if (!_bot_id.empty() && _descriptor.ctrl_callback) {
+      s.subscribe_channel(_channels.control, _control_subscription, *this);
+    }
   }
 
   void on_error(error e, const std::string& msg) override {
@@ -166,7 +155,7 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     else if (&sub == &_frames_subscription)
       on_frame_data(value);
     else if (&sub == &_control_subscription)
-      on_message_data(value);
+      on_control_message(value);
     else
       BOOST_ASSERT_MSG(false, "Unknown subscription");
   }
@@ -198,25 +187,40 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
     std::cout << "Video decoder initialized\n";
   }
 
-  void on_message_data(const rapidjson::Value& msg) {
-    if (!_descriptor.ctrl_callback) return;
+  void on_control_message(const rapidjson::Value& msg) {
     if (msg.IsArray()) {
-      for (auto& m : msg.GetArray()) on_message_data(m);
+      for (auto& m : msg.GetArray()) on_control_message(m);
       return;
     }
 
-    if (msg.IsObject()) {
-      cbor_item_t* cmd = json_to_cbor(msg);
-      auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
-      cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
-      if (response != nullptr) {
-        queue_message(bot_message_kind::DEBUG, response);
-        cbor_decref(&response);
-      }
-      send_messages(-1, -1);
+    if (!msg.IsObject()) {
+      std::cerr << "ERROR: Unsupported kind of message\n";
       return;
     }
-    std::cerr << "ERROR: Unsupported kind of message\n";
+
+    if (!msg.HasMember("to") || _bot_id != msg["to"].GetString()) {
+      return;
+    }
+
+    cbor_item_t* request = json_to_cbor(msg);
+    auto cbor_deleter = gsl::finally([&request]() { cbor_decref(&request); });
+    cbor_item_t* response = _descriptor.ctrl_callback(*this, request);
+
+    if (response != nullptr) {
+      BOOST_ASSERT(cbor_isa_map(response));
+      cbor_item_t* request_id = cbor::map_get(request, "request_id");
+      if (request_id != nullptr) {
+        cbor_map_add(response,
+                     (struct cbor_pair){
+                         .key = cbor_move(cbor_build_string("request_id")),
+                         .value = cbor_move(cbor_copy(request_id))});
+      }
+
+      queue_message(bot_message_kind::CONTROL, cbor_move(response));
+    }
+
+    send_messages(-1, -1);
+    return;
   }
 
   void on_frame_data(const rapidjson::Value& msg) {
@@ -291,19 +295,29 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
                        cbor_move(cbor_build_uint64(static_cast<uint64_t>(i1))));
         cbor_array_set(is, 1,
                        cbor_move(cbor_build_uint64(static_cast<uint64_t>(i2))));
-        cbor_map_add(
-            data, (struct cbor_pair){.key = cbor_move(cbor_build_string("i")),
-                                     .value = cbor_move(is)});
+        cbor_map_add(data, {.key = cbor_move(cbor_build_string("i")),
+                            .value = cbor_move(is)});
       }
 
+      if (!_bot_id.empty()) {
+        cbor_map_add(data,
+                     {.key = cbor_move(cbor_build_string("from")),
+                      .value = cbor_move(cbor_build_string(_bot_id.c_str()))});
+      }
+
+      std::string channel;
       switch (msg.kind) {
         case bot_message_kind::ANALYSIS:
-          _env.publisher().publish(_channels.analysis, data);
+          channel = _channels.analysis;
           break;
         case bot_message_kind::DEBUG:
-          _env.publisher().publish(_channels.debug, data);
+          channel = _channels.debug;
+        case bot_message_kind::CONTROL:
+          channel = _channels.control;
           break;
       }
+
+      _env.publisher().publish(channel, data);
       cbor_decref(&msg.data);
     }
     _message_buffer.clear();
@@ -315,7 +329,6 @@ class bot_instance : public bot_context, public rtm::subscription_callbacks {
   const rtm::subscription _frames_subscription{};
   const rtm::subscription _control_subscription{};
   const rtm::subscription _metadata_subscription{};
-  const rtm::subscription _config_subscription{};
   rtm::video::bot_environment& _env;
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;

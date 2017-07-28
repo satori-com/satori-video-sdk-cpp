@@ -3,7 +3,7 @@
 #include <cbor.h>
 #include <string>
 
-namespace cbor_helpers {
+namespace cbor {
 // Returns string value for a key or default value if key is not found or not a
 // string.
 std::string map_get_str(cbor_item_t *map, const std::string name,
@@ -16,4 +16,4 @@ bool map_has_str_value(cbor_item_t *map, const std::string name,
 // Returns CBOR value for a key or default value if key is not found.
 cbor_item_t *map_get(cbor_item_t *map, const std::string name,
                      cbor_item_t *default_value = nullptr);
-}  // namespace cbor_helpers
+}  // namespace cbor

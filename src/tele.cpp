@@ -1,10 +1,10 @@
 #include "tele_impl.h"
 
+#include <unistd.h>
 #include <boost/assert.hpp>
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 namespace tele {
@@ -63,13 +63,13 @@ struct counter : public cell<std::atomic_uint_fast64_t> {
   cbor_item_t *to_cbor() { return cbor_build_uint64(_value.load()); }
 };
 
-EXPORT counter *counter_new(const char *group, const char *name) {
+EXPORT counter *counter_new(const char *group, const char *name) noexcept {
   auto c = new counter(group, name);
   counter::counters().push_back(c);
   return c;
 }
 
-EXPORT void counter_inc(counter *counter, uint64_t delta) {
+EXPORT void counter_inc(counter *counter, uint64_t delta) noexcept {
   counter->inc(delta);
 }
 
@@ -90,13 +90,15 @@ struct gauge : public cell<std::atomic_int_fast64_t> {
   }
 };
 
-EXPORT gauge *gauge_new(const char *group, const char *name) {
+EXPORT gauge *gauge_new(const char *group, const char *name) noexcept {
   auto g = new gauge(group, name);
   gauge::gauges().push_back(g);
   return g;
 }
 
-EXPORT void gauge_set(gauge *gauge, int64_t value) { gauge->set(value); }
+EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept {
+  gauge->set(value);
+}
 
 struct distribution : public cell<std::vector<int64_t>> {
   static constexpr size_t max_distribution_size = 100;
@@ -136,13 +138,15 @@ struct distribution : public cell<std::vector<int64_t>> {
   std::mutex _mutex;
 };
 
-EXPORT distribution *distribution_new(const char *group, const char *name) {
+EXPORT distribution *distribution_new(const char *group,
+                                      const char *name) noexcept {
   auto d = new distribution(group, name);
   distribution::distributions().push_back(d);
   return d;
 }
 
-EXPORT void distribution_add(distribution *distribution, int64_t value) {
+EXPORT void distribution_add(distribution *distribution,
+                             int64_t value) noexcept {
   distribution->add(value);
 }
 
@@ -176,7 +180,7 @@ cbor_item_t *tele_serialize(std::vector<counter *> &counters,
   cbor_map_add(root,
                {.key = cbor_move(cbor_build_string("distributions")),
                 .value = cbor_move(tele_sereialize_cells(distributions))});
-  for (auto distribution: distributions) {
+  for (auto distribution : distributions) {
     distribution->clear();
   }
 

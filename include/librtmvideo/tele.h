@@ -15,17 +15,19 @@ constexpr char channel[] = "tele";
 EXPORT struct counter;
 
 // Returns a pointer to newly created counter.
-EXPORT counter *counter_new(const char *group, const char *name);
+EXPORT counter *counter_new(const char *group, const char *name) noexcept;
 
 // Increments counter value.
-EXPORT void counter_inc(counter *counter, uint64_t delta = 1);
+EXPORT void counter_inc(counter *counter, uint64_t delta = 1) noexcept;
 
 EXPORT struct gauge;
-EXPORT gauge *gauge_new(const char *group, const char *name);
-EXPORT void gauge_set(gauge *gauge, int64_t value);
+EXPORT gauge *gauge_new(const char *group, const char *name) noexcept;
+EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept;
 
 EXPORT struct distribution;
-EXPORT distribution *distribution_new(const char *group, const char *name);
-EXPORT void distribution_add(distribution *distribution, int64_t value);
+EXPORT distribution *distribution_new(const char *group,
+                                      const char *name) noexcept;
+EXPORT void distribution_add(distribution *distribution,
+                             int64_t value) noexcept;
 
 }  // namespace tele

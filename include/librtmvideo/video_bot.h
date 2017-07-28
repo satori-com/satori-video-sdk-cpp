@@ -54,7 +54,7 @@ struct bot_descriptor {
 };
 
 // Used by bot implementation to specify type of output.
-EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2 };
+EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 
 // Sends bot implementation output to RTM subchannel.
 EXPORT void rtm_video_bot_message(bot_context &context,

@@ -32,5 +32,10 @@ struct image_frame {
   uint16_t linesize;
 };
 
+struct metadata_frame {
+  std::string codec_name;
+  std::string codec_data;
+};
+
 }
 }

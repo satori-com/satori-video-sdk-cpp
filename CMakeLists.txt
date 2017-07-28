@@ -43,7 +43,7 @@ target_link_libraries(rtmvideo
         avdevice avformat swscale rtmvideo-decoder
         ${ZLIB_LIBRARIES}
     )
-target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
+target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS} dl)
 
 if(APPLE)
     target_link_libraries(rtmvideo PRIVATE

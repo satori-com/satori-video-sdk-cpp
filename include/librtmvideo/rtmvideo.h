@@ -9,13 +9,14 @@
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 
-constexpr char frames_channel_suffix[] = "";
-
-
-// RTM subchannel for user defined bot control commands.
+// RTM channel for bot control commands.
 // Bot will be automatically subscribed to this channel.
 // A user has to implement bot control callbacks.
-constexpr char control_channel_suffix[] = "/control";
+constexpr char control_channel[] = "control";
+
+// RTM subchannel for frames data.
+// Bot will be automatically subscribed to this channel.
+constexpr char frames_channel_suffix[] = "";
 
 // RTM subchannel for codec specific metadata.
 // In case of h264 metadata it will contain SPS and PPS.

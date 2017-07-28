@@ -43,7 +43,8 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
 
 struct decoder {
  public:
-  decoder(int image_width, int image_height, AVPixelFormat image_pixel_format, bool keep_proportions)
+  decoder(int image_width, int image_height, AVPixelFormat image_pixel_format,
+          bool keep_proportions)
       : _image_width(image_width),
         _image_height(image_height),
         _image_format(image_pixel_format),
@@ -169,19 +170,20 @@ struct decoder {
         _image_width = _frame->width;
         _image_height = _frame->height;
       } else if (_keep_proportions) {
-        double frame_ratio = (double) _frame->width / (double) _frame->height;
-        double requested_ratio = (double) _image_width / (double) _image_height;
+        double frame_ratio = (double)_frame->width / (double)_frame->height;
+        double requested_ratio = (double)_image_width / (double)_image_height;
 
         if (std::fabs(frame_ratio - requested_ratio) > epsilon) {
           if (frame_ratio > requested_ratio) {
-            _image_height = (int) ((double) _image_width / frame_ratio);
+            _image_height = (int)((double)_image_width / frame_ratio);
           } else {
-            _image_width = (int) ((double) _image_height * frame_ratio);
+            _image_width = (int)((double)_image_height * frame_ratio);
           }
         }
       }
 
-      std::cout << "decoder resolution is " << _image_width << "x" << _image_height << "\n";
+      std::cout << "decoder resolution is " << _image_width << "x"
+                << _image_height << "\n";
 
       // todo: move this code into Image class.
       _image = new Image;
