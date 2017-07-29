@@ -3,9 +3,9 @@
 
 #include "librtmvideo/video_source.h"
 #include "sink.h"
-#include "video_source_camera.h"
-#include "video_source_file.h"
-#include "video_source_impl.h"
+#include "source.h"
+#include "source_camera.h"
+#include "source_file.h"
 
 extern "C" {
 #include <libavdevice/avdevice.h>

@@ -1,9 +1,10 @@
-#include "video_source_file.h"
 #include <cstring>
 #include <gsl/gsl>
 #include <iostream>
 #include <memory>
 #include <string>
+
+#include "source_file.h"
 
 extern "C" {
 #include <libavutil/error.h>
