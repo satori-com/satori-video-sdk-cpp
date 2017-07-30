@@ -31,17 +31,17 @@ add_library(rtmvideo SHARED
     src/video_bot.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
-    PUBLIC 
+    PUBLIC
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Libcbor 
-    PRIVATE 
-        CONAN_PKG::Boost 
+        CONAN_PKG::Libcbor
+    PRIVATE
+        CONAN_PKG::Boost
         CONAN_PKG::Opencv
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
         avdevice avformat swscale rtmvideo-decoder
-        ${ZLIB_LIBRARIES} 
+        ${ZLIB_LIBRARIES}
     )
 target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS})
 
