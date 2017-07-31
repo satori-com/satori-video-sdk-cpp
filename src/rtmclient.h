@@ -8,7 +8,9 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/assert.hpp>
 #include <boost/optional.hpp>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -113,4 +115,66 @@ std::unique_ptr<client> new_client(const std::string &endpoint,
                                    boost::asio::io_service &io_service,
                                    boost::asio::ssl::context &ssl_ctx,
                                    size_t id, error_callbacks &callbacks);
+
+// reconnects on errors.
+// todo(mike): once I have several error reports, I will figure out how to handle those.
+class resilient_client : public client {
+ public:
+  using client_factory_t = std::function<std::unique_ptr<client>()>;
+
+  explicit resilient_client(client_factory_t &&factory)
+      : _factory(std::move(factory)) {
+    _client = _factory();
+  }
+
+  void publish(const std::string &channel, const cbor_item_t *message,
+               publish_callbacks *callbacks) override {
+    std::lock_guard<std::mutex> guard(_client_mutex);
+    _client->publish(channel, message, callbacks);
+  }
+
+  void subscribe_channel(const std::string &channel, const subscription &sub,
+                         subscription_callbacks &callbacks,
+                         const subscription_options *options) override {
+    std::lock_guard<std::mutex> guard(_client_mutex);
+    _subscriptions.push_back({channel, &sub, &callbacks, options});
+    _client->subscribe_channel(channel, sub, callbacks, options);
+  }
+
+  void subscribe_filter(const std::string &filter, const subscription &sub,
+                        subscription_callbacks &callbacks,
+                        const subscription_options *options) override {
+    BOOST_ASSERT_MSG(false, "not implemented");
+  }
+
+  void unsubscribe(const subscription &sub) override {
+    std::lock_guard<std::mutex> guard(_client_mutex);
+    _client->unsubscribe(sub);
+    std::remove_if(
+        _subscriptions.begin(), _subscriptions.end(),
+        [&sub](const subscription_info &si) { return &sub == si.sub; });
+  }
+
+  const channel_position &position(const subscription &sub) override {
+    std::lock_guard<std::mutex> guard(_client_mutex);
+    return _client->position(sub);
+  }
+
+  bool is_up(const subscription &sub) override { return _client->is_up(sub); }
+
+ private:
+  struct subscription_info {
+    std::string channel;
+    const subscription *sub;
+    subscription_callbacks *callbacks;
+    const subscription_options *options;
+  };
+
+  client_factory_t _factory;
+  std::unique_ptr<client> _client;
+  std::mutex _client_mutex;
+
+  std::vector<subscription_info> _subscriptions;
+};
+
 }  // namespace rtm
