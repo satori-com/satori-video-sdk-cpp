@@ -7,11 +7,6 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
-include(cmake/libvpx.cmake)
-include(cmake/ffmpeg.cmake)
-
-add_dependencies(project_ffmpeg project_libvpx)
-
 add_subdirectory(decoder)
 
 find_package(ZLIB REQUIRED)
@@ -35,35 +30,26 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
         CONAN_PKG::Libcbor
+        CONAN_PKG::Ffmpeg
     PRIVATE
         CONAN_PKG::Boost
         CONAN_PKG::Opencv
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
-        avdevice avformat swscale rtmvideo-decoder
+        rtmvideo-decoder
         ${ZLIB_LIBRARIES}
     )
-target_link_libraries(rtmvideo PUBLIC avcodec avutil ${LIBVPX_LIBS} dl)
-
-if(APPLE)
-    target_link_libraries(rtmvideo PRIVATE
-    iconv
-    "-framework AVFoundation"
-    "-framework CoreGraphics"
-    "-framework CoreMedia"
-    "-framework Foundation"
-    "-framework QuartzCore")
-endif()
+target_link_libraries(rtmvideo PUBLIC dl)
 
 target_include_directories(rtmvideo
-    PRIVATE ${FFMPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS}
+    PRIVATE ${ZLIB_INCLUDE_DIRS}
     PUBLIC include)
 
-set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include ${FFMPEG_INCLUDE_DIR})
+set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
 set(LIBRTMVIDEO_INCLUDE_DIRS ${LIBRTMVIDEO_INCLUDE_DIRS} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder pthread vpx CONAN_PKG::Libcbor CONAN_PKG::Boost dl)
+set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder CONAN_PKG::Libcbor CONAN_PKG::Boost dl)
 set(LIBRTMVIDEO_LIBRARIES ${LIBRTMVIDEO_LIBRARIES} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR} ${LIBVPX_LIB_DIR})
+set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR})
 set(LIBRTMVIDEO_LIB_DIRS ${LIBRTMVIDEO_LIB_DIRS} PARENT_SCOPE)
 
 link_directories(${LIBRTMVIDEO_LIB_DIRS})
@@ -73,6 +59,11 @@ set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
 target_include_directories(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_INCLUDE_DIRS})
-target_link_libraries(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_LIBRARIES} CONAN_PKG::Opencv CONAN_PKG::Gsl)
+target_link_libraries(rtmvideo_publisher_cli
+        PRIVATE
+        ${LIBRTMVIDEO_LIBRARIES}
+        CONAN_PKG::Ffmpeg
+        CONAN_PKG::Opencv
+        CONAN_PKG::Gsl)
 
 add_subdirectory(player)
