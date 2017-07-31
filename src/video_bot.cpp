@@ -1,3 +1,4 @@
+#include <execinfo.h>
 #include <librtmvideo/cbor_map.h>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
@@ -75,6 +76,19 @@ struct channel_names {
   const std::string analysis;
   const std::string debug;
 };
+
+void sigsegv_handler(int sig) {
+  constexpr size_t max_backtrace_depth = 50;
+  void *array[max_backtrace_depth];
+
+  // get void*'s for all entries on the stack
+  auto size = backtrace(array, max_backtrace_depth);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
 
 }  // namespace
 
@@ -420,6 +434,8 @@ boost::program_options::variables_map parse_command_line(int argc,
 }
 
 int bot_environment::main(int argc, char* argv[]) {
+  signal(SIGSEGV, sigsegv_handler);
+
   auto cmd_args = parse_command_line(argc, argv);
   const std::string channel = cmd_args["channel"].as<std::string>();
   const std::string id = cmd_args["id"].as<std::string>();
