@@ -360,17 +360,6 @@ void bot_environment::register_bot(const bot_descriptor* bot) {
   _bot_descriptor = bot;
 }
 
-bool bot_environment::io_loop(
-    std::function<std::unique_ptr<rtm::client>()> newClient,
-    boost::asio::io_service& io_service) {
-  _client = std::move(newClient());
-  _bot_instance->subscribe(*_client);
-  tele::publisher tele_publisher(*_client, io_service);
-
-  io_service.run();
-  return true;
-}
-
 boost::program_options::variables_map parse_command_line(int argc,
                                                          char* argv[]) {
   namespace po = boost::program_options;
@@ -471,23 +460,16 @@ int bot_environment::main(int argc, char* argv[]) {
   signals.add(SIGQUIT);
   signals.async_wait(boost::bind(&boost::asio::io_service::stop, &io_service));
 
-  while (true) {
-    try {
-      auto rtm_client_factory = [&endpoint, &port, &appkey, &io_service,
-                                 &ssl_context, this]() {
-        return rtm::new_client(endpoint, port, appkey, io_service, ssl_context,
-                               1, *this);
-      };
-      if (io_loop(rtm_client_factory, io_service)) {
-        break;
-      }
-    } catch (const boost::system::system_error& e) {
-      std::cerr << "Error: " << e.code() << '\n' << e.what() << '\n';
-      if (e.code() != boost::system::errc::broken_pipe) break;  // Broken Pipe
-    } catch (const bot_api_exception& e) {
-      std::cerr << "Bot API Exception\n";
-    }
-  }
+
+  _client.reset(new rtm::resilient_client([&endpoint, &port, &appkey, &io_service,
+                                                        &ssl_context, this]() {
+    return rtm::new_client(endpoint, port, appkey, io_service, ssl_context,
+                           1, *this);
+  }));
+  _bot_instance->subscribe(*_client);
+  tele::publisher tele_publisher(*_client, io_service);
+
+  io_service.run();
 
   return 0;
 }
