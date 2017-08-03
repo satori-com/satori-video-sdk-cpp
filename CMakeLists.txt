@@ -20,6 +20,7 @@ add_library(rtmvideo
     src/base64.cpp
     src/cbor_json.cpp
     src/cbor_map.cpp
+    src/cbor_dump.cpp
     src/data.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp

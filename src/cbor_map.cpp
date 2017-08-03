@@ -34,4 +34,10 @@ std::string map_get_str(cbor_item_t *map, const std::string name,
   return std::string(reinterpret_cast<char *>(cbor_string_handle(value)),
                      cbor_string_length(value));
 }
+int map_get_int(cbor_item_t *map, const std::string name,
+                        const int default_value) {
+  cbor_item_t *value = map_get(map, name);
+  if (value == nullptr) return default_value;
+  return cbor_get_int(value);
+}
 }  // namespace cbor

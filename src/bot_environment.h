@@ -23,6 +23,8 @@ class bot_environment : public subscription_callbacks {
   rtm::publisher& publisher() { return *_client; }
 
  private:
+  void parse_config(const char* config_file);
+
   const bot_descriptor* _bot_descriptor{nullptr};
   std::unique_ptr<bot_instance> _bot_instance;
   std::unique_ptr<rtm::client> _client;

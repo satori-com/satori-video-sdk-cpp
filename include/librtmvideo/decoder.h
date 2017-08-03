@@ -28,6 +28,10 @@ EXPORT int decoder_set_metadata(decoder *d, const char *codec_name,
 EXPORT int decoder_process_frame_message(decoder *d, uint64_t i1, uint64_t i2,
                                          const uint8_t *frame_data, size_t len,
                                          uint32_t chunk, uint32_t chunks);
+
+EXPORT int decoder_process_binary_message(decoder *d, const uint8_t *frame_data,
+                                          size_t len);
+
 EXPORT bool decoder_frame_ready(decoder *d);
 
 EXPORT int decoder_image_height(decoder *d);

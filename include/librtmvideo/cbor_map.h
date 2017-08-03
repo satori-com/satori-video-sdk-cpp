@@ -9,6 +9,11 @@ namespace cbor {
 std::string map_get_str(cbor_item_t *map, const std::string name,
                         const std::string default_value);
 
+// Returns int value for a key or default value if key is not found or not an
+// int.
+int map_get_int(cbor_item_t *map, const std::string name,
+                        const int default_value);
+
 // Returns boolean flag indicating if key/value pair exists.
 bool map_has_str_value(cbor_item_t *map, const std::string name,
                        const std::string value);
