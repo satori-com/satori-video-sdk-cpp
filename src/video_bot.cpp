@@ -152,7 +152,7 @@ class bot_instance : public bot_context, public sink {
 
     if (decoder_frame_ready(decoder))
       receive_frame(decoder, std::make_pair(_frame_counter, _frame_counter));
-      _frame_counter++;
+    _frame_counter++;
   }
 
   void on_metadata(const metadata& m) override {
@@ -179,6 +179,8 @@ class bot_instance : public bot_context, public sink {
                          _metadata.codec_data.size());
     std::cout << "Video decoder initialized\n";
   }
+
+  bool empty() override { return _process_worker->queue_size() == 0; }
 
  protected:
   // called only from decoder worker.
@@ -276,18 +278,6 @@ class bot_offline_instance
       : bot_instance(bot_id, descriptor, env),
         _analysis(analysis),
         _debug(debug) {}
-
-  void start(std::string filename) {
-    rtm::video::file_source source(filename, false);
-    int err = source.init();
-    if (err) {
-      std::cerr << "*** Error initializing video source, error code " << err
-                << "\n";
-      return;
-    }
-    source.subscribe(shared_from_this());
-    source.start();
-  }
 
   void process_image_frame(image_frame&& frame) {
     _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
@@ -468,8 +458,10 @@ variables_map parse_command_line(int argc, char* argv[]) {
 
   po::options_description offline("Offline options");
   offline.add_options()("video_file", po::value<std::string>(), "input mp4")(
+      "replay_file", po::value<std::string>(), "input txt")(
       "analysis_file", po::value<std::string>(), "output txt")(
-      "debug_file", po::value<std::string>(), "output txt");
+      "debug_file", po::value<std::string>(), "output txt")(
+      "synchronous", po::bool_switch()->default_value(false), "disable drops");
 
   po::options_description desc;
   desc.add(generic).add(online).add(offline);
@@ -487,7 +479,7 @@ variables_map parse_command_line(int argc, char* argv[]) {
                       vm.count("channel") || vm.count("port"));
 
   bool offline_mode = (vm.count("video_file") || vm.count("analysis_file") ||
-                       vm.count("debug_file"));
+                       vm.count("debug_file") || vm.count("replay_file"));
 
   if (online_mode && offline_mode) {
     std::cerr << "Online and offline modes are mutually exclusive"
@@ -522,8 +514,13 @@ variables_map parse_command_line(int argc, char* argv[]) {
   }
 
   if (offline_mode) {
-    if (!vm.count("video_file")) {
-      std::cerr << "Missing --video_file argument"
+    if (!vm.count("video_file") && !vm.count("replay_file")) {
+      std::cerr << "Missing --video_file or --replay_file argument"
+                << "\n";
+      exit(1);
+    }
+    if (vm.count("video_file") && vm.count("replay_file")) {
+      std::cerr << "--video_file and --replay_file are mutually exclusive"
                 << "\n";
       exit(1);
     }
@@ -626,9 +623,29 @@ int bot_environment::main_offline(variables_map cmd_args) {
   parse_config(cmd_args.count("config")
                    ? cmd_args["config"].as<std::string>().c_str()
                    : nullptr);
-  _bot_offline_instance->start(cmd_args["video_file"].as<std::string>());
+
+  std::unique_ptr<rtm::video::source> source;
+
+  if (cmd_args.count("video_file"))
+    source.reset(
+        new rtm::video::file_source(cmd_args["video_file"].as<std::string>(),
+                                    false, cmd_args["synchronous"].as<bool>()));
+  //  else
+  //    source.reset(new rtm::video::replay_source(
+  //        cmd_args["replay_file"].as<std::string>(), false,
+  //        cmd_args["synchronous"].as<bool>()));
+
+  int err = source->init();
+  if (err) {
+    std::cerr << "*** Error initializing video source, error code " << err
+              << "\n";
+    return 1;
+  }
+  source->subscribe(_bot_instance);
+  source->start();
+
   return 0;
-}
+}  // namespace video
 
 int bot_environment::main(int argc, char* argv[]) {
   signal(SIGSEGV, sigsegv_handler);

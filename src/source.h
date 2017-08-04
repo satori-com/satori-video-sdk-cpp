@@ -32,6 +32,8 @@ struct timed_source : public source {
              std::chrono::milliseconds metadata_interval);
   void stop_timers();
   virtual boost::optional<std::string> next_packet() = 0;
+  void codec_init(const std::string &codec_name, const std::string &codec_data,
+                  std::chrono::milliseconds metadata_interval);
 
  private:
   void metadata_tick();

@@ -37,17 +37,21 @@ void source::subscribe(std::shared_ptr<sink> sink) {
   _sinks.push_back(std::move(sink));
 }
 
+void timed_source::codec_init(const std::string &codec_name,
+                              const std::string &codec_data,
+                              std::chrono::milliseconds metadata_interval) {
+  _metadata_interval = metadata_interval;
+  _codec_name = codec_name;
+  _codec_data = codec_data;
+  metadata_tick();
+}
+
 void timed_source::start(const std::string &codec_name,
                          const std::string &codec_data,
                          std::chrono::milliseconds frames_interval,
                          std::chrono::milliseconds metadata_interval) {
   _frames_interval = frames_interval;
-  _metadata_interval = metadata_interval;
-  _codec_name = codec_name;
-  _codec_data = codec_data;
-
-  metadata_tick();
-
+  codec_init(codec_name, codec_data, metadata_interval);
   _frames_timer.expires_from_now(
       boost::posix_time::milliseconds(_frames_interval.count()));
   _frames_timer.async_wait(boost::bind(&timed_source::frames_tick, this));
@@ -104,6 +108,8 @@ struct callbacks_sink : public rtm::video::sink {
     _frame_handler(f.data.size(), (const uint8_t *)f.data.data());
   }
 
+  bool empty() override { return true; }
+
  private:
   metadata_handler _metadata_handler{nullptr};
   frame_handler _frame_handler{nullptr};
@@ -133,7 +139,7 @@ video_source *video_source_file_new(const char *filename, int is_replayed) {
 
   std::unique_ptr<video_source> vs(new video_source());
   vs->source = std::make_unique<rtm::video::file_source>(
-      filename, static_cast<bool>(is_replayed));
+      filename, static_cast<bool>(is_replayed), false);
   std::cout << "*** Initializing file video source...\n";
   int err = vs->source->init();
   if (err) {

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "source_file.h"
 
@@ -13,8 +14,11 @@ extern "C" {
 namespace rtm {
 namespace video {
 
-file_source::file_source(const std::string &filename, bool is_replayed)
-    : _filename(filename), _is_replayed(is_replayed) {}
+file_source::file_source(const std::string &filename, bool is_replayed,
+                         bool synchronous)
+    : _filename(filename),
+      _is_replayed(is_replayed),
+      _synchronous(synchronous) {}
 
 file_source::~file_source() {
   if (_dec_ctx) avcodec_free_context(&_dec_ctx);
@@ -79,7 +83,7 @@ int file_source::init() {
   return 0;
 }
 
-void file_source::start() {
+void file_source::start_async() {
   timed_source::start(
       _dec->name,
       {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size},
@@ -87,6 +91,29 @@ void file_source::start() {
           static_cast<int>((1000.0 * (double)_stream->avg_frame_rate.den) /
                            (double)_stream->avg_frame_rate.num)),
       std::chrono::milliseconds(10000));
+}
+
+void file_source::start_sync() {
+  timed_source::codec_init(
+      _dec->name,
+      {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size},
+      std::chrono::milliseconds(10000));
+  while (true) {
+    if (auto data = next_packet()) {
+      for (std::shared_ptr<sink> &s : _sinks) {
+        while (!s->empty())
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        s->on_frame({.data = data.get()});
+      }
+    }
+  }
+}
+
+void file_source::start() {
+  if (_synchronous)
+    start_sync();
+  else
+    start_async();
 }
 
 boost::optional<std::string> file_source::next_packet() {
