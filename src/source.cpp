@@ -64,8 +64,9 @@ void timed_source::metadata_tick() {
 void timed_source::frames_tick() {
   if (auto data = next_packet()) {
     for (auto &s : _sinks) {
-      s->on_frame({.data = data.get()});
+      s->on_frame({.data = data.get(), .id = {_seq_id, _seq_id}});
     }
+    _seq_id++;
   }
 
   _frames_timer.expires_at(

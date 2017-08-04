@@ -21,7 +21,7 @@ void rtm_sink::on_metadata(const metadata &m) {
 
 void rtm_sink::on_frame(const encoded_frame &f) {
   std::vector<network_frame> network_frames =
-      f.to_network({_seq_id, _seq_id}, std::chrono::system_clock::now());
+      f.to_network(std::chrono::system_clock::now());
 
   for (const network_frame &nf : network_frames) {
     cbor_item_t *packet = nf.to_cbor();
@@ -29,9 +29,9 @@ void rtm_sink::on_frame(const encoded_frame &f) {
     cbor_decref(&packet);
   }
 
-  _seq_id++;
-  if (_seq_id % 100 == 0) {
-    std::cout << "Published " << _seq_id << " frames\n";
+  _frames_counter++;
+  if (_frames_counter % 100 == 0) {
+    std::cout << "Published " << _frames_counter << " frames\n";
   }
 }
 

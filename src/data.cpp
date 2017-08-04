@@ -18,7 +18,6 @@ network_metadata metadata::to_network() const {
 }
 
 std::vector<network_frame> encoded_frame::to_network(
-    const frame_id &id,
     std::chrono::system_clock::time_point t) const {
   std::vector<network_frame> frames;
 

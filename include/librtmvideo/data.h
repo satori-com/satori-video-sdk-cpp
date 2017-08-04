@@ -17,9 +17,9 @@ struct metadata {
 // for encoded frames
 struct encoded_frame {
   std::string data;
+  frame_id id;
 
   std::vector<network_frame> to_network(
-      const frame_id &id,
       std::chrono::system_clock::time_point t) const;
 };
 

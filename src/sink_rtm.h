@@ -19,7 +19,7 @@ struct rtm_sink : public rtm::video::sink<metadata, encoded_frame> {
   std::shared_ptr<rtm::publisher> _client;
   std::string _frames_channel;
   std::string _metadata_channel;
-  uint64_t _seq_id{0};
+  uint64_t _frames_counter{0};
 };
 
 }  // namespace video
