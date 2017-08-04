@@ -16,12 +16,14 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
+    src/frame_aggregator.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp
     src/sink_rtm.cpp
     src/source.cpp
     src/source_camera.cpp
     src/source_file.cpp
+    src/source_rtm.cpp
     src/tele.cpp
     src/video_bot.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
