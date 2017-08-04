@@ -529,17 +529,17 @@ variables_map parse_command_line(int argc, char* argv[]) {
   return vm;
 }
 
-void bot_environment::parse_config(const char* config_file) {
+void bot_environment::parse_config(boost::optional<std::string> config_file) {
   if (!_bot_descriptor->ctrl_callback) {
-    if (config_file != nullptr)
+    if (config_file.is_initialized())
       std::cerr << "Config specified but there is no control method set\n";
     return;
   }
 
   cbor_item_t* config;
 
-  if (config_file != nullptr) {
-    FILE* fp = fopen(config_file, "r");
+  if (config_file.is_initialized()) {
+    FILE* fp = fopen(config_file.get().c_str(), "r");
     assert(fp);
     auto file_closer = gsl::finally([&fp]() { fclose(fp); });
 
@@ -571,9 +571,10 @@ int bot_environment::main_online(variables_map cmd_args) {
       new bot_online_instance(id, *_bot_descriptor, channel, *this);
   _bot_instance.reset(_bot_online_instance);
 
-  parse_config(cmd_args.count("config")
-                   ? cmd_args["config"].as<std::string>().c_str()
-                   : nullptr);
+  parse_config(
+      cmd_args.count("config")
+          ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
+          : boost::optional<std::string>{});
 
   const std::string endpoint = cmd_args["endpoint"].as<std::string>();
   const std::string appkey = cmd_args["appkey"].as<std::string>();
@@ -621,8 +622,8 @@ int bot_environment::main_offline(variables_map cmd_args) {
   _bot_instance.reset(_bot_offline_instance);
 
   parse_config(cmd_args.count("config")
-                   ? cmd_args["config"].as<std::string>().c_str()
-                   : nullptr);
+      ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
+      : boost::optional<std::string>{});
 
   std::unique_ptr<rtm::video::source> source;
 
@@ -630,16 +631,12 @@ int bot_environment::main_offline(variables_map cmd_args) {
     source.reset(
         new rtm::video::file_source(cmd_args["video_file"].as<std::string>(),
                                     false, cmd_args["synchronous"].as<bool>()));
-  //  else
-  //    source.reset(new rtm::video::replay_source(
-  //        cmd_args["replay_file"].as<std::string>(), false,
-  //        cmd_args["synchronous"].as<bool>()));
 
   int err = source->init();
   if (err) {
     std::cerr << "*** Error initializing video source, error code " << err
               << "\n";
-    return 1;
+    exit(1);
   }
   source->subscribe(_bot_instance);
   source->start();

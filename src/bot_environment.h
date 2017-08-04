@@ -25,7 +25,7 @@ class bot_environment : public subscription_callbacks {
   rtm::publisher& publisher() { return *_client; }
 
  private:
-  void parse_config(const char* config_file);
+  void parse_config(boost::optional<std::string> config_file);
   int main_online(variables_map cmd_args);
   int main_offline(variables_map cmd_args);
 
