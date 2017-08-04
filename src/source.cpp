@@ -51,9 +51,9 @@ void timed_source::start(const std::string &codec_name,
 void timed_source::stop_timers() { _io_service.stop(); }
 
 void timed_source::metadata_tick() {
-  for (auto &s : _sinks) {
+  source::foreach_sink([this](auto s) {
     s->on_metadata({.codec_name = _codec_name, .codec_data = _codec_data});
-  }
+  });
 
   _metadata_timer.expires_at(
       _metadata_timer.expires_at() +
@@ -63,10 +63,10 @@ void timed_source::metadata_tick() {
 
 void timed_source::frames_tick() {
   if (auto data = next_packet()) {
-    for (auto &s : _sinks) {
-      s->on_frame({.data = data.get(), .id = {_seq_id, _seq_id}});
-    }
-    _seq_id++;
+    uint64_t seq_id = _seq_id++;
+    source::foreach_sink([&data, seq_id](auto s) {
+      s->on_frame({.data = data.get(), .id = {seq_id, seq_id}});
+    });
   }
 
   _frames_timer.expires_at(

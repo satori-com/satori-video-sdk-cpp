@@ -108,11 +108,11 @@ void file_source::start_sync() {
       std::chrono::milliseconds(10000));
   while (true) {
     if (auto data = next_packet()) {
-      for (std::shared_ptr<sink<metadata, encoded_frame>> &s : _sinks) {
+      source::foreach_sink([&data](auto s) {
         while (!s->empty())
           std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        s->on_frame({.data = data.get()});
-      }
+        s->on_frame({.data = data.get()});  // TODO: add id
+      });
     }
   }
 }
