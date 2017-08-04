@@ -11,8 +11,8 @@ struct rtm_sink : public rtm::video::sink<metadata, encoded_frame> {
   rtm_sink(std::shared_ptr<rtm::publisher> client,
            const std::string &rtm_channel);
 
-  void on_metadata(const metadata &m) override;
-  void on_frame(const encoded_frame &f) override;
+  void on_metadata(metadata &&m) override;
+  void on_frame(encoded_frame &&f) override;
   bool empty() override;
 
  private:

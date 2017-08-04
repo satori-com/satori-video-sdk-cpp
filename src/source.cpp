@@ -92,12 +92,12 @@ struct callbacks_sink
   callbacks_sink(metadata_handler metadata_handler, frame_handler frame_handler)
       : _metadata_handler(metadata_handler), _frame_handler(frame_handler) {}
 
-  void on_metadata(const rtm::video::metadata &m) override {
+  void on_metadata(rtm::video::metadata &&m) override {
     _metadata_handler(m.codec_name.c_str(), m.codec_data.size(),
                       (const uint8_t *)m.codec_data.data());
   }
 
-  void on_frame(const rtm::video::encoded_frame &f) override {
+  void on_frame(rtm::video::encoded_frame &&f) override {
     _frame_handler(f.data.size(), (const uint8_t *)f.data.data());
   }
 

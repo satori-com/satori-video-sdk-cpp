@@ -143,7 +143,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     _message_buffer.push_back(newmsg);
   }
 
-  void on_frame(const encoded_frame& f) override {
+  void on_frame(encoded_frame&& f) override {
     std::lock_guard<std::mutex> guard(_decoder_mutex);
 
     decoder* decoder = _decoder.get();
@@ -155,7 +155,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     _frame_counter++;
   }
 
-  void on_metadata(const metadata& m) override {
+  void on_metadata(metadata&& m) override {
     tele::counter_inc(metadata_received);
 
     if (m.codec_data == _metadata.codec_data &&
