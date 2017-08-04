@@ -151,7 +151,8 @@ class bot_instance : public bot_context, public sink {
                                    f.data.size());
 
     if (decoder_frame_ready(decoder))
-      receive_frame(decoder, std::make_pair(1, 1));
+      receive_frame(decoder, std::make_pair(_frame_counter, _frame_counter));
+      _frame_counter++;
   }
 
   void on_metadata(const metadata& m) override {
@@ -257,6 +258,7 @@ class bot_instance : public bot_context, public sink {
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
   metadata _metadata;
+  size_t _frame_counter = 1;
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
