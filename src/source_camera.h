@@ -1,6 +1,6 @@
 #pragma once
 
-#include "source.h"
+#include "timed_source.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -20,18 +20,14 @@ struct camera_source : public timed_source {
 
  private:
   boost::optional<std::string> next_packet() override;
-
- private:
   void init_open_parameters(AVInputFormat **input_format,
                             AVDictionary **options);
 
  private:
   std::string _dimensions;
-
   AVFormatContext *_fmt_ctx{nullptr};
   int _stream_idx{-1};
   AVStream *_stream{nullptr};
-
   // rawvideo: uyvy422 yuyv422 nv12 0rgb bgr0
   AVPixelFormat _dec_pix_fmt{AV_PIX_FMT_BGR0};
   AVCodecID _dec_id{AV_CODEC_ID_RAWVIDEO};
@@ -39,7 +35,6 @@ struct camera_source : public timed_source {
   AVCodecContext *_dec_ctx{nullptr};
   AVPacket _dec_pkt{0};
   AVFrame *_dec_frame{nullptr};
-
   // mjpeg: yuvj420p yuvj422p yuvj444p
   // jpeg2000: rgb24 yuv444p gray yuv420p yuv422p yuv410p yuv411p
   AVPixelFormat _enc_pix_fmt{AV_PIX_FMT_YUVJ422P};
@@ -48,7 +43,6 @@ struct camera_source : public timed_source {
   AVCodecContext *_enc_ctx{nullptr};
   AVPacket _enc_pkt{0};
   AVFrame *_enc_frame{nullptr};
-
   SwsContext *_sws_ctx{nullptr};
 };
 

@@ -13,6 +13,15 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
+namespace {
+void print_av_error(const std::string &msg, int code) {
+  char av_error[AV_ERROR_MAX_STRING_SIZE];
+  std::cerr << msg << ", code: " << code << ", error: \""
+            << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
+            << "\"\n";
+}
+}  // namespace
+
 namespace rtm {
 namespace video {
 

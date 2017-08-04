@@ -26,13 +26,6 @@ void initialize_source_library() {
   }
 }
 
-void print_av_error(const char *msg, int code) {
-  char av_error[AV_ERROR_MAX_STRING_SIZE];
-  std::cerr << msg << ", code: " << code << ", error: \""
-            << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
-            << "\"\n";
-}
-
 void timed_source::codec_init(const std::string &codec_name,
                               const std::string &codec_data,
                               std::chrono::milliseconds metadata_interval) {

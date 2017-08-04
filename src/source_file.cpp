@@ -11,6 +11,15 @@ extern "C" {
 #include <libavutil/error.h>
 }
 
+namespace {
+void print_av_error(const std::string &msg, int code) {
+  char av_error[AV_ERROR_MAX_STRING_SIZE];
+  std::cerr << msg << ", code: " << code << ", error: \""
+            << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
+            << "\"\n";
+}
+}  // namespace
+
 namespace rtm {
 namespace video {
 
@@ -31,8 +40,7 @@ int file_source::init() {
   std::cout << "*** Opening file " << _filename << "\n";
   if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr,
                                  nullptr)) < 0) {
-    std::string error_msg = "*** Could not open file " + _filename;
-    print_av_error(error_msg.c_str(), ret);
+    print_av_error("*** Could not open file " + _filename, ret);
     return ret;
   }
   std::cout << "*** File " << _filename << " is open\n";

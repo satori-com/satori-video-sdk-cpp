@@ -1,6 +1,6 @@
 #pragma once
 
-#include "source.h"
+#include "timed_source.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
