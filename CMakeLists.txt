@@ -1,6 +1,13 @@
 cmake_minimum_required (VERSION 3.7)
 project (librtmvideo VERSION 0.1 LANGUAGES CXX)
 
+include(FindOpenMP)
+if(OPENMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
+
 if(UNIX AND NOT APPLE)
     # Next line is needed when FFmpeg used as a static library
     # http://www.ffmpeg.org/platform.html#Advanced-linking-configuration
