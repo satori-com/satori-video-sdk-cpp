@@ -21,7 +21,7 @@ void rtm_sink::on_metadata(const metadata &m) {
 
 void rtm_sink::on_frame(const encoded_frame &f) {
   std::vector<network_frame> network_frames =
-     f.to_network({_seq_id, _seq_id}, std::chrono::system_clock::now());
+      f.to_network({_seq_id, _seq_id}, std::chrono::system_clock::now());
 
   for (const network_frame &nf : network_frames) {
     cbor_item_t *packet = nf.to_cbor();
@@ -34,6 +34,8 @@ void rtm_sink::on_frame(const encoded_frame &f) {
     std::cout << "Published " << _seq_id << " frames\n";
   }
 }
+
+bool rtm_sink::empty() { return true; }
 
 }  // namespace video
 }  // namespace rtm

@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
       return -1;
     }
     source = std::make_unique<rtm::video::file_source>(
-        vm["file"].as<std::string>(), vm.count("replayed"));
+        vm["file"].as<std::string>(), vm.count("replayed"), false);
   } else {
     std::cerr << "*** Unsupported input type " << source_type << "\n";
     return -1;

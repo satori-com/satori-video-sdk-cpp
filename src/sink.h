@@ -14,6 +14,8 @@ struct sink {
   virtual void on_metadata(const metadata &m) = 0;
 
   virtual void on_frame(const encoded_frame &f) = 0;
+
+  virtual bool empty() = 0;
 };
 
 }  // namespace video

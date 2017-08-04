@@ -11,7 +11,7 @@ namespace video {
 
 struct file_source : public timed_source {
  public:
-  file_source(const std::string &filename, bool is_replayed);
+  file_source(const std::string &filename, bool is_replayed, bool synchronous);
   ~file_source();
 
   int init() override;
@@ -19,6 +19,8 @@ struct file_source : public timed_source {
 
  private:
   boost::optional<std::string> next_packet() override;
+  void start_sync();
+  void start_async();
 
  private:
   AVFormatContext *_fmt_ctx{nullptr};
@@ -29,6 +31,7 @@ struct file_source : public timed_source {
   AVPacket _pkt{0};
   std::string _filename;
   bool _is_replayed{false};
+  bool _synchronous{false};
 };
 
 }  // namespace video
