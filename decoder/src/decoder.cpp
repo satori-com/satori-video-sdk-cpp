@@ -145,15 +145,15 @@ struct decoder {
   int process_frame(const uint8_t *data, size_t length) {
     std::string encoded{data, data + length};
     std::string decoded = rtm::video::decoder::base64_decode(encoded);
-    return process_frame_raw((uint8_t *)decoded.data(), (int)decoded.size());
+    return process_binary_frame((uint8_t *)decoded.data(), (int)decoded.size());
   }
 
-  int process_frame_raw(const uint8_t *data, size_t length) {
+  int process_binary_frame(const uint8_t *data, size_t length) {
     std::string decoded{data, data + length};
-    return process_frame_raw((uint8_t *)decoded.data(), (int)decoded.size());
+    return process_binary_frame((uint8_t *)decoded.data(), (int)decoded.size());
   }
 
-  int process_frame_raw(uint8_t *data, size_t length) {
+  int process_binary_frame(uint8_t *data, size_t length) {
     _packet->data = data;
     _packet->size = length;
     int err = avcodec_send_packet(_decoder_context, _packet);
@@ -314,7 +314,7 @@ EXPORT int decoder_process_frame_message(decoder *d, uint64_t i1, uint64_t i2,
 }
 EXPORT int decoder_process_binary_message(decoder *d, const uint8_t *frame_data,
                                           size_t len) {
-  return d->process_frame_raw(frame_data, len);
+  return d->process_binary_frame(frame_data, len);
 }
 EXPORT bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
 

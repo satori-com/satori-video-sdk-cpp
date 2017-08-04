@@ -11,6 +11,8 @@ namespace video {
 
 struct bot_instance;
 
+using variables_map = boost::program_options::variables_map;
+
 class bot_environment : public subscription_callbacks {
  public:
   static bot_environment& instance();
@@ -24,9 +26,11 @@ class bot_environment : public subscription_callbacks {
 
  private:
   void parse_config(const char* config_file);
+  int main_online(variables_map cmd_args);
+  int main_offline(variables_map cmd_args);
 
   const bot_descriptor* _bot_descriptor{nullptr};
-  std::unique_ptr<bot_instance> _bot_instance;
+  std::shared_ptr<bot_instance> _bot_instance;
   std::unique_ptr<rtm::client> _client;
 };
 
