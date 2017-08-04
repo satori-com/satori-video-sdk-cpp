@@ -1,5 +1,3 @@
-#include <librtmvideo/rtmpacket.h>
-#include <librtmvideo/rtmvideo.h>
 #include <boost/program_options.hpp>
 #include <iostream>
 #include "rtmclient.h"
@@ -76,8 +74,10 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  rtm::video::initialize_sources_library();
-  std::unique_ptr<rtm::video::source> source;
+  rtm::video::initialize_source_library();
+  std::unique_ptr<
+      rtm::video::source<rtm::video::metadata, rtm::video::encoded_frame>>
+      source;
 
   if (source_type == "camera") {
     source = std::make_unique<rtm::video::camera_source>(

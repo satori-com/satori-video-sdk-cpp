@@ -6,7 +6,7 @@
 namespace rtm {
 namespace video {
 
-struct rtm_sink : public rtm::video::sink {
+struct rtm_sink : public rtm::video::sink<metadata, encoded_frame> {
  public:
   rtm_sink(std::shared_ptr<rtm::publisher> client,
            const std::string &rtm_channel);

@@ -11,21 +11,25 @@
 namespace rtm {
 namespace video {
 
-void initialize_sources_library();
+void initialize_source_library();
 void print_av_error(const char *msg, int code);
 
+template <typename Metadata, typename Frame>
 struct source {
  public:
   virtual ~source() = default;
   virtual int init() = 0;
   virtual void start() = 0;
-  void subscribe(std::shared_ptr<sink> sink);
+
+  void subscribe(std::shared_ptr<sink<Metadata, Frame>> sink) {
+    _sinks.push_back(std::move(sink));
+  }
 
  protected:
-  std::vector<std::shared_ptr<sink>> _sinks;
+  std::vector<std::shared_ptr<sink<Metadata, Frame>>> _sinks;
 };
 
-struct timed_source : public source {
+struct timed_source : public source<metadata, encoded_frame> {
  protected:
   void start(const std::string &codec_name, const std::string &codec_data,
              std::chrono::milliseconds frames_interval,

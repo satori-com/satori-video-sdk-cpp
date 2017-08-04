@@ -124,7 +124,7 @@ metadata decode_metadata_frame(const rapidjson::Value& msg) {
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public sink {
+class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
@@ -604,7 +604,7 @@ int bot_environment::main_online(variables_map cmd_args) {
 
 int bot_environment::main_offline(variables_map cmd_args) {
   const std::string id = cmd_args["id"].as<std::string>();
-  rtm::video::initialize_sources_library();
+  rtm::video::initialize_source_library();
   std::ostream *_analysis, *_debug;
   if (cmd_args.count("analysis_file")) {
     _analysis =
@@ -621,11 +621,12 @@ int bot_environment::main_offline(variables_map cmd_args) {
       id, *_bot_descriptor, *_analysis, *_debug, *this);
   _bot_instance.reset(_bot_offline_instance);
 
-  parse_config(cmd_args.count("config")
-      ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
-      : boost::optional<std::string>{});
+  parse_config(
+      cmd_args.count("config")
+          ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
+          : boost::optional<std::string>{});
 
-  std::unique_ptr<rtm::video::source> source;
+  std::unique_ptr<rtm::video::source<metadata, encoded_frame>> source;
 
   if (cmd_args.count("video_file"))
     source.reset(

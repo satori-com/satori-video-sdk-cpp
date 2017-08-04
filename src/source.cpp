@@ -15,7 +15,7 @@ extern "C" {
 namespace rtm {
 namespace video {
 
-void initialize_sources_library() {
+void initialize_source_library() {
   static bool is_initialized = false;
 
   if (!is_initialized) {
@@ -31,10 +31,6 @@ void print_av_error(const char *msg, int code) {
   std::cerr << msg << ", code: " << code << ", error: \""
             << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
             << "\"\n";
-}
-
-void source::subscribe(std::shared_ptr<sink> sink) {
-  _sinks.push_back(std::move(sink));
 }
 
 void timed_source::codec_init(const std::string &codec_name,
@@ -62,7 +58,7 @@ void timed_source::start(const std::string &codec_name,
 void timed_source::stop_timers() { _io_service.stop(); }
 
 void timed_source::metadata_tick() {
-  for (std::shared_ptr<sink> &s : _sinks) {
+  for (auto &s : _sinks) {
     s->on_metadata({.codec_name = _codec_name, .codec_data = _codec_data});
   }
 
@@ -74,7 +70,7 @@ void timed_source::metadata_tick() {
 
 void timed_source::frames_tick() {
   if (auto data = next_packet()) {
-    for (std::shared_ptr<sink> &s : _sinks) {
+    for (auto &s : _sinks) {
       s->on_frame({.data = data.get()});
     }
   }
@@ -91,10 +87,13 @@ void timed_source::frames_tick() {
 // C-style API
 
 struct video_source {
-  std::unique_ptr<rtm::video::source> source;
+  std::unique_ptr<
+      rtm::video::source<rtm::video::metadata, rtm::video::encoded_frame>>
+      source;
 };
 
-struct callbacks_sink : public rtm::video::sink {
+struct callbacks_sink
+    : public rtm::video::sink<rtm::video::metadata, rtm::video::encoded_frame> {
  public:
   callbacks_sink(metadata_handler metadata_handler, frame_handler frame_handler)
       : _metadata_handler(metadata_handler), _frame_handler(frame_handler) {}
@@ -115,7 +114,7 @@ struct callbacks_sink : public rtm::video::sink {
   frame_handler _frame_handler{nullptr};
 };
 
-void video_source_init_library() { rtm::video::initialize_sources_library(); }
+void video_source_init_library() { rtm::video::initialize_source_library(); }
 
 video_source *video_source_camera_new(const char *dimensions) {
   video_source_init_library();
