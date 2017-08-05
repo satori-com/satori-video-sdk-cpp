@@ -16,6 +16,7 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
+    src/flow_decoder.cpp
     src/frame_aggregator.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp
