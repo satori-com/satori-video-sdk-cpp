@@ -1,5 +1,4 @@
 #include "source_rtm.h"
-#include "base64.h"
 #include "librtmvideo/rtmvideo.h"
 
 namespace rtm {
@@ -35,12 +34,12 @@ void rtm_source::on_data(const subscription &sub,
 }
 
 void rtm_source::on_metadata(const rapidjson::Value &msg) {
-  std::string codec_data =
-      msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
-  std::string codec_name = msg["codecName"].GetString();
+  const std::string name = msg["codecName"].GetString();
+  const std::string base64_data =
+      msg.HasMember("codecData") ? msg["codecData"].GetString() : "";
 
-  source::foreach_sink([&codec_data, &codec_name](auto s) {
-    s->on_metadata({.codec_name = codec_name, .codec_data = codec_data});
+  source::foreach_sink([&name, &base64_data](auto s) {
+    s->on_metadata({.codec_name = name, .base64_data = base64_data});
   });
 }
 
@@ -57,19 +56,13 @@ void rtm_source::on_frame_data(const rapidjson::Value &msg) {
     chunks = msg["l"].GetInt();
   }
 
-  _aggregator.send_frame(
-      {.base64_data = msg["d"].GetString(),
-       .id = {i1, i2},
-       .t = std::chrono::system_clock::from_time_t(ntp_timestamp),
-       .chunk = chunk,
-       .chunks = chunks});
-
-  if (_aggregator.ready()) {
-    const std::string data = decode64(_aggregator.get_data());
-    const frame_id id = _aggregator.get_id();
-    source::foreach_sink(
-        [&id, &data](auto s) { s->on_frame({.data = data, .id = id}); });
-  }
+  source::foreach_sink([&msg, i1, i2, &ntp_timestamp, chunk, chunks](auto s) {
+    s->on_frame({.base64_data = msg["d"].GetString(),
+                 .id = {i1, i2},
+                 .t = std::chrono::system_clock::from_time_t(ntp_timestamp),
+                 .chunk = chunk,
+                 .chunks = chunks});
+  });
 }
 
 }  // namespace video

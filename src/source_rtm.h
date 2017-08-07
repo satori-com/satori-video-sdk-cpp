@@ -4,8 +4,6 @@
 #include <memory>
 #include <string>
 
-#include "frame_aggregator.h"
-#include "librtmvideo/data.h"
 #include "librtmvideo/rtmpacket.h"
 #include "rtmclient.h"
 #include "source.h"
@@ -13,7 +11,7 @@
 namespace rtm {
 namespace video {
 
-struct rtm_source : public source<metadata, encoded_frame>,
+struct rtm_source : public source<network_metadata, network_frame>,
                     private rtm::subscription_callbacks {
  public:
   rtm_source(std::shared_ptr<rtm::subscriber> client,
@@ -35,7 +33,6 @@ struct rtm_source : public source<metadata, encoded_frame>,
   const std::string _frames_channel;
   rtm::subscription _metadata_subscription;
   rtm::subscription _frames_subscription;
-  frame_aggregator _aggregator;
 };
 
 }  // namespace video
