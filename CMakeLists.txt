@@ -1,6 +1,19 @@
 cmake_minimum_required (VERSION 3.7)
 project (librtmvideo VERSION 0.1 LANGUAGES CXX)
 
+if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+  SET(CMAKE_BUILD_TYPE "Debug")
+ENDIF()
+
+include(cmake/conan.cmake)
+
+conan_cmake_run(CONANFILE conanfile.py
+                BASIC_SETUP CMAKE_TARGETS
+                UPDATE
+                BUILD missing)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 if(UNIX AND NOT APPLE)
     # Next line is needed when FFmpeg used as a static library
     # http://www.ffmpeg.org/platform.html#Advanced-linking-configuration
@@ -38,7 +51,6 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Ffmpeg
     PRIVATE
         CONAN_PKG::Boost
-        CONAN_PKG::Opencv
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
         rtmvideo-decoder
@@ -50,25 +62,17 @@ target_include_directories(rtmvideo
     PRIVATE ${ZLIB_INCLUDE_DIRS}
     PUBLIC include)
 
-set(LIBRTMVIDEO_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
-set(LIBRTMVIDEO_INCLUDE_DIRS ${LIBRTMVIDEO_INCLUDE_DIRS} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIBRARIES rtmvideo rtmvideo-decoder CONAN_PKG::Libcbor CONAN_PKG::Boost dl)
-set(LIBRTMVIDEO_LIBRARIES ${LIBRTMVIDEO_LIBRARIES} PARENT_SCOPE)
-set(LIBRTMVIDEO_LIB_DIRS ${LIBCBOR_LIB_DIR})
-set(LIBRTMVIDEO_LIB_DIRS ${LIBRTMVIDEO_LIB_DIRS} PARENT_SCOPE)
-
-link_directories(${LIBRTMVIDEO_LIB_DIRS})
 add_executable(rtmvideo_publisher_cli
     src/rtmvideo_publisher_cli.cpp)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
-target_include_directories(rtmvideo_publisher_cli PRIVATE ${LIBRTMVIDEO_INCLUDE_DIRS})
+target_include_directories(rtmvideo_publisher_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtmvideo_publisher_cli
         PRIVATE
-        ${LIBRTMVIDEO_LIBRARIES}
+        rtmvideo
+        CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
-        CONAN_PKG::Opencv
+        CONAN_PKG::Openssl
+        CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
-
-add_subdirectory(player)
