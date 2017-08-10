@@ -13,9 +13,10 @@ int flow_json_decoder::init() { return 0; }
 
 void flow_json_decoder::start() {}
 
-metadata flow_json_decoder::decode_metadata_frame(const rapidjson::Value &msg) {
+network_metadata flow_json_decoder::decode_metadata_frame(
+    const rapidjson::Value &msg) {
   std::string codec_data =
-      msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
+      msg.HasMember("codecData") ? msg["codecData"].GetString() : "";
   std::string codec_name = msg["codecName"].GetString();
   return {codec_name, codec_data};
 }
@@ -39,15 +40,13 @@ network_frame flow_json_decoder::decode_network_frame(
 }
 
 void flow_json_decoder::on_metadata(rapidjson::Value &&m) {
-  on_metadata(decode_metadata_frame(m));
+  network_metadata mm = decode_metadata_frame(m);
+  source::foreach_sink([&mm](auto s) { s->on_metadata(std::move(mm)); });
 }
 
 void flow_json_decoder::on_frame(rapidjson::Value &&f) {
-  on_frame(decode_network_frame(f));
-}
-
-void flow_json_decoder::on_metadata(metadata &&m) {
-  source::foreach_sink([&m](auto s) { s->on_metadata(std::move(m)); });
+  network_frame ff = decode_network_frame(f);
+  source::foreach_sink([&ff](auto s) { s->on_frame(std::move(ff)); });
 }
 
 bool flow_json_decoder::empty() {
@@ -56,36 +55,5 @@ bool flow_json_decoder::empty() {
   return empty;
 }
 
-void flow_json_decoder::process_frame_part(frame_id &id, const uint8_t *data,
-                                           size_t length, uint32_t chunk,
-                                           uint32_t chunks) {
-  if (chunks == 1) {
-    process_frame(id, data, length);
-    return;
-  }
-
-  if (chunk == 1) {
-    _chunk_buffer.clear();
-  }
-  _chunk_buffer.insert(_chunk_buffer.end(), data, data + length);
-  if (chunk != chunks) return;
-
-  process_frame(id, _chunk_buffer.data(), _chunk_buffer.size());
-  _chunk_buffer.clear();
-}
-
-void flow_json_decoder::process_frame(frame_id &id, const uint8_t *data,
-                                      size_t length) {
-  std::string encoded{data, data + length};
-  std::string decoded = rtm::video::decode64(encoded);
-  source::foreach_sink([&decoded, &id](auto s) {
-    s->on_frame(encoded_frame{.data = decoded, .id = id});
-  });
-}
-
-void flow_json_decoder::on_frame(network_frame &&f) {
-  process_frame_part(f.id, (const uint8_t *)f.base64_data.c_str(),
-                     f.base64_data.size(), f.chunk, f.chunks);
-}
 }  // namespace video
 }  // namespace rtm

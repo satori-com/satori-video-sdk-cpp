@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include "flow_json_decoder.h"
+#include "flow_rtm_aggregator.h"
 #include "source_replay.h"
 #include "timed_source.h"
 
@@ -29,6 +30,7 @@ struct replay_proxy : public source<metadata, encoded_frame>,
  private:
   replay_source _replay;
   std::shared_ptr<flow_json_decoder> _decoder;
+  std::shared_ptr<flow_rtm_aggregator> _aggregator;
 };
 
 }  // namespace video

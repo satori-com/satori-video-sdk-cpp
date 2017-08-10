@@ -271,12 +271,14 @@ class bot_online_instance
       : bot_instance(bot_id, descriptor, env), _channels(channel) {
     _decoder_worker = std::make_unique<threaded_worker<rapidjson::Value>>(
         network_frames_max_buffer_size, [this](rapidjson::Value&& frame) {
+          _aggregator.reset(new flow_rtm_aggregator());
           _json_decoder.on_frame(std::move(frame));
         });
   }
 
   void subscribe(rtm::subscriber& s) {
-    _json_decoder.subscribe(shared_from_this());
+    _json_decoder.subscribe(_aggregator);
+    _aggregator->subscribe(shared_from_this());
 
     s.subscribe_channel(_channels.frames, _frames_subscription, *this);
 
@@ -381,6 +383,7 @@ class bot_online_instance
   }
 
   flow_json_decoder _json_decoder;
+  std::shared_ptr<flow_rtm_aggregator> _aggregator;
   std::unique_ptr<threaded_worker<rapidjson::Value>> _decoder_worker;
   const channel_names _channels;
   const rtm::subscription _frames_subscription{};

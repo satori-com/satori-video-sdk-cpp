@@ -18,9 +18,10 @@ namespace video {
 replay_proxy::replay_proxy(const std::string &filename, bool synchronous)
     : _replay(filename, synchronous) {
   _decoder.reset(new flow_json_decoder());
+  _aggregator.reset(new flow_rtm_aggregator());
 }
 
-int replay_proxy::init() { return _decoder->init() + _replay.init(); }
+int replay_proxy::init() { return _decoder->init() + _replay.init() + _aggregator->init(); }
 
 bool replay_proxy::empty() {
   bool empty = true;
@@ -37,7 +38,8 @@ void replay_proxy::on_metadata(metadata &&m) {
 }
 
 void replay_proxy::start() {
-  _decoder->subscribe(shared_from_this());
+  _aggregator->subscribe(shared_from_this());
+  _decoder->subscribe(_aggregator);
   _replay.subscribe(_decoder);
   _replay.start();
 }
