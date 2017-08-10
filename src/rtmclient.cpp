@@ -228,7 +228,7 @@ class secure_client : public client {
     });
   }
 
-  void process_input(const rapidjson::Document &d) {
+  void process_input(rapidjson::Document &d) {
     if (!d.HasMember("action")) {
       std::cerr << "no action in pdu: " << to_string(d) << "\n";
     }
@@ -240,8 +240,8 @@ class secure_client : public client {
       auto it = _subscriptions.find(subscription_id);
       BOOST_VERIFY(it != _subscriptions.end());
       subscription_impl &sub = it->second;
-      for (const auto &m : body["messages"].GetArray()) {
-        sub.callbacks.on_data(sub.sub, m);
+      for (rapidjson::Value &m : body["messages"].GetArray()) {
+        sub.callbacks.on_data(sub.sub, std::move(m));
       }
     } else if (action == "rtm/subscribe/ok") {
       // ignore

@@ -16,14 +16,16 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
-    src/flow_decoder.cpp
     src/flow_rtm_aggregator.cpp
+    src/flow_json_decoder.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp
     src/sink_rtm.cpp
     src/source.cpp
     src/source_camera.cpp
     src/source_file.cpp
+    src/source_replay.cpp
+    src/proxy_replay.cpp
     src/source_rtm.cpp
     src/tele.cpp
     src/video_bot.cpp)

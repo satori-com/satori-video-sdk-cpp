@@ -23,7 +23,7 @@ struct rtm_source : public source<network_metadata, network_frame>,
 
  private:
   void on_data(const subscription &subscription,
-               const rapidjson::Value &value) override;
+               rapidjson::Value &&value) override;
 
   void on_metadata(const rapidjson::Value &msg);
   void on_frame_data(const rapidjson::Value &msg);

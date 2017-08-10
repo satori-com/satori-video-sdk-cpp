@@ -72,7 +72,7 @@ struct subscription {};
 
 struct subscription_callbacks : public error_callbacks {
   virtual void on_data(const subscription & /*subscription*/,
-                       const rapidjson::Value & /*unused*/) {}
+                       rapidjson::Value && /*unused*/) {}
 };
 
 struct history_options {

@@ -23,7 +23,7 @@ void rtm_source::start() {
 }
 
 void rtm_source::on_data(const subscription &sub,
-                         const rapidjson::Value &value) {
+                         rapidjson::Value &&value) {
   if (&sub == &_metadata_subscription) {
     on_metadata(value);
   } else if (&sub == &_frames_subscription) {

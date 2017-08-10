@@ -30,6 +30,7 @@ extern "C" {
 #include "rtmclient.h"
 #include "sink.h"
 #include "source_file.h"
+#include "proxy_replay.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
 #include "worker.h"
@@ -100,23 +101,6 @@ class bot_api_exception : public std::runtime_error {
   bot_api_exception() : runtime_error("bot api error") {}
 };
 
-network_frame decode_network_frame(const rapidjson::Value& msg) {
-  auto t = msg["i"].GetArray();
-  uint64_t i1 = t[0].GetUint64();
-  uint64_t i2 = t[1].GetUint64();
-
-  double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
-
-  uint32_t chunk = 1, chunks = 1;
-  if (msg.HasMember("c")) {
-    chunk = msg["c"].GetUint();
-    chunks = msg["l"].GetUint();
-  }
-
-  return {msg["d"].GetString(), std::make_pair(i1, i2),
-          std::chrono::system_clock::from_time_t(ntp_timestamp), chunk, chunks};
-}
-
 metadata decode_metadata_frame(const rapidjson::Value& msg) {
   std::string codec_data =
       msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
@@ -129,9 +113,6 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
       : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
-    _decoder_worker = std::make_unique<threaded_worker<network_frame>>(
-        network_frames_max_buffer_size,
-        [this](network_frame&& frame) { on_base64_frame(std::move(frame)); });
     _process_worker = std::make_unique<threaded_worker<image_frame>>(
         image_frames_max_buffer_size,
         [this](image_frame&& frame) { process_image_frame(std::move(frame)); });
@@ -151,8 +132,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
                                    f.data.size());
 
     if (decoder_frame_ready(decoder))
-      receive_frame(decoder, std::make_pair(_frame_counter, _frame_counter));
-    _frame_counter++;
+      receive_frame(decoder, f.id);
   }
 
   void on_metadata(metadata&& m) override {
@@ -183,23 +163,6 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   bool empty() override { return _process_worker->queue_size() == 0; }
 
  protected:
-  // called only from decoder worker.
-  void on_base64_frame(network_frame&& frame) {
-    std::lock_guard<std::mutex> guard(_decoder_mutex);
-
-    decoder* decoder = _decoder.get();
-    {
-      stopwatch<> s;
-      decoder_process_frame_message(decoder, frame.id.first, frame.id.second,
-                                    (const uint8_t*)frame.base64_data.c_str(),
-                                    frame.base64_data.size(), frame.chunk,
-                                    frame.chunks);
-      tele::distribution_add(decoding_times_millis, s.millis());
-    }
-
-    if (decoder_frame_ready(decoder)) receive_frame(decoder, frame.id);
-  }
-
   void receive_frame(decoder* decoder, frame_id id) {
     tele::counter_inc(frames_received);
     if (_descriptor.img_callback) {
@@ -260,17 +223,13 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
   metadata _metadata;
-  size_t _frame_counter = 1;
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
   std::unique_ptr<threaded_worker<image_frame>> _process_worker;
-  std::unique_ptr<threaded_worker<network_frame>> _decoder_worker;
 };
 
-class bot_offline_instance
-    : public bot_instance,
-      public std::enable_shared_from_this<bot_offline_instance> {
+class bot_offline_instance : public bot_instance {
  public:
   bot_offline_instance(const std::string& bot_id,
                        const bot_descriptor& descriptor, std::ostream& analysis,
@@ -300,16 +259,25 @@ class bot_offline_instance
   std::ostream &_analysis, &_debug;
 };
 
-class bot_online_instance : public bot_instance,
-                            public rtm::subscription_callbacks {
+class bot_online_instance
+    : public bot_instance,
+      public rtm::subscription_callbacks,
+      public std::enable_shared_from_this<bot_online_instance> {
  public:
   bot_online_instance(const std::string& bot_id,
                       const bot_descriptor& descriptor,
                       const std::string& channel,
                       rtm::video::bot_environment& env)
-      : bot_instance(bot_id, descriptor, env), _channels(channel) {}
+      : bot_instance(bot_id, descriptor, env), _channels(channel) {
+    _decoder_worker = std::make_unique<threaded_worker<rapidjson::Value>>(
+        network_frames_max_buffer_size, [this](rapidjson::Value&& frame) {
+          _json_decoder.on_frame(std::move(frame));
+        });
+  }
 
   void subscribe(rtm::subscriber& s) {
+    _json_decoder.subscribe(shared_from_this());
+
     s.subscribe_channel(_channels.frames, _frames_subscription, *this);
 
     subscription_options metadata_options;
@@ -327,21 +295,20 @@ class bot_online_instance : public bot_instance,
     throw bot_api_exception();
   }
 
-  void on_data(const subscription& sub,
-               const rapidjson::Value& value) override {
+  void on_data(const subscription& sub, rapidjson::Value&& value) override {
     if (&sub == &_metadata_subscription)
-      on_metadata(value);
+      on_metadata(std::move(value));
     else if (&sub == &_frames_subscription)
-      on_frame_data(value);
+      on_frame_data(std::move(value));
     else if (&sub == &_control_subscription)
-      on_control_message(value);
+      on_control_message(std::move(value));
     else
       BOOST_ASSERT_MSG(false, "Unknown subscription");
   }
 
  private:
-  void on_metadata(const rapidjson::Value& msg) {
-    metadata new_metadata = decode_metadata_frame(msg);
+  void on_metadata(rapidjson::Value&& msg) {
+    _json_decoder.on_metadata(std::move(msg));
   }
 
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
@@ -360,9 +327,9 @@ class bot_online_instance : public bot_instance,
     _env.publisher().publish(channel, message);
   }
 
-  void on_control_message(const rapidjson::Value& msg) {
+  void on_control_message(rapidjson::Value&& msg) {
     if (msg.IsArray()) {
-      for (auto& m : msg.GetArray()) on_control_message(m);
+      for (auto& m : msg.GetArray()) on_control_message(std::move(m));
       return;
     }
 
@@ -396,26 +363,25 @@ class bot_online_instance : public bot_instance,
     return;
   }
 
-  void on_frame_data(const rapidjson::Value& msg) {
+  void on_frame_data(rapidjson::Value&& msg) {
     tele::counter_inc(messages_received);
 
     if (!_decoder) {
       return;
     }
 
-    network_frame frame = decode_network_frame(msg);
-    tele::counter_inc(bytes_received, frame.base64_data.size());
-
     tele::gauge_set(network_frame_buffer_size, _decoder_worker->queue_size());
     tele::gauge_set(image_frame_buffer_size, _process_worker->queue_size());
 
-    if (!_decoder_worker->try_send(std::move(frame))) {
+    if (!_decoder_worker->try_send(std::move(msg))) {
       tele::counter_inc(network_buffer_dropped);
       std::cerr << "dropped network frame, clearing network buffer\n";
       _decoder_worker->clear();
     }
   }
 
+  flow_json_decoder _json_decoder;
+  std::unique_ptr<threaded_worker<rapidjson::Value>> _decoder_worker;
   const channel_names _channels;
   const rtm::subscription _frames_subscription{};
   const rtm::subscription _control_subscription{};
@@ -626,12 +592,17 @@ int bot_environment::main_offline(variables_map cmd_args) {
           ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
           : boost::optional<std::string>{});
 
-  std::unique_ptr<rtm::video::source<metadata, encoded_frame>> source;
+  std::shared_ptr<rtm::video::source<metadata, encoded_frame>> source;
 
   if (cmd_args.count("video_file"))
     source.reset(
         new rtm::video::file_source(cmd_args["video_file"].as<std::string>(),
                                     false, cmd_args["synchronous"].as<bool>()));
+  else {
+    source.reset(
+        new rtm::video::replay_proxy(cmd_args["replay_file"].as<std::string>(),
+                                     cmd_args["synchronous"].as<bool>()));
+  }
 
   int err = source->init();
   if (err) {
