@@ -7,6 +7,8 @@ class SatorivideoConan(ConanFile):
     description = "Satori Video Client Library"
     requires = "Libcbor/0.5.0@satorivideo/master", \
                "Boost/1.64.0@satorivideo/master", \
+               "Opencv/3.3.0_01@satorivideo/master", \
+               "Darknet/0.1.0@satorivideo/master", \
                "Openssl/1.1.0f@satorivideo/master", \
                "Beast/95@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
