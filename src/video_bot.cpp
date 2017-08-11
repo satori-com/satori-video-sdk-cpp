@@ -27,10 +27,10 @@ extern "C" {
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
+#include "proxy_replay.h"
 #include "rtmclient.h"
 #include "sink.h"
 #include "source_file.h"
-#include "proxy_replay.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
 #include "worker.h"
@@ -131,8 +131,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     decoder_process_binary_message(decoder, (const uint8_t*)f.data.c_str(),
                                    f.data.size());
 
-    if (decoder_frame_ready(decoder))
-      receive_frame(decoder, f.id);
+    if (decoder_frame_ready(decoder)) receive_frame(decoder, f.id);
   }
 
   void on_metadata(metadata&& m) override {
@@ -269,9 +268,9 @@ class bot_online_instance
                       const std::string& channel,
                       rtm::video::bot_environment& env)
       : bot_instance(bot_id, descriptor, env), _channels(channel) {
+    _aggregator.reset(new flow_rtm_aggregator());
     _decoder_worker = std::make_unique<threaded_worker<rapidjson::Value>>(
         network_frames_max_buffer_size, [this](rapidjson::Value&& frame) {
-          _aggregator.reset(new flow_rtm_aggregator());
           _json_decoder.on_frame(std::move(frame));
         });
   }
