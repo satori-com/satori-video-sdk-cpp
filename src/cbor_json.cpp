@@ -15,6 +15,7 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
     for (auto& m : d.GetArray())
       if (!cbor_array_push(message, cbor_move(json_to_cbor(m))))
         std::cerr << "ERROR: Failed to push to array\n";
+    return message;
   }
   if (d.IsObject()) {
     cbor_item_t* message = cbor_new_definite_map(d.MemberCount());
