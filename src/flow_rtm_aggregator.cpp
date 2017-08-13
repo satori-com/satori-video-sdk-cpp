@@ -10,7 +10,7 @@ flow_rtm_aggregator::~flow_rtm_aggregator() {}
 
 int flow_rtm_aggregator::init() { return 0; }
 
-void flow_rtm_aggregator::start() {};
+void flow_rtm_aggregator::start(){};
 
 void flow_rtm_aggregator::on_metadata(network_metadata &&m) {
   const std::string codec_data = decode64(m.base64_data);
@@ -47,6 +47,12 @@ void flow_rtm_aggregator::reset() {
   _chunks = 1;
   _frame_id = {-1, -1};
   _aggregated_data.clear();
+}
+
+bool flow_rtm_aggregator::empty() {
+  bool empty = true;
+  source::foreach_sink([&empty](auto s) { empty = empty & s->empty(); });
+  return empty;
 }
 
 }  // namespace video
