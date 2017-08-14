@@ -30,7 +30,6 @@ add_library(rtmvideo
     src/cbor_tools.cpp
     src/data.cpp
     src/flow_rtm_aggregator.cpp
-    src/flow_json_decoder.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp
     src/sink_rtm.cpp
@@ -38,7 +37,6 @@ add_library(rtmvideo
     src/source_camera.cpp
     src/source_file.cpp
     src/source_replay.cpp
-    src/proxy_replay.cpp
     src/source_rtm.cpp
     src/tele.cpp
     src/video_bot.cpp)
@@ -69,6 +67,21 @@ set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
 target_include_directories(rtmvideo_publisher_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtmvideo_publisher_cli
+        PRIVATE
+        rtmvideo
+        CONAN_PKG::Boost
+        CONAN_PKG::Ffmpeg
+        CONAN_PKG::Openssl
+        CONAN_PKG::Rapidjson
+        CONAN_PKG::Gsl)
+
+add_executable(test_bot
+    src/test_bot.cpp)
+set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
+set_property(TARGET test_bot PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
+add_dependencies(test_bot rtmvideo)
+target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(test_bot
         PRIVATE
         rtmvideo
         CONAN_PKG::Boost

@@ -1,10 +1,14 @@
 #pragma once
 
+#include <rapidjson/document.h>
+#include <boost/optional.hpp>
+#include <boost/program_options.hpp>
 #include <gsl/gsl>
-#include "librtmvideo/decoder.h"
-#include "librtmvideo/rtmvideo.h"
+#include <memory>
+
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
+#include "source.h"
 
 namespace rtm {
 namespace video {
@@ -31,7 +35,8 @@ class bot_environment : public subscription_callbacks {
 
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
-  std::unique_ptr<rtm::client> _client;
+  std::shared_ptr<rtm::client> _client;
+  std::shared_ptr<source<metadata, encoded_frame>> _source;
 };
 
 }  // namespace video

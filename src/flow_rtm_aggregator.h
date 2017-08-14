@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 
 #include "librtmvideo/rtmpacket.h"
@@ -9,23 +10,26 @@
 namespace rtm {
 namespace video {
 
-struct flow_rtm_aggregator : public sink<network_metadata, network_frame>,
-                             public source<metadata, encoded_frame> {
+struct flow_rtm_aggregator
+    : public sink<network_metadata, network_frame>,
+      public source<metadata, encoded_frame>,
+      public std::enable_shared_from_this<flow_rtm_aggregator> {
  public:
-  flow_rtm_aggregator();
+  flow_rtm_aggregator(
+      std::unique_ptr<source<network_metadata, network_frame>> source);
   ~flow_rtm_aggregator();
 
   int init() override;
   void start() override;
-
-  void on_metadata(network_metadata &&m) override;
-  void on_frame(network_frame &&f) override;
   bool empty() override;
 
  private:
+  void on_metadata(network_metadata &&m) override;
+  void on_frame(network_frame &&f) override;
   void reset();
 
  private:
+  const std::unique_ptr<source<network_metadata, network_frame>> _source;
   uint8_t _expected_chunk;
   uint8_t _chunks;
   frame_id _frame_id;
