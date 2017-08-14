@@ -614,6 +614,8 @@ int bot_environment::main_offline(variables_map cmd_args) {
   }
   source->subscribe(_bot_instance);
   source->start();
+  _analysis->flush();
+  _debug->flush();
 
   return 0;
 }  // namespace video
