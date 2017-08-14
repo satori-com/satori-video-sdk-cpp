@@ -247,11 +247,11 @@ class bot_offline_instance : public bot_instance {
     switch (kind) {
       case bot_message_kind::ANALYSIS:
         cbor::dump(_analysis, message);
-        _analysis << '\n';
+        _analysis << std::endl;
         break;
       default:
         cbor::dump(_debug, message);
-        _debug << '\n';
+        _debug << std::endl;
     }
   }
 
