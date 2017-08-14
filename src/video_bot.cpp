@@ -247,11 +247,11 @@ class bot_offline_instance : public bot_instance {
     switch (kind) {
       case bot_message_kind::ANALYSIS:
         cbor::dump(_analysis, message);
-        _analysis << '\n';
+        _analysis << std::endl;
         break;
       default:
         cbor::dump(_debug, message);
-        _debug << '\n';
+        _debug << std::endl;
     }
   }
 
@@ -614,6 +614,8 @@ int bot_environment::main_offline(variables_map cmd_args) {
   }
   source->subscribe(_bot_instance);
   source->start();
+  _analysis->flush();
+  _debug->flush();
 
   return 0;
 }  // namespace video

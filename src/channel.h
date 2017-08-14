@@ -16,8 +16,6 @@ class channel {
  public:
   explicit channel(size_t buffer_size) : _buffer_size(buffer_size) {}
 
-  ~channel() { assert(false); }
-
   bool try_send(T &&t) {
     std::lock_guard<std::mutex> guard(_mutex);
     if (_buffer.size() >= _buffer_size) return false;

@@ -20,6 +20,7 @@ struct flow_rtm_aggregator : public sink<network_metadata, network_frame>,
 
   void on_metadata(network_metadata &&m) override;
   void on_frame(network_frame &&f) override;
+  bool empty() override;
 
  private:
   void reset();
