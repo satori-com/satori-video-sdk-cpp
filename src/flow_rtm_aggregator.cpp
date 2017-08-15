@@ -4,13 +4,20 @@
 namespace rtm {
 namespace video {
 
-flow_rtm_aggregator::flow_rtm_aggregator() { reset(); }
+flow_rtm_aggregator::flow_rtm_aggregator(
+    std::unique_ptr<source<network_metadata, network_frame>> source)
+    : _source(std::move(source)) {
+  reset();
+}
 
 flow_rtm_aggregator::~flow_rtm_aggregator() {}
 
-int flow_rtm_aggregator::init() { return 0; }
+int flow_rtm_aggregator::init() { return _source->init(); }
 
-void flow_rtm_aggregator::start(){};
+void flow_rtm_aggregator::start() {
+  _source->start();
+  _source->subscribe(shared_from_this());
+};
 
 void flow_rtm_aggregator::on_metadata(network_metadata &&m) {
   const std::string codec_data = decode64(m.base64_data);

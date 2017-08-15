@@ -20,6 +20,7 @@ extern "C" {
 #include "base64.h"
 #include "bot_environment.h"
 #include "cbor_json.h"
+#include "flow_rtm_aggregator.h"
 #include "librtmvideo/cbor_tools.h"
 #include "librtmvideo/data.h"
 #include "librtmvideo/decoder.h"
@@ -27,10 +28,11 @@ extern "C" {
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
-#include "proxy_replay.h"
 #include "rtmclient.h"
 #include "sink.h"
 #include "source_file.h"
+#include "source_replay.h"
+#include "source_rtm.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
 #include "worker.h"
@@ -43,23 +45,31 @@ namespace video {
 namespace {
 
 constexpr size_t network_frames_max_buffer_size = 1024;
+constexpr size_t encoded_frames_max_buffer_size = 32;
 constexpr size_t image_frames_max_buffer_size = 2;
 
 auto frames_received = tele::counter_new("vbot", "frames_received");
 auto messages_received = tele::counter_new("vbot", "messages_received");
 auto bytes_received = tele::counter_new("vbot", "bytes_received");
 auto metadata_received = tele::counter_new("vbot", "metadata_received");
+
 auto network_frame_buffer_size =
     tele::gauge_new("vbot", "network_frame_buffer_size");
+auto encoded_frame_buffer_size =
+    tele::gauge_new("vbot", "encoded_frame_buffer_size");
 auto image_frame_buffer_size =
     tele::gauge_new("vbot", "image_frame_buffer_size");
+
 auto decoding_times_millis =
     tele::distribution_new("vbot", "decoding_times_millis");
 auto processing_times_millis =
     tele::distribution_new("vbot", "processing_times_millis");
-auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
+
+auto encoded_frames_dropped =
+    tele::counter_new("vbot", "encoded_frames_dropped");
 auto network_buffer_dropped =
     tele::counter_new("vbot", "network_buffer_dropped");
+auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
 
 struct bot_message {
   cbor_item_t* data;
@@ -68,15 +78,11 @@ struct bot_message {
 
 struct channel_names {
   explicit channel_names(const std::string& base_name)
-      : frames(base_name + frames_channel_suffix),
-        control(control_channel),
-        metadata(base_name + metadata_channel_suffix),
+      : control(control_channel),
         analysis(base_name + analysis_channel_suffix),
         debug(base_name + debug_channel_suffix) {}
 
-  const std::string frames;
   const std::string control;
-  const std::string metadata;
   const std::string analysis;
   const std::string debug;
 };
@@ -113,7 +119,10 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
       : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
-    _process_worker = std::make_unique<threaded_worker<image_frame>>(
+    _encoded_frames_worker = std::make_unique<threaded_worker<encoded_frame>>(
+        encoded_frames_max_buffer_size,
+        [this](encoded_frame&& f) { process_encoded_frame(std::move(f)); });
+    _image_frames_worker = std::make_unique<threaded_worker<image_frame>>(
         image_frames_max_buffer_size,
         [this](image_frame&& frame) { process_image_frame(std::move(frame)); });
   }
@@ -122,16 +131,6 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     bot_message newmsg{message, kind};
     cbor_incref(message);
     _message_buffer.push_back(newmsg);
-  }
-
-  void on_frame(encoded_frame&& f) override {
-    std::lock_guard<std::mutex> guard(_decoder_mutex);
-
-    decoder* decoder = _decoder.get();
-    decoder_process_binary_message(decoder, (const uint8_t*)f.data.c_str(),
-                                   f.data.size());
-
-    if (decoder_frame_ready(decoder)) receive_frame(decoder, f.id);
   }
 
   void on_metadata(metadata&& m) override {
@@ -159,35 +158,41 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     std::cout << "Video decoder initialized\n";
   }
 
-  bool empty() override { return _process_worker->queue_size() == 0; }
+  void on_frame(encoded_frame&& f) override {
+    if (!_encoded_frames_worker->try_send(std::move(f))) {
+      tele::counter_inc(encoded_frames_dropped);
+    }
+  }
 
- protected:
-  void receive_frame(decoder* decoder, frame_id id) {
-    tele::counter_inc(frames_received);
-    if (_descriptor.img_callback) {
-      image_frame image_frame{
-          std::string(
-              (const char*)decoder_image_data(decoder),
-              decoder_image_line_size(decoder) * decoder_image_height(decoder)),
-          id, ((uint16_t)decoder_image_width(decoder)),
-          ((uint16_t)decoder_image_height(decoder)),
-          ((uint16_t)decoder_image_line_size(decoder))};
-      if (!_process_worker->try_send(std::move(image_frame))) {
-        tele::counter_inc(image_frames_dropped);
+  bool empty() override { return _encoded_frames_worker->queue_size() == 0; }
+
+ private:
+  void process_encoded_frame(encoded_frame&& f) {
+    std::lock_guard<std::mutex> guard(_decoder_mutex);
+
+    decoder* decoder = _decoder.get();
+    decoder_process_binary_message(decoder, (const uint8_t*)f.data.data(),
+                                   f.data.size());
+
+    if (decoder_frame_ready(decoder)) {
+      tele::counter_inc(frames_received);
+      if (_descriptor.img_callback) {
+        image_frame image_frame{
+            std::string((const char*)decoder_image_data(decoder),
+                        decoder_image_line_size(decoder) *
+                            decoder_image_height(decoder)),
+            f.id, ((uint16_t)decoder_image_width(decoder)),
+            ((uint16_t)decoder_image_height(decoder)),
+            ((uint16_t)decoder_image_line_size(decoder))};
+        if (!_image_frames_worker->try_send(std::move(image_frame))) {
+          tele::counter_inc(image_frames_dropped);
+        }
       }
     }
   }
 
-  void process_image_frame(image_frame&& frame) {
-    {
-      stopwatch<> s;
-      _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
-                               frame.width, frame.height, frame.linesize);
-      tele::distribution_add(processing_times_millis, s.millis());
-    }
-    // todo: first id should be last_frame.second + 1.
-    send_messages(frame.id.first, frame.id.second);
-  }
+ protected:
+  virtual void process_image_frame(image_frame&& frame) = 0;
 
   virtual void transmit(const bot_message_kind kind, cbor_item_t* message) = 0;
 
@@ -225,7 +230,8 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
-  std::unique_ptr<threaded_worker<image_frame>> _process_worker;
+  std::unique_ptr<threaded_worker<encoded_frame>> _encoded_frames_worker;
+  std::unique_ptr<threaded_worker<image_frame>> _image_frames_worker;
 };
 
 class bot_offline_instance : public bot_instance {
@@ -237,12 +243,12 @@ class bot_offline_instance : public bot_instance {
         _analysis(analysis),
         _debug(debug) {}
 
-  void process_image_frame(image_frame&& frame) {
+ private:
+  void process_image_frame(image_frame&& frame) override {
     _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
                              frame.width, frame.height, frame.linesize);
   }
 
- private:
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
     switch (kind) {
       case bot_message_kind::ANALYSIS:
@@ -258,34 +264,16 @@ class bot_offline_instance : public bot_instance {
   std::ostream &_analysis, &_debug;
 };
 
-class bot_online_instance
-    : public bot_instance,
-      public rtm::subscription_callbacks,
-      public std::enable_shared_from_this<bot_online_instance> {
+class bot_online_instance : public bot_instance,
+                            public rtm::subscription_callbacks {
  public:
   bot_online_instance(const std::string& bot_id,
                       const bot_descriptor& descriptor,
                       const std::string& channel,
                       rtm::video::bot_environment& env)
-      : bot_instance(bot_id, descriptor, env), _channels(channel) {
-    _aggregator.reset(new flow_rtm_aggregator());
-    _decoder_worker = std::make_unique<threaded_worker<rapidjson::Value>>(
-        network_frames_max_buffer_size, [this](rapidjson::Value&& frame) {
-          _json_decoder.on_frame(std::move(frame));
-        });
-  }
+      : bot_instance(bot_id, descriptor, env), _channels(channel) {}
 
-  void subscribe(rtm::subscriber& s) {
-    _json_decoder.subscribe(_aggregator);
-    _aggregator->subscribe(shared_from_this());
-
-    s.subscribe_channel(_channels.frames, _frames_subscription, *this);
-
-    subscription_options metadata_options;
-    metadata_options.history.count = 1;
-    s.subscribe_channel(_channels.metadata, _metadata_subscription, *this,
-                        &metadata_options);
-
+  void subscribe_to_control_channel(rtm::subscriber& s) {
     if (!_bot_id.empty() && _descriptor.ctrl_callback) {
       s.subscribe_channel(_channels.control, _control_subscription, *this);
     }
@@ -297,19 +285,23 @@ class bot_online_instance
   }
 
   void on_data(const subscription& sub, rapidjson::Value&& value) override {
-    if (&sub == &_metadata_subscription)
-      on_metadata(std::move(value));
-    else if (&sub == &_frames_subscription)
-      on_frame_data(std::move(value));
-    else if (&sub == &_control_subscription)
+    if (&sub == &_control_subscription) {
       on_control_message(std::move(value));
-    else
+    } else {
       BOOST_ASSERT_MSG(false, "Unknown subscription");
+    }
   }
 
  private:
-  void on_metadata(rapidjson::Value&& msg) {
-    _json_decoder.on_metadata(std::move(msg));
+  void process_image_frame(image_frame&& frame) override {
+    {
+      stopwatch<> s;
+      _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
+                               frame.width, frame.height, frame.linesize);
+      tele::distribution_add(processing_times_millis, s.millis());
+    }
+    // todo: first id should be last_frame.second + 1.
+    send_messages(frame.id.first, frame.id.second);
   }
 
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
@@ -371,23 +363,14 @@ class bot_online_instance
       return;
     }
 
-    tele::gauge_set(network_frame_buffer_size, _decoder_worker->queue_size());
-    tele::gauge_set(image_frame_buffer_size, _process_worker->queue_size());
-
-    if (!_decoder_worker->try_send(std::move(msg))) {
-      tele::counter_inc(network_buffer_dropped);
-      std::cerr << "dropped network frame, clearing network buffer\n";
-      _decoder_worker->clear();
-    }
+    tele::gauge_set(encoded_frame_buffer_size,
+                    _encoded_frames_worker->queue_size());
+    tele::gauge_set(image_frame_buffer_size,
+                    _image_frames_worker->queue_size());
   }
 
-  flow_json_decoder _json_decoder;
-  std::shared_ptr<flow_rtm_aggregator> _aggregator;
-  std::unique_ptr<threaded_worker<rapidjson::Value>> _decoder_worker;
   const channel_names _channels;
-  const rtm::subscription _frames_subscription{};
   const rtm::subscription _control_subscription{};
-  const rtm::subscription _metadata_subscription{};
 };
 
 cbor_item_t* configure_command(cbor_item_t* config) {
@@ -558,12 +541,23 @@ int bot_environment::main_online(variables_map cmd_args) {
   signals.add(SIGQUIT);
   signals.async_wait(boost::bind(&boost::asio::io_service::stop, &io_service));
 
-  _client.reset(new rtm::resilient_client(
+  _client = std::make_shared<resilient_client>(
       [&endpoint, &port, &appkey, &io_service, &ssl_context, this]() {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context,
                                1, *this);
-      }));
-  _bot_online_instance->subscribe(*_client);
+      });
+  _bot_online_instance->subscribe_to_control_channel(*_client);
+  _source = std::make_shared<flow_rtm_aggregator>(
+      std::make_unique<rtm_source>(_client, channel));
+  int err = _source->init();
+  if (err) {
+    std::cerr << "*** Error initializing video source, error code " << err
+              << "\n";
+    exit(1);
+  }
+  _source->subscribe(_bot_instance);
+  _source->start();
+
   tele::publisher tele_publisher(*_client, io_service);
 
   io_service.run();
@@ -594,26 +588,25 @@ int bot_environment::main_offline(variables_map cmd_args) {
           ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
           : boost::optional<std::string>{});
 
-  std::shared_ptr<rtm::video::source<metadata, encoded_frame>> source;
-
   if (cmd_args.count("video_file"))
-    source.reset(
-        new rtm::video::file_source(cmd_args["video_file"].as<std::string>(),
-                                    false, cmd_args["synchronous"].as<bool>()));
+    _source = std::make_shared<file_source>(
+        cmd_args["video_file"].as<std::string>(), false,
+        cmd_args["synchronous"].as<bool>());
   else {
-    source.reset(
-        new rtm::video::replay_proxy(cmd_args["replay_file"].as<std::string>(),
-                                     cmd_args["synchronous"].as<bool>()));
+    _source =
+        std::make_shared<flow_rtm_aggregator>(std::make_unique<replay_source>(
+            cmd_args["replay_file"].as<std::string>(),
+            cmd_args["synchronous"].as<bool>()));
   }
 
-  int err = source->init();
+  int err = _source->init();
   if (err) {
     std::cerr << "*** Error initializing video source, error code " << err
               << "\n";
     exit(1);
   }
-  source->subscribe(_bot_instance);
-  source->start();
+  _source->subscribe(_bot_instance);
+  _source->start();
   _analysis->flush();
   _debug->flush();
 

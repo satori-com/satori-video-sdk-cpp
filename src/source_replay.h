@@ -1,16 +1,12 @@
 #pragma once
 
 #include <fstream>
-#include "timed_source.h"
-
-extern "C" {
-#include <libavformat/avformat.h>
-}
+#include "source.h"
 
 namespace rtm {
 namespace video {
 
-struct replay_source : public source<rapidjson::Value, rapidjson::Value> {
+struct replay_source : public source<network_metadata, network_frame> {
  public:
   replay_source(const std::string &filename, bool synchronous);
 
@@ -20,9 +16,9 @@ struct replay_source : public source<rapidjson::Value, rapidjson::Value> {
  private:
   void send_metadata();
 
-  std::string _filename;
-  std::ifstream _framedata, _metadata;
-  bool _synchronous{false};
+  std::ifstream _frames_file;
+  std::ifstream _metadata_file;
+  const bool _synchronous;
 };
 
 }  // namespace video
