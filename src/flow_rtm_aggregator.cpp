@@ -15,8 +15,8 @@ flow_rtm_aggregator::~flow_rtm_aggregator() {}
 int flow_rtm_aggregator::init() { return _source->init(); }
 
 void flow_rtm_aggregator::start() {
-  _source->start();
   _source->subscribe(shared_from_this());
+  _source->start();
 };
 
 void flow_rtm_aggregator::on_metadata(network_metadata &&m) {
