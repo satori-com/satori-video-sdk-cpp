@@ -7,7 +7,7 @@ username = os.getenv("CONAN_USERNAME", "satorivideo")
 
 class LibcborTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    version = ''.join(open('VERSION', 'r').readlines())
+    version = '0.1.8'
     requires = "SatoriVideo/" + version + "@%s/%s" % (username, channel)
     generators = "cmake"
 
