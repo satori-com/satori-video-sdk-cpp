@@ -22,8 +22,6 @@ endif()
 
 add_subdirectory(decoder)
 
-find_package(ZLIB REQUIRED)
-
 add_library(rtmvideo
     src/base64.cpp
     src/cbor_json.cpp
@@ -52,12 +50,10 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
         rtmvideo-decoder
-        ${ZLIB_LIBRARIES}
     )
 target_link_libraries(rtmvideo PUBLIC dl)
 
 target_include_directories(rtmvideo
-    PRIVATE ${ZLIB_INCLUDE_DIRS}
     PUBLIC include)
 
 add_executable(rtmvideo_publisher_cli
