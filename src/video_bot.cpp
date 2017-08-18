@@ -4,6 +4,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <boost/asio.hpp>
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/bind.hpp>
 #include <boost/program_options.hpp>
 #include <boost/scope_exit.hpp>
@@ -398,14 +399,15 @@ variables_map parse_command_line(int argc, char* argv[]) {
   namespace po = boost::program_options;
   po::options_description generic("Generic options");
   generic.add_options()("help", "produce help message")(
-      "config", po::value<std::string>(), "bot config file");
+      "config", po::value<std::string>(), "bot config file")(
+      "id", po::value<std::string>()->default_value(""), "bot id");
 
   po::options_description online("Online options");
   online.add_options()("endpoint", po::value<std::string>(), "app endpoint")(
       "appkey", po::value<std::string>(), "app key")(
       "channel", po::value<std::string>(), "channel")(
       "port", po::value<std::string>(), "port")(
-      "id", po::value<std::string>()->default_value(""), "bot id");
+      "time_limit", po::value<double>(), "time in seconds");
 
   po::options_description offline("Offline options");
   offline.add_options()("video_file", po::value<std::string>(), "input mp4")(
@@ -426,8 +428,9 @@ variables_map parse_command_line(int argc, char* argv[]) {
     exit(1);
   }
 
-  bool online_mode = (vm.count("endpoint") || vm.count("appkey") ||
-                      vm.count("channel") || vm.count("port"));
+  bool online_mode =
+      (vm.count("endpoint") || vm.count("appkey") || vm.count("channel") ||
+       vm.count("port") || vm.count("time_limit"));
 
   bool offline_mode = (vm.count("video_file") || vm.count("analysis_file") ||
                        vm.count("debug_file") || vm.count("replay_file"));
@@ -559,6 +562,16 @@ int bot_environment::main_online(variables_map cmd_args) {
   _source->start();
 
   tele::publisher tele_publisher(*_client, io_service);
+  boost::asio::deadline_timer timer(io_service);
+
+  if (cmd_args.count("time_limit")) {
+    timer.expires_from_now(
+        boost::posix_time::seconds(cmd_args["time_limit"].as<double>()));
+    timer.async_wait([&io_service](const boost::system::error_code& ec) {
+      io_service.stop();
+      exit(0);
+    });
+  }
 
   io_service.run();
   return 0;
