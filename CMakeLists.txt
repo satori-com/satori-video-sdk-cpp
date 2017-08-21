@@ -85,3 +85,7 @@ target_link_libraries(test_bot
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
+
+enable_testing()
+file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME ReplayTest COMMAND test_bot --replay_file=test_data/test.replay | grep "got frame 640x480")
