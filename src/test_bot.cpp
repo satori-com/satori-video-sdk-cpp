@@ -7,7 +7,7 @@ namespace test_bot {
 struct State {
   int magic_number;
 };
-cbor_item_t *build_message(std::string text) {
+cbor_item_t *build_message(const std::string &text) {
   cbor_item_t *message = cbor_new_indefinite_map();
   cbor_map_add(message, {.key = cbor_move(cbor_build_string("message")),
                          .value = cbor_move(cbor_build_string(text.c_str()))});
