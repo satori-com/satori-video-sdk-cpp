@@ -22,12 +22,16 @@
 EXPORT struct bot_context { void *instance_data{nullptr}; };
 
 // API for image handler callback
-// An image may be split vertically into multiple lines, linesize defines how
-// many lines are there. "width" is a width of an image, "height" is a height of
-// a single line. In most cases there will be a single line.
-using bot_img_callback_t = void (*)(bot_context &context, const uint8_t *image,
-                                    uint16_t width, uint16_t height,
-                                    uint16_t linesize);
+// If an image uses packed pixel format like packed RGB or packed YUV,
+// then it has only a single plane, e.g. all it's data is within plane_data[0].
+// If an image uses planar pixel format like planar YUV or HSV,
+// then every component is stored as a separate array (e.g. separate plane),
+// for example, for YUV  Y is plane_data[0], U is plane_data[1] and V is
+// plane_data[2]. A stride is a plane size with alignment.
+using bot_img_callback_t =
+    void (*)(bot_context &context, uint16_t width, uint16_t height,
+             const uint8_t *plane_data[MAX_IMAGE_PLANES],
+             const uint32_t plane_strides[MAX_IMAGE_PLANES]);
 
 // API for control command callback
 // Format of message is defined by user.

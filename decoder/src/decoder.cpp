@@ -24,8 +24,8 @@ struct Image {
   int width;
   int height;
 
-  uint8_t *data[4];
-  int linesize[4];
+  uint8_t *data[MAX_IMAGE_PLANES];
+  int linesize[MAX_IMAGE_PLANES];
 };
 
 AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
@@ -245,11 +245,12 @@ struct decoder {
                            : 25 /* devices often do not report frame rate */;
   }
 
-  uint8_t *image_data() const { return _image ? _image->data[0] : nullptr; }
+  uint8_t *image_data(uint8_t plane_index) const { return _image->data[plane_index]; }
 
+  // TODO: should use av_image_get_buffer_size() instead
   uint64_t image_size() const { return _image->linesize[0] * _image->height; }
 
-  uint64_t image_line_size() const { return _image->linesize[0]; }
+  uint64_t image_line_size(uint8_t plane_index) const { return _image->linesize[plane_index]; }
 
   bool frame_ready() const { return _frame_ready; }
 
@@ -322,7 +323,7 @@ EXPORT int decoder_image_height(decoder *d) { return d->image_height(); }
 EXPORT int decoder_image_width(decoder *d) { return d->image_width(); }
 EXPORT int decoder_stream_height(decoder *d) { return d->stream_height(); }
 EXPORT int decoder_stream_width(decoder *d) { return d->stream_width(); }
-EXPORT int decoder_image_line_size(decoder *d) { return d->image_line_size(); }
+EXPORT int decoder_image_line_size(decoder *d, uint8_t plane_index) { return d->image_line_size(plane_index); }
 EXPORT int decoder_image_size(decoder *d) { return d->image_size(); }
-EXPORT const uint8_t *decoder_image_data(decoder *d) { return d->image_data(); }
+EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index) { return d->image_data(plane_index); }
 EXPORT double decoder_stream_fps(decoder *d) { return d->stream_fps(); }

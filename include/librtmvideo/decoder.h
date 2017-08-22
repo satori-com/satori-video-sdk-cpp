@@ -41,6 +41,6 @@ EXPORT int decoder_stream_height(decoder *d);
 EXPORT int decoder_stream_width(decoder *d);
 EXPORT double decoder_stream_fps(decoder *d);
 
-EXPORT int decoder_image_line_size(decoder *d);
+EXPORT int decoder_image_line_size(decoder *d, uint8_t plane_index);
 EXPORT int decoder_image_size(decoder *d);
-EXPORT const uint8_t *decoder_image_data(decoder *d);
+EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index);

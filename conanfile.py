@@ -14,7 +14,7 @@ class SatorivideoConan(ConanFile):
                "Rapidjson/1.1.0@satorivideo/master", \
                "Ffmpeg/3.3.3_01@satorivideo/master"
     license = "proprietary"
-    version = '0.1.8'
+    version = '0.1.9'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \

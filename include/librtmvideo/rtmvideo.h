@@ -9,6 +9,8 @@
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 
+constexpr uint8_t MAX_IMAGE_PLANES = 4;
+
 // RTM channel for bot control commands.
 // Bot will be automatically subscribed to this channel.
 // A user has to implement bot control callbacks.

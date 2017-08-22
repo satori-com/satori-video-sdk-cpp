@@ -179,12 +179,15 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
       tele::counter_inc(frames_received);
       if (_descriptor.img_callback) {
         image_frame image_frame{
-            std::string((const char*)decoder_image_data(decoder),
-                        decoder_image_line_size(decoder) *
-                            decoder_image_height(decoder)),
-            f.id, ((uint16_t)decoder_image_width(decoder)),
-            ((uint16_t)decoder_image_height(decoder)),
-            ((uint16_t)decoder_image_line_size(decoder))};
+            .id = f.id,
+            .pixel_format = _descriptor.pixel_format,
+            .width = (uint16_t)decoder_image_width(decoder),
+            .height = (uint16_t)decoder_image_height(decoder)};
+        for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
+          image_frame.plane_data[i] = decoder_image_data(decoder, i);
+          image_frame.plane_strides[i] = decoder_image_line_size(decoder, i);
+        }
+
         if (!_image_frames_worker->try_send(std::move(image_frame))) {
           tele::counter_inc(image_frames_dropped);
         }
@@ -246,8 +249,8 @@ class bot_offline_instance : public bot_instance {
 
  private:
   void process_image_frame(image_frame&& frame) override {
-    _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
-                             frame.width, frame.height, frame.linesize);
+    _descriptor.img_callback(*this, frame.width, frame.height, frame.plane_data,
+                             frame.plane_strides);
     send_messages(frame.id.first, frame.id.second);
   }
 
@@ -298,8 +301,8 @@ class bot_online_instance : public bot_instance,
   void process_image_frame(image_frame&& frame) override {
     {
       stopwatch<> s;
-      _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
-                               frame.width, frame.height, frame.linesize);
+      _descriptor.img_callback(*this, frame.width, frame.height,
+                               frame.plane_data, frame.plane_strides);
       tele::distribution_add(processing_times_millis, s.millis());
     }
     // todo: first id should be last_frame.second + 1.

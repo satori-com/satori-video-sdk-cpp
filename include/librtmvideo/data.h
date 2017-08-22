@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "rtmpacket.h"
+#include "rtmvideo.h"
 
 namespace rtm {
 namespace video {
@@ -25,16 +26,14 @@ struct encoded_frame {
 
 // for unencoded video frames
 struct image_frame {
-  std::string image_data;
   frame_id id;
+
+  image_pixel_format pixel_format;
   uint16_t width;
   uint16_t height;
-  uint16_t linesize;
-};
 
-struct metadata_frame {
-  std::string codec_name;
-  std::string codec_data;
+  const uint8_t *plane_data[MAX_IMAGE_PLANES];
+  uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
 }
