@@ -88,4 +88,5 @@ target_link_libraries(test_bot
 
 enable_testing()
 file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME ReplayTest COMMAND test_bot --replay_file=test_data/test.replay | grep "got frame 640x480")
+add_test(NAME ReplayTest COMMAND bash -c "./bin/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis=a1.txt --debug=d1.txt && grep \"Hello from bot 1\" a1.txt && grep \"Hello from bot 2\" d1.txt")
+add_test(NAME VideoTest COMMAND bash -c "./bin/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")

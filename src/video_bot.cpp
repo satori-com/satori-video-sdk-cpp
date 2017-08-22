@@ -248,6 +248,7 @@ class bot_offline_instance : public bot_instance {
   void process_image_frame(image_frame&& frame) override {
     _descriptor.img_callback(*this, ((const uint8_t*)frame.image_data.data()),
                              frame.width, frame.height, frame.linesize);
+    send_messages(frame.id.first, frame.id.second);
   }
 
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
