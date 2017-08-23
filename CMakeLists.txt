@@ -5,7 +5,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
 
-include(cmake/conan.cmake)
+include(conan/conan.cmake)
 
 conan_cmake_run(CONANFILE conanfile.py
                 BASIC_SETUP CMAKE_TARGETS
