@@ -10,7 +10,7 @@ include(conan/conan.cmake)
 conan_cmake_run(CONANFILE conanfile.py
                 BASIC_SETUP CMAKE_TARGETS
                 UPDATE
-                BUILD missing)
+                BUILD outdated)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 

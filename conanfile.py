@@ -1,5 +1,4 @@
 from conans import ConanFile, CMake
-import os
 
 
 class SatorivideoConan(ConanFile):
@@ -30,7 +29,7 @@ class SatorivideoConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
-        self.run('cmake . %s' % cmake.command_line )
+        self.run('cmake . %s' % cmake.command_line)
         self.run("cmake --build . %s" % cmake.build_config)
         self.run("make test")
 
