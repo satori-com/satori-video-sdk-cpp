@@ -54,8 +54,6 @@ auto messages_received = tele::counter_new("vbot", "messages_received");
 auto bytes_received = tele::counter_new("vbot", "bytes_received");
 auto metadata_received = tele::counter_new("vbot", "metadata_received");
 
-auto network_frame_buffer_size =
-    tele::gauge_new("vbot", "network_frame_buffer_size");
 auto encoded_frame_buffer_size =
     tele::gauge_new("vbot", "encoded_frame_buffer_size");
 auto image_frame_buffer_size =
@@ -68,8 +66,6 @@ auto processing_times_millis =
 
 auto encoded_frames_dropped =
     tele::counter_new("vbot", "encoded_frames_dropped");
-auto network_buffer_dropped =
-    tele::counter_new("vbot", "network_buffer_dropped");
 auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
 
 struct bot_message {
@@ -160,9 +156,17 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   }
 
   void on_frame(encoded_frame&& f) override {
+    tele::counter_inc(messages_received);
+    tele::counter_inc(bytes_received, f.data.size());
+
     if (!_encoded_frames_worker->try_send(std::move(f))) {
       tele::counter_inc(encoded_frames_dropped);
     }
+
+    tele::gauge_set(encoded_frame_buffer_size,
+                    _encoded_frames_worker->queue_size());
+    tele::gauge_set(image_frame_buffer_size,
+                    _image_frames_worker->queue_size());
   }
 
   bool empty() override { return _encoded_frames_worker->queue_size() == 0; }
@@ -171,9 +175,11 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   void process_encoded_frame(encoded_frame&& f) {
     std::lock_guard<std::mutex> guard(_decoder_mutex);
 
+    stopwatch<> s;
     decoder* decoder = _decoder.get();
     decoder_process_binary_message(decoder, (const uint8_t*)f.data.data(),
                                    f.data.size());
+    tele::distribution_add(decoding_times_millis, s.millis());
 
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
@@ -359,19 +365,6 @@ class bot_online_instance : public bot_instance,
 
     send_messages(-1, -1);
     return;
-  }
-
-  void on_frame_data(rapidjson::Value&& msg) {
-    tele::counter_inc(messages_received);
-
-    if (!_decoder) {
-      return;
-    }
-
-    tele::gauge_set(encoded_frame_buffer_size,
-                    _encoded_frames_worker->queue_size());
-    tele::gauge_set(image_frame_buffer_size,
-                    _image_frames_worker->queue_size());
   }
 
   const channel_names _channels;
