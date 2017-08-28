@@ -184,14 +184,21 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     if (decoder_frame_ready(decoder)) {
       tele::counter_inc(frames_received);
       if (_descriptor.img_callback) {
-        image_frame image_frame{
-            .id = f.id,
-            .pixel_format = _descriptor.pixel_format,
-            .width = (uint16_t)decoder_image_width(decoder),
-            .height = (uint16_t)decoder_image_height(decoder)};
+        int height = decoder_image_height(decoder);
+
+        image_frame image_frame{.id = f.id,
+                                .pixel_format = _descriptor.pixel_format,
+                                .width = (uint16_t)decoder_image_width(decoder),
+                                .height = (uint16_t)height};
         for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
-          image_frame.plane_data[i] = decoder_image_data(decoder, i);
-          image_frame.plane_strides[i] = decoder_image_line_size(decoder, i);
+          const uint8_t* image_data = decoder_image_data(decoder, i);
+          int line_size = decoder_image_line_size(decoder, i);
+          image_frame.plane_strides[i] = line_size;
+
+          if (image_data) {
+            image_frame.plane_data[i] =
+                std::string((const char*)image_data, line_size * height);
+          }
         }
 
         if (!_image_frames_worker->try_send(std::move(image_frame))) {
@@ -202,7 +209,19 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   }
 
  protected:
-  virtual void process_image_frame(image_frame&& frame) = 0;
+  virtual void process_image_frame(image_frame&& frame) {
+    const uint8_t* plane_data[MAX_IMAGE_PLANES];
+    for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
+      if (frame.plane_data[i].empty()) {
+        plane_data[i] = nullptr;
+      } else {
+        plane_data[i] = (const uint8_t*)frame.plane_data[i].data();
+      }
+    }
+    _descriptor.img_callback(*this, frame.width, frame.height, plane_data,
+                             frame.plane_strides);
+    send_messages(frame.id.first, frame.id.second);
+  }
 
   virtual void transmit(const bot_message_kind kind, cbor_item_t* message) = 0;
 
@@ -254,12 +273,6 @@ class bot_offline_instance : public bot_instance {
         _debug(debug) {}
 
  private:
-  void process_image_frame(image_frame&& frame) override {
-    _descriptor.img_callback(*this, frame.width, frame.height, frame.plane_data,
-                             frame.plane_strides);
-    send_messages(frame.id.first, frame.id.second);
-  }
-
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
     switch (kind) {
       case bot_message_kind::ANALYSIS:
@@ -305,14 +318,9 @@ class bot_online_instance : public bot_instance,
 
  private:
   void process_image_frame(image_frame&& frame) override {
-    {
-      stopwatch<> s;
-      _descriptor.img_callback(*this, frame.width, frame.height,
-                               frame.plane_data, frame.plane_strides);
-      tele::distribution_add(processing_times_millis, s.millis());
-    }
-    // todo: first id should be last_frame.second + 1.
-    send_messages(frame.id.first, frame.id.second);
+    stopwatch<> s;
+    bot_instance::process_image_frame(std::move(frame));
+    tele::distribution_add(processing_times_millis, s.millis());
   }
 
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
