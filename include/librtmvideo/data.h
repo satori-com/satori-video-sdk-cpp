@@ -32,7 +32,7 @@ struct image_frame {
   uint16_t width;
   uint16_t height;
 
-  const uint8_t *plane_data[MAX_IMAGE_PLANES];
+  std::string plane_data[MAX_IMAGE_PLANES];
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
