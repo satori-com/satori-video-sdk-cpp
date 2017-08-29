@@ -16,7 +16,7 @@ struct sink {
 
   virtual void on_frame(Frame &&f) = 0;
 
-  virtual bool empty() { return true; }
+  virtual bool empty() = 0;
 };
 
 }  // namespace video

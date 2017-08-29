@@ -169,7 +169,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
                     _image_frames_worker->queue_size());
   }
 
-  bool empty() override { return _encoded_frames_worker->queue_size() == 0; }
+  bool empty() override { return _image_frames_worker->queue_size() == 0; }
 
  private:
   void process_encoded_frame(encoded_frame&& f) {
