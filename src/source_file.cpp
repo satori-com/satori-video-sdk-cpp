@@ -5,20 +5,12 @@
 #include <string>
 #include <thread>
 
-#include "source_file.h"
-
 extern "C" {
 #include <libavutil/error.h>
 }
 
-namespace {
-void print_av_error(const std::string &msg, int code) {
-  char av_error[AV_ERROR_MAX_STRING_SIZE];
-  std::cerr << msg << ", code: " << code << ", error: \""
-            << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
-            << "\"\n";
-}
-}  // namespace
+#include "avutils.h"
+#include "source_file.h"
 
 namespace rtm {
 namespace video {
@@ -40,14 +32,16 @@ int file_source::init() {
   std::cout << "*** Opening file " << _filename << "\n";
   if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr,
                                  nullptr)) < 0) {
-    print_av_error("*** Could not open file " + _filename, ret);
+    std::cerr << "*** Could not open file: " << _filename << ", "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** File " << _filename << " is open\n";
 
   std::cout << "*** Looking for stream info...\n";
   if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-    print_av_error("*** Could not find stream information", ret);
+    std::cerr << "*** Could not find stream information: "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** Stream info found\n";
@@ -57,7 +51,8 @@ int file_source::init() {
   std::cout << "*** Looking for best stream...\n";
   if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec,
                                  0)) < 0) {
-    print_av_error("*** Could not find video stream", ret);
+    std::cerr << "*** Could not find video stream: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Best stream found\n";
@@ -75,7 +70,8 @@ int file_source::init() {
 
   std::cout << "*** Copying codec parameters to codec context...\n";
   if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-    print_av_error("*** Failed to copy codec parameters to codec context", ret);
+    std::cerr << "*** Failed to copy codec parameters to codec context: "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** Codec parameters were copied to codec context\n";
@@ -83,7 +79,8 @@ int file_source::init() {
   std::cout << "*** Opening video codec...\n";
   AVDictionary *opts = nullptr;
   if ((ret = avcodec_open2(_dec_ctx, _dec, &opts)) < 0) {
-    print_av_error("*** Failed to open video codec", ret);
+    std::cerr << "*** Failed to open video codec: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Video codec is open\n";
@@ -138,7 +135,8 @@ boost::optional<std::string> file_source::next_packet() {
           return boost::none;
         }
       } else {
-        print_av_error("*** Failed to read frame", ret);
+        std::cerr << "*** Failed to read frame: " << avutils::error_msg(ret)
+                  << "\n";
         return boost::none;
       }
     }

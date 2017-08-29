@@ -4,23 +4,15 @@
 #include <memory>
 #include <string>
 
-#include "librtmvideo/base.h"
-#include "source_camera.h"
-
 extern "C" {
 #include <libavutil/error.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/pixdesc.h>
 }
 
-namespace {
-void print_av_error(const std::string &msg, int code) {
-  char av_error[AV_ERROR_MAX_STRING_SIZE];
-  std::cerr << msg << ", code: " << code << ", error: \""
-            << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, code)
-            << "\"\n";
-}
-}  // namespace
+#include "avutils.h"
+#include "librtmvideo/base.h"
+#include "source_camera.h"
 
 namespace rtm {
 namespace video {
@@ -58,14 +50,16 @@ int camera_source::init() {
 
   std::cout << "*** Opening camera...\n";
   if ((ret = avformat_open_input(&_fmt_ctx, "0", input_format, &options)) < 0) {
-    print_av_error("*** Could not open camera", ret);
+    std::cerr << "*** Could not open camera: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Camera is open\n";
 
   std::cout << "*** Looking for stream info...\n";
   if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-    print_av_error("*** Could not find stream information", ret);
+    std::cerr << "*** Could not find stream information: "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** Stream info found\n";
@@ -75,7 +69,8 @@ int camera_source::init() {
   std::cout << "*** Looking for best stream...\n";
   if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec,
                                  0)) < 0) {
-    print_av_error("*** Could not find video stream", ret);
+    std::cerr << "*** Could not find video stream: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Best stream found\n";
@@ -93,14 +88,16 @@ int camera_source::init() {
 
   std::cout << "*** Copying codec parameters to codec context...\n";
   if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-    print_av_error("*** Failed to copy codec parameters to codec context", ret);
+    std::cerr << "*** Failed to copy codec parameters to codec context: "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** Codec parameters were copied to codec context\n";
 
   std::cout << "*** Opening video codec...\n";
   if ((ret = avcodec_open2(_dec_ctx, _dec, nullptr)) < 0) {
-    print_av_error("*** Failed to open video codec", ret);
+    std::cerr << "*** Failed to open video codec: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Video codec is open\n";
@@ -131,7 +128,8 @@ int camera_source::init() {
   std::cout << "*** Opening encoder...\n";
   AVDictionary *opts = nullptr;
   if ((ret = avcodec_open2(_enc_ctx, _enc, nullptr)) < 0) {
-    print_av_error("*** Failed to open encoder", ret);
+    std::cerr << "*** Failed to open encoder: " << avutils::error_msg(ret)
+              << "\n";
     return ret;
   }
   std::cout << "*** Encoder is open\n";
@@ -159,7 +157,8 @@ int camera_source::init() {
   ret = av_image_alloc(_enc_frame->data, _enc_frame->linesize, _enc_ctx->width,
                        _enc_ctx->height, _enc_ctx->pix_fmt, 32);
   if (ret < 0) {
-    print_av_error("*** Could not allocate raw picture buffer", ret);
+    std::cerr << "*** Could not allocate raw picture buffer: "
+              << avutils::error_msg(ret) << "\n";
     return ret;
   }
   std::cout << "*** Frames were allocated\n";
@@ -179,17 +178,20 @@ boost::optional<std::string> camera_source::next_packet() {
   while (true) {
     int ret = av_read_frame(_fmt_ctx, &_dec_pkt);
     if (ret < 0) {
-      print_av_error("*** Failed to read frame", ret);
+      std::cerr << "*** Failed to read frame: " << avutils::error_msg(ret)
+                << "\n";
       return boost::none;
     }
 
     if ((ret = avcodec_send_packet(_dec_ctx, &_dec_pkt)) != 0) {
-      print_av_error("*** avcodec_send_packet error", ret);
+      std::cerr << "*** avcodec_send_packet error: " << avutils::error_msg(ret)
+                << "\n";
       return boost::none;
     }
 
     if ((ret = avcodec_receive_frame(_dec_ctx, _dec_frame)) != 0) {
-      print_av_error("*** avcodec_receive_frame error", ret);
+      std::cerr << "*** avcodec_receive_frame error: "
+                << avutils::error_msg(ret) << "\n";
       return boost::none;
     }
 
@@ -197,12 +199,14 @@ boost::optional<std::string> camera_source::next_packet() {
               _enc_frame->height, _enc_frame->data, _enc_frame->linesize);
 
     if ((ret = avcodec_send_frame(_enc_ctx, _enc_frame)) != 0) {
-      print_av_error("*** avcodec_send_frame error", ret);
+      std::cerr << "*** avcodec_send_frame error: " << avutils::error_msg(ret)
+                << "\n";
       return boost::none;
     }
 
     if ((ret = avcodec_receive_packet(_enc_ctx, &_enc_pkt)) != 0) {
-      print_av_error("*** avcodec_receive_packet error", ret);
+      std::cerr << "*** avcodec_receive_packet error: "
+                << avutils::error_msg(ret) << "\n";
       return boost::none;
     }
 

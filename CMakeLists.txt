@@ -23,6 +23,7 @@ endif()
 add_subdirectory(decoder)
 
 add_library(rtmvideo
+    src/avutils.cpp
     src/base64.cpp
     src/cbor_json.cpp
     src/cbor_tools.cpp

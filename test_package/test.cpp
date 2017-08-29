@@ -5,6 +5,6 @@
 int main() {
   rtm_video_bot_register(
       bot_descriptor{640, 480, image_pixel_format::BGR, nullptr, nullptr});
-  std::cout << "all good, includes and linking is fine, congrads!" << '\n';
+  std::cout << "all good, includes and linking is fine, congrats!" << '\n';
   return 0;
 }
