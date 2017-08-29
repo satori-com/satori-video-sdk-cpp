@@ -57,10 +57,16 @@ target_link_libraries(rtmvideo PUBLIC dl)
 target_include_directories(rtmvideo
     PUBLIC include)
 
+function(set_binary_output_directory TARGET DIRECTORY)
+    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
+endfunction()
+
 add_executable(rtmvideo_publisher_cli
     src/rtmvideo_publisher_cli.cpp)
 set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
-set_property(TARGET rtmvideo_publisher_cli PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
+set_binary_output_directory(rtmvideo_publisher_cli bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
 target_include_directories(rtmvideo_publisher_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtmvideo_publisher_cli
@@ -75,7 +81,7 @@ target_link_libraries(rtmvideo_publisher_cli
 add_executable(test_bot
     src/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
-set_property(TARGET test_bot PROPERTY RUNTIME_OUTPUT_DIRECTORY bin)
+set_binary_output_directory(test_bot bin)
 add_dependencies(test_bot rtmvideo)
 target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(test_bot
@@ -87,7 +93,18 @@ target_link_libraries(test_bot
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
 
+function(add_rtmvideo_test TEST_NAME TEST_FILE)
+    add_executable(${TEST_NAME} ${TEST_FILE})
+    set_property(TARGET ${TEST_NAME} PROPERTY CXX_STANDARD 14)
+    set_binary_output_directory(${TEST_NAME} test)
+    add_dependencies(${TEST_NAME} rtmvideo)
+    target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_link_libraries(${TEST_NAME} PRIVATE rtmvideo CONAN_PKG::Boost)
+    add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME} )
+endfunction()
+
 enable_testing()
 file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME ReplayTest COMMAND bash -c "./bin/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis=a1.txt --debug=d1.txt && grep \"Hello from bot 1\" a1.txt && grep \"Hello from bot 2\" d1.txt")
 add_test(NAME VideoTest COMMAND bash -c "./bin/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")
+add_rtmvideo_test(avutils_test test/avutils_test.cpp)
