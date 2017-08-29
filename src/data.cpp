@@ -22,20 +22,19 @@ std::vector<network_frame> encoded_frame::to_network(
   std::vector<network_frame> frames;
 
   std::string encoded = std::move(rtm::video::encode64(data));
-  size_t chunks = std::ceil((double) encoded.length() / max_payload_size);
+  size_t chunks = std::ceil((double)encoded.length() / max_payload_size);
 
   for (size_t i = 0; i < chunks; i++) {
-    frames.push_back({
-        .base64_data = encoded.substr(i * max_payload_size, max_payload_size),
-        .id = id,
-        .t = t,
-        .chunk = static_cast<uint32_t>(i + 1),
-        .chunks = static_cast<uint32_t>(chunks)
-    });
+    frames.push_back(
+        {.base64_data = encoded.substr(i * max_payload_size, max_payload_size),
+         .id = id,
+         .t = t,
+         .chunk = static_cast<uint32_t>(i + 1),
+         .chunks = static_cast<uint32_t>(chunks)});
   }
 
   return frames;
 }
 
-}
-}
+}  // namespace video
+}  // namespace rtm
