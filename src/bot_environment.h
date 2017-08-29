@@ -9,7 +9,7 @@
 #include "librtmvideo/data.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
-#include "source.h"
+#include "video_streams.h"
 
 namespace rtm {
 namespace video {
@@ -18,7 +18,7 @@ struct bot_instance;
 
 using variables_map = boost::program_options::variables_map;
 
-class bot_environment : public subscription_callbacks {
+class bot_environment : private error_callbacks {
  public:
   static bot_environment& instance();
 
@@ -37,7 +37,7 @@ class bot_environment : public subscription_callbacks {
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _client;
-  std::shared_ptr<source<encoded_metadata, encoded_frame>> _source;
+  streams::publisher<image_frame> _source;
 };
 
 }  // namespace video

@@ -23,26 +23,26 @@ namespace rtm {
 using endpoint_iterator_t = asio::ip::tcp::resolver::iterator;
 using endpoint_t = asio::ip::tcp::resolver::endpoint_type;
 
-struct error_category : std::error_category {
+struct client_error_category : std::error_category {
   const char *name() const noexcept override { return "rtm-client"; }
   std::string message(int ev) const override {
-    switch (static_cast<error>(ev)) {
-      case error::Unknown:
+    switch (static_cast<client_error>(ev)) {
+      case client_error::Unknown:
         return "unknown error";
-      case error::NotConnected:
+      case client_error::NotConnected:
         return "client is not connected";
-      case error::ResponseParsingError:
+      case client_error::ResponseParsingError:
         return "error parsing response";
-      case error::InvalidResponse:
+      case client_error::InvalidResponse:
         return "invalid response";
-      case error::SubscriptionError:
+      case client_error::SubscriptionError:
         return "subscription error";
     }
   }
 };
 
-std::error_condition make_error_condition(error e) {
-  static error_category category;
+std::error_condition make_error_condition(client_error e) {
+  static client_error_category category;
   return std::error_condition(static_cast<int>(e), category);
 }
 
@@ -270,7 +270,7 @@ class secure_client : public client {
       // ignore
     } else if (action == "rtm/subscription/error") {
       std::cerr << "subscription error: " << to_string(d) << "\n";
-      _callbacks.on_error(error::SubscriptionError);
+      _callbacks.on_error(client_error::SubscriptionError);
     } else {
       std::cerr << "unhandled action " << action << "\n"
                 << to_string(d) << "\n";

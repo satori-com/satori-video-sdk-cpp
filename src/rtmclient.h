@@ -17,7 +17,7 @@
 
 namespace rtm {
 
-enum class error : unsigned char {
+enum class client_error : unsigned char {
   // 0 - not used, success.
 
   Unknown = 1,
@@ -27,7 +27,7 @@ enum class error : unsigned char {
   SubscriptionError = 5
 };
 
-std::error_condition make_error_condition(error e);
+std::error_condition make_error_condition(client_error e);
 
 struct error_callbacks {
   virtual ~error_callbacks() = default;
@@ -186,5 +186,5 @@ class resilient_client : public client {
 
 namespace std {
 template <>
-struct is_error_condition_enum<rtm::error> : std::true_type {};
+struct is_error_condition_enum<rtm::client_error> : std::true_type {};
 }  // namespace std

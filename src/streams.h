@@ -62,6 +62,7 @@ struct publishers {
   // Creates stream in error state.
   template <typename T>
   static publisher<T> error(std::error_condition ec);
+  // Stateful stream generator.
 
   // Stream of given values.
   template <typename T>
@@ -77,6 +78,14 @@ struct publishers {
   // Streams each publisher consequently.
   template <typename T>
   static publisher<T> merge(std::vector<publisher<T>> &&publishers);
+
+  template <typename T>
+  static publisher<T> merge(publisher<T> &&p1, publisher<T> &&p2) {
+    std::vector<publisher<T>> publishers;
+    publishers.push_back(std::move(p1));
+    publishers.push_back(std::move(p2));
+    return merge(std::move(publishers));
+  }
 };
 
 template <typename T>

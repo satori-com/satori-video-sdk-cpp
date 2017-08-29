@@ -1,9 +1,9 @@
 #include <boost/program_options.hpp>
 #include <iostream>
+#include "asio_streams.h"
 #include "rtmclient.h"
 #include "sink_rtm.h"
-#include "source_camera.h"
-#include "source_file.h"
+#include "video_streams.h"
 
 namespace {
 
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 
   po::options_description file_options("File options");
   file_options.add_options()("file", po::value<std::string>(), "Source file")(
-      "replayed", "Is file replayed");
+      "loop", "Is file looped");
 
   po::options_description camera_options("Camera options");
   camera_options.add_options()(
@@ -57,51 +57,41 @@ int main(int argc, char *argv[]) {
   }
   if (!vm.count("source-type") ||
       (source_type != "camera" && source_type != "file")) {
-    std::cerr
-        << "*** Source type either was not specified or has invalid value\n";
+    std::cerr << "*** --source-type type either was not specified or has invalid value\n";
     return -1;
   }
   if (!vm.count("endpoint")) {
-    std::cerr << "*** RTM endpoint was not specified\n";
+    std::cerr << "*** --endpoint was not specified\n";
     return -1;
   }
   if (!vm.count("appkey")) {
-    std::cerr << "*** RTM appkey was not specified\n";
+    std::cerr << "*** --appkey was not specified\n";
     return -1;
   }
   if (!vm.count("channel")) {
-    std::cerr << "*** RTM channel was not specified\n";
+    std::cerr << "*** --channel was not specified\n";
     return -1;
   }
 
+  boost::asio::io_service io_service;
+
   rtm::video::initialize_source_library();
-  std::unique_ptr<
-      rtm::video::source<rtm::video::encoded_metadata, rtm::video::encoded_frame>>
-      source;
+  streams::publisher<rtm::video::encoded_packet> source;
 
   if (source_type == "camera") {
-    source = std::make_unique<rtm::video::camera_source>(
-        vm["dimensions"].as<std::string>());
+    source = rtm::video::camera_source(io_service, vm["dimensions"].as<std::string>());
   } else if (source_type == "file") {
     if (!vm.count("file")) {
       std::cerr << "*** File was not specified\n";
       return -1;
     }
-    source = std::make_unique<rtm::video::file_source>(
-        vm["file"].as<std::string>(), vm.count("replayed"), false);
+    source = rtm::video::file_source(io_service, vm["file"].as<std::string>(),
+                                     vm.count("loop"), true);
   } else {
     std::cerr << "*** Unsupported input type " << source_type << "\n";
     return -1;
   }
 
-  int err = source->init();
-  if (err) {
-    std::cerr << "*** Error initializing video source, error code " << err
-              << "\n";
-    return -1;
-  }
-
-  boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
   std::shared_ptr<rtm::publisher> rtm_client = rtm::new_client(
@@ -109,8 +99,8 @@ int main(int argc, char *argv[]) {
       vm["appkey"].as<std::string>(), io_service, ssl_context, 1,
       error_handler);
 
-  auto sink = std::make_unique<rtm::video::rtm_sink>(
-      rtm_client, vm["channel"].as<std::string>());
-  source->subscribe(std::move(sink));
-  source->start();
+  source->subscribe(
+      *(new rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>())));
+
+  io_service.run();
 }

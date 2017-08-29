@@ -87,7 +87,7 @@ struct async_publisher_impl : public publisher_impl<T> {
       _sink.on_next(std::move(t));
     }
 
-    void on_error(const std::string &message) override {
+    void on_error(std::error_condition err) override {
       BOOST_ASSERT_MSG(false, "not implemented");
     }
 

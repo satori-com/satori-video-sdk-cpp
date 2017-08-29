@@ -21,7 +21,6 @@ extern "C" {
 #include "base64.h"
 #include "bot_environment.h"
 #include "cbor_json.h"
-#include "flow_rtm_aggregator.h"
 #include "librtmvideo/cbor_tools.h"
 #include "librtmvideo/data.h"
 #include "librtmvideo/decoder.h"
@@ -29,12 +28,9 @@ extern "C" {
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
-#include "sink.h"
-#include "source_file.h"
-#include "source_replay.h"
-#include "source_rtm.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
+#include "video_streams.h"
 #include "worker.h"
 
 namespace asio = boost::asio;
@@ -110,17 +106,16 @@ encoded_metadata decode_metadata_frame(const rapidjson::Value& msg) {
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public sink<encoded_metadata, encoded_frame> {
+class bot_instance : public bot_context, public streams::subscriber<image_frame> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
-      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
-    _encoded_frames_worker = std::make_unique<threaded_worker<encoded_frame>>(
-        encoded_frames_max_buffer_size,
-        [this](encoded_frame&& f) { process_encoded_frame(std::move(f)); });
-    _image_frames_worker = std::make_unique<threaded_worker<image_frame>>(
-        image_frames_max_buffer_size,
-        [this](image_frame&& frame) { process_image_frame(std::move(frame)); });
+      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {}
+
+  virtual void stop() {
+    if (_sub) {
+      _sub->cancel();
+    }
   }
 
   void queue_message(const bot_message_kind kind, cbor_item_t* message) {
@@ -129,89 +124,33 @@ class bot_instance : public bot_context, public sink<encoded_metadata, encoded_f
     _message_buffer.push_back(newmsg);
   }
 
-  void on_metadata(encoded_metadata&& m) override {
-    tele::counter_inc(metadata_received);
+  streams::subscription* _sub{nullptr};
 
-    if (m.codec_data == _metadata.codec_data &&
-        m.codec_name == _metadata.codec_name)
-      return;
-
-    _metadata = m;
-    std::lock_guard<std::mutex> guard(_decoder_mutex);
-
-    _decoder.reset(decoder_new_keep_proportions(_descriptor.image_width,
-                                                _descriptor.image_height,
-                                                _descriptor.pixel_format),
-                   [this](decoder* d) {
-                     std::cerr << "Deleting decoder\n";
-                     decoder_delete(d);
-                   });
-    BOOST_VERIFY(_decoder);
-
-    decoder_set_metadata(_decoder.get(), _metadata.codec_name.c_str(),
-                         (const uint8_t*)_metadata.codec_data.data(),
-                         _metadata.codec_data.size());
-    std::cout << "Video decoder initialized\n";
+  void on_subscribe(streams::subscription& s) override {
+    _sub = &s;
+    _sub->request(1);
   }
 
-  void on_frame(encoded_frame&& f) override {
-    tele::counter_inc(messages_received);
-    tele::counter_inc(bytes_received, f.data.size());
-
-    if (!_encoded_frames_worker->try_send(std::move(f))) {
-      tele::counter_inc(encoded_frames_dropped);
-    }
-
-    tele::gauge_set(encoded_frame_buffer_size,
-                    _encoded_frames_worker->queue_size());
-    tele::gauge_set(image_frame_buffer_size,
-                    _image_frames_worker->queue_size());
+  void on_complete() override {
+    std::cout << "processing complete\n";
+    _sub = nullptr;
   }
 
-  bool empty() override {
-    return _image_frames_worker->queue_size() == 0 &&
-           _encoded_frames_worker->queue_size() == 0;
+  void on_error(std::error_condition ec) override {
+    std::cerr << "unexpected error: " << ec.message() << "\n";
+    _sub = nullptr;
+    exit(2);
   }
 
- private:
-  void process_encoded_frame(encoded_frame&& f) {
-    std::lock_guard<std::mutex> guard(_decoder_mutex);
-
-    stopwatch<> s;
-    decoder* decoder = _decoder.get();
-    decoder_process_binary_message(decoder, (const uint8_t*)f.data.data(),
-                                   f.data.size());
-    tele::distribution_add(decoding_times_millis, s.millis());
-
-    if (decoder_frame_ready(decoder)) {
-      tele::counter_inc(frames_received);
-      if (_descriptor.img_callback) {
-        int height = decoder_image_height(decoder);
-
-        image_frame image_frame{.id = f.id,
-                                .pixel_format = _descriptor.pixel_format,
-                                .width = (uint16_t)decoder_image_width(decoder),
-                                .height = (uint16_t)height};
-        for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
-          const uint8_t* image_data = decoder_image_data(decoder, i);
-          int line_size = decoder_image_line_size(decoder, i);
-          image_frame.plane_strides[i] = line_size;
-
-          if (image_data) {
-            image_frame.plane_data[i] =
-                std::string((const char*)image_data, line_size * height);
-          }
-        }
-
-        if (!_image_frames_worker->try_send(std::move(image_frame))) {
-          tele::counter_inc(image_frames_dropped);
-        }
-      }
-    }
+  void on_next(image_frame&& f) override {
+    process_image_frame(std::move(f));
+    _sub->request(1);
   }
 
  protected:
   virtual void process_image_frame(image_frame&& frame) {
+    stopwatch<> s;
+
     const uint8_t* plane_data[MAX_IMAGE_PLANES];
     for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
       if (frame.plane_data[i].empty()) {
@@ -222,6 +161,8 @@ class bot_instance : public bot_context, public sink<encoded_metadata, encoded_f
     }
     _descriptor.img_callback(*this, frame.width, frame.height, plane_data,
                              frame.plane_strides);
+
+    tele::distribution_add(processing_times_millis, s.millis());
     send_messages(frame.id);
   }
 
@@ -261,8 +202,6 @@ class bot_instance : public bot_context, public sink<encoded_metadata, encoded_f
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
-  std::unique_ptr<threaded_worker<encoded_frame>> _encoded_frames_worker;
-  std::unique_ptr<threaded_worker<image_frame>> _image_frames_worker;
 };
 
 class bot_offline_instance : public bot_instance {
@@ -319,11 +258,6 @@ class bot_online_instance : public bot_instance,
   }
 
  private:
-  void process_image_frame(image_frame&& frame) override {
-    stopwatch<> s;
-    bot_instance::process_image_frame(std::move(frame));
-    tele::distribution_add(processing_times_millis, s.millis());
-  }
 
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
     std::string channel;
@@ -494,14 +428,18 @@ void bot_environment::parse_config(boost::optional<std::string> config_file) {
   if (!_bot_descriptor->ctrl_callback) {
     if (config_file.is_initialized())
       std::cerr << "Config specified but there is no control method set\n";
-    return;
+    exit(1);
   }
 
   cbor_item_t* config;
 
   if (config_file.is_initialized()) {
     FILE* fp = fopen(config_file.get().c_str(), "r");
-    assert(fp);
+    if (!fp) {
+      std::cerr << "Can't read config file " << config_file.get() << ": "
+                << strerror(errno) << "\n";
+      exit(1);
+    }
     auto file_closer = gsl::finally([&fp]() { fclose(fp); });
 
     char readBuffer[65536];
@@ -549,7 +487,7 @@ int bot_environment::main_online(variables_map cmd_args) {
   signals.add(SIGINT);
   signals.add(SIGTERM);
   signals.add(SIGQUIT);
-  signals.async_wait(boost::bind(&boost::asio::io_service::stop, &io_service));
+  signals.async_wait(std::bind(&boost::asio::io_service::stop, &io_service));
 
   _client = std::make_shared<resilient_client>(
       [&endpoint, &port, &appkey, &io_service, &ssl_context, this]() {
@@ -557,16 +495,15 @@ int bot_environment::main_online(variables_map cmd_args) {
                                1, *this);
       });
   _bot_online_instance->subscribe_to_control_channel(*_client);
-  _source = std::make_shared<flow_rtm_aggregator>(
-      std::make_unique<rtm_source>(_client, channel));
-  int err = _source->init();
-  if (err) {
-    std::cerr << "*** Error initializing video source, error code " << err
-              << "\n";
-    exit(1);
-  }
-  _source->subscribe(_bot_instance);
-  _source->start();
+  _source = rtm_source(_client, channel) >>
+            buffered_worker("vbot.network_buffer", network_frames_max_buffer_size) >>
+            streams::lift(decode_network_stream()) >>
+            buffered_worker("vbot.encoded_buffer", encoded_frames_max_buffer_size) >>
+            streams::lift(decode_image_frames(_bot_descriptor->image_width,
+                                              _bot_descriptor->image_height,
+                                              _bot_descriptor->pixel_format)) >>
+            buffered_worker("vbot.image_buffer", encoded_frames_max_buffer_size);
+  _source->subscribe(*_bot_instance);
 
   tele::publisher tele_publisher(*_client, io_service);
   boost::asio::deadline_timer timer(io_service);
@@ -581,6 +518,8 @@ int bot_environment::main_online(variables_map cmd_args) {
   }
 
   io_service.run();
+  _bot_instance->stop();
+
   return 0;
 }
 
@@ -608,27 +547,30 @@ int bot_environment::main_offline(variables_map cmd_args) {
           ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
           : boost::optional<std::string>{});
 
+  streams::publisher<encoded_packet> src;
+
+  boost::asio::io_service io_service;
+
   if (cmd_args.count("video_file"))
-    _source = std::make_shared<file_source>(
-        cmd_args["video_file"].as<std::string>(), false,
-        cmd_args["synchronous"].as<bool>());
+    src = file_source(io_service, cmd_args["video_file"].as<std::string>(), false,
+                      cmd_args["synchronous"].as<bool>());
   else {
-    _source =
-        std::make_shared<flow_rtm_aggregator>(std::make_unique<replay_source>(
-            cmd_args["replay_file"].as<std::string>(),
-            cmd_args["synchronous"].as<bool>()));
+    src = network_replay_source(io_service, cmd_args["replay_file"].as<std::string>(),
+                                cmd_args["synchronous"].as<bool>()) >>
+          streams::lift(decode_network_stream());
   }
 
-  int err = _source->init();
-  if (err) {
-    std::cerr << "*** Error initializing video source, error code " << err
-              << "\n";
-    exit(1);
-  }
-  _source->subscribe(_bot_instance);
-  _source->start();
+  _source =
+      std::move(src) >> streams::lift(decode_image_frames(_bot_descriptor->image_width,
+                                                          _bot_descriptor->image_height,
+                                                          _bot_descriptor->pixel_format));
+  _source->subscribe(*_bot_instance);
+
+  io_service.run();
+
   _analysis->flush();
   _debug->flush();
+  _bot_instance->stop();
 
   return 0;
 }  // namespace video

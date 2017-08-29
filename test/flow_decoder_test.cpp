@@ -3,26 +3,12 @@
 
 #include <fstream>
 #include "base64.h"
-#include "flow_decoder.h"
 #include "librtmvideo/data.h"
+#include "video_streams.h"
+
+using namespace rtm::video;
 
 namespace {
-struct dummy_sink
-    : public rtm::video::sink<rtm::video::image_metadata, rtm::video::image_frame> {
- public:
-  void on_metadata(rtm::video::image_metadata &&m) override {}
-  void on_frame(rtm::video::image_frame &&f) override {
-    last_frame_width = f.width;
-    last_frame_height = f.height;
-    frames_count++;
-  }
-
-  bool empty() override { return true; }
-
-  int last_frame_width;
-  int last_frame_height;
-  int frames_count{0};
-};
 
 struct test_definition {
   std::string metadata_filename;
@@ -33,32 +19,56 @@ struct test_definition {
   int expected_frames_count;
 };
 
-void run_flow_decoder_test(test_definition &&td) {
-  std::cout << "*** running test for codec '" << td.codec_name << "'\n";
+streams::publisher<encoded_packet> test_stream(const test_definition &td) {
   std::ifstream metadata_file(td.metadata_filename);
-  std::ifstream frame_file(td.frames_filename);
   if (td.metadata_filename != "" && !metadata_file)
     BOOST_FAIL("File '" + td.metadata_filename + "' was not found");
-  if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
 
   std::string base64_metadata;
   metadata_file >> base64_metadata;
 
-  rtm::video::flow_decoder d{-1, -1, image_pixel_format::RGB0};
-  std::shared_ptr<dummy_sink> s = std::make_shared<dummy_sink>();
-  d.subscribe(s);
+  encoded_packet metadata(encoded_metadata{
+      .codec_name = td.codec_name, .codec_data = rtm::video::decode64(base64_metadata)});
 
-  d.on_metadata({.codec_name = td.codec_name,
-                 .codec_data = rtm::video::decode64(base64_metadata)});
+  streams::publisher<encoded_packet> frames =
+      streams::read_lines(td.frames_filename) >> streams::map([](std::string &&line) {
+        static int next_id = 0;
+        int id = ++next_id;
+        return encoded_packet{
+            encoded_frame{.data = rtm::video::decode64(line), .id = {id, id}}};
+      });
 
-  std::string base64_data;
-  while (std::getline(frame_file, base64_data)) {
-    d.on_frame({.data = rtm::video::decode64(base64_data), .id = {-1, -1}});
-  }
+  return streams::publishers::merge(streams::publishers::of({metadata}),
+                                    std::move(frames));
+}
 
-  BOOST_TEST(td.expected_width == s->last_frame_width);
-  BOOST_TEST(td.expected_height == s->last_frame_height);
-  BOOST_TEST(td.expected_frames_count == s->frames_count);
+void run_flow_decoder_test(test_definition &&td) {
+  std::cout << "*** running test for codec '" << td.codec_name << "'\n";
+  initialize_source_library();
+
+  std::ifstream frame_file(td.frames_filename);
+
+  if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
+
+  streams::publisher<image_frame> image_stream =
+      test_stream(td) >> lift(decode_image_frames(-1, -1, image_pixel_format::RGB0));
+
+  int last_frame_width;
+  int last_frame_height;
+  int frames_count{0};
+
+  image_stream->process(
+      [&last_frame_width, &last_frame_height, &frames_count](image_frame &&f) {
+        last_frame_width = f.width;
+        last_frame_height = f.height;
+        frames_count++;
+
+      },
+      []() {}, [](const std::error_condition ec) { BOOST_FAIL(ec.message()); });
+
+  BOOST_TEST(td.expected_width == last_frame_width);
+  BOOST_TEST(td.expected_height == last_frame_height);
+  BOOST_TEST(td.expected_frames_count == frames_count);
   std::cout << "*** test for codec '" << td.codec_name << "' succeeded\n";
 }
 

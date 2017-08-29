@@ -1,6 +1,7 @@
 #pragma include once
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include "error.h"
 
 namespace streams {
 namespace asio {
@@ -50,8 +51,8 @@ struct delay_op {
       delete this;
     }
 
-    void on_error(const std::string &msg) override {
-      _sink.on_error(msg);
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
       delete this;
     }
 
@@ -71,7 +72,7 @@ struct delay_op {
 
     void on_timer(const boost::system::error_code &ec) {
       if (ec) {
-        _sink.on_error("Timer error");
+        _sink.on_error(rtm::video::video_error::AsioError);
         delete this;
         return;
       }
@@ -110,6 +111,39 @@ template <typename Fn>
 auto delay(boost::asio::io_service &io, Fn &&fn) {
   return impl::delay_op<Fn>(io, std::move(fn));
 }
+
+template <typename T>
+streams::op<T, T> interval(boost::asio::io_service &io,
+                           std::chrono::milliseconds period) {
+  return [&io, period](publisher<T> &&src) {
+    struct state {
+      std::chrono::system_clock::time_point last_frame;
+    };
+
+    state *s = new state();
+    return std::move(src) >>
+           delay(io,
+                 [s, period](const T &t) {
+                   if (!s->last_frame.time_since_epoch().count())
+                     return std::chrono::milliseconds(0);
+
+                   auto this_frame_time = s->last_frame + period;
+                   auto now = std::chrono::system_clock::now();
+                   if (this_frame_time < now) {
+                     std::cerr << "late frame in interval\n";
+                     return std::chrono::milliseconds(0);
+                   }
+
+                   return std::chrono::duration_cast<std::chrono::milliseconds>(
+                       this_frame_time - now);
+                 }) >>
+           streams::map([s](T &&t) {
+             s->last_frame = std::chrono::system_clock::now();
+             return std::move(t);
+           }) >>
+           streams::do_finally([s]() { delete s; });
+  };
+};
 
 }  // namespace asio
 }  // namespace streams

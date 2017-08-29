@@ -9,147 +9,162 @@ extern "C" {
 #include <libavutil/error.h>
 }
 
+#include "asio_streams.h"
 #include "avutils.h"
-#include "source_file.h"
+#include "error.h"
+#include "video_streams.h"
 
 namespace rtm {
 namespace video {
 
-file_source::file_source(const std::string &filename, bool is_replayed,
-                         bool synchronous)
-    : _filename(filename),
-      _is_replayed(is_replayed),
-      _synchronous(synchronous) {}
+struct file_source_impl {
+  file_source_impl(const std::string &filename, const bool loop)
+      : _filename(filename), _loop(loop) {}
 
-file_source::~file_source() {
-  if (_dec_ctx) avcodec_free_context(&_dec_ctx);
-  if (_fmt_ctx) avformat_close_input(&_fmt_ctx);
-}
-
-int file_source::init() {
-  int ret = 0;
-
-  std::cout << "*** Opening file " << _filename << "\n";
-  if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr,
-                                 nullptr)) < 0) {
-    std::cerr << "*** Could not open file: " << _filename << ", "
-              << avutils::error_msg(ret) << "\n";
-    return ret;
+  ~file_source_impl() {
+    if (_dec_ctx) avcodec_free_context(&_dec_ctx);
+    if (_fmt_ctx) avformat_close_input(&_fmt_ctx);
   }
-  std::cout << "*** File " << _filename << " is open\n";
 
-  std::cout << "*** Looking for stream info...\n";
-  if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-    std::cerr << "*** Could not find stream information: "
-              << avutils::error_msg(ret) << "\n";
-    return ret;
-  }
-  std::cout << "*** Stream info found\n";
+  int init() {
+    int ret = 0;
 
-  std::cout << "*** Number of streams " << _fmt_ctx->nb_streams << "\n";
-
-  std::cout << "*** Looking for best stream...\n";
-  if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec,
-                                 0)) < 0) {
-    std::cerr << "*** Could not find video stream: " << avutils::error_msg(ret)
-              << "\n";
-    return ret;
-  }
-  std::cout << "*** Best stream found\n";
-
-  _stream_idx = ret;
-  _stream = _fmt_ctx->streams[_stream_idx];
-
-  std::cout << "*** Allocating codec context...\n";
-  _dec_ctx = avcodec_alloc_context3(_dec);
-  if (!_dec_ctx) {
-    std::cerr << "*** Failed to allocate codec context\n";
-    return -1;
-  }
-  std::cout << "*** Codec context is allocated\n";
-
-  std::cout << "*** Copying codec parameters to codec context...\n";
-  if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-    std::cerr << "*** Failed to copy codec parameters to codec context: "
-              << avutils::error_msg(ret) << "\n";
-    return ret;
-  }
-  std::cout << "*** Codec parameters were copied to codec context\n";
-
-  std::cout << "*** Opening video codec...\n";
-  AVDictionary *opts = nullptr;
-  if ((ret = avcodec_open2(_dec_ctx, _dec, &opts)) < 0) {
-    std::cerr << "*** Failed to open video codec: " << avutils::error_msg(ret)
-              << "\n";
-    return ret;
-  }
-  std::cout << "*** Video codec is open\n";
-
-  return 0;
-}
-
-void file_source::start_async() {
-  timed_source::start(
-      _dec->name,
-      {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size},
-      std::chrono::milliseconds(
-          static_cast<int>((1000.0 * (double)_stream->avg_frame_rate.den) /
-                           (double)_stream->avg_frame_rate.num)),
-      std::chrono::milliseconds(10000));
-}
-
-void file_source::start_sync() {
-  timed_source::codec_init(
-      _dec->name,
-      {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size},
-      std::chrono::milliseconds(10000));
-  while (true) {
-    if (auto data = next_packet()) {
-      source::foreach_sink([&data](auto s) {
-        while (!s->empty())
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        s->on_frame({.data = data.get()});  // TODO: add id
-      });
+    std::cout << "*** Opening file " << _filename << "\n";
+    if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr, nullptr)) < 0) {
+      std::cerr << "*** Could not open file: " << _filename << ", "
+                << avutils::error_msg(ret) << "\n";
+      return ret;
     }
+    std::cout << "*** File " << _filename << " is open\n";
+
+    std::cout << "*** Looking for stream info...\n";
+    if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
+      std::cerr << "*** Could not find stream information:" << avutils::error_msg(ret)
+                << "\n";
+      return ret;
+    }
+    std::cout << "*** Stream info found\n";
+
+    std::cout << "*** Number of streams " << _fmt_ctx->nb_streams << "\n";
+
+    std::cout << "*** Looking for best stream...\n";
+    if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec, 0)) < 0) {
+      std::cerr << "*** Could not find video stream:" << avutils::error_msg(ret) << "\n";
+      return ret;
+    }
+    std::cout << "*** Best stream found\n";
+
+    _stream_idx = ret;
+    _stream = _fmt_ctx->streams[_stream_idx];
+
+    std::cout << "*** Allocating codec context...\n";
+    _dec_ctx = avcodec_alloc_context3(_dec);
+    if (!_dec_ctx) {
+      std::cerr << "*** Failed to allocate codec context\n";
+      return -1;
+    }
+    std::cout << "*** Codec context is allocated\n";
+
+    std::cout << "*** Copying codec parameters to codec context...\n";
+    if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
+      std::cerr << "*** Failed to copy codec parameters to codec context:"
+                << avutils::error_msg(ret) << "\n";
+      return ret;
+    }
+    std::cout << "*** Codec parameters were copied to codec context\n";
+
+    std::cout << "*** Opening video codec...\n";
+    AVDictionary *opts = nullptr;
+    if ((ret = avcodec_open2(_dec_ctx, _dec, &opts)) < 0) {
+      std::cerr << "*** Failed to open video codec:" << avutils::error_msg(ret) << "\n";
+      return ret;
+    }
+    std::cout << "*** Video codec is open\n";
+
+    return 0;
   }
-}
 
-void file_source::start() {
-  if (_synchronous)
-    start_sync();
-  else
-    start_async();
-}
-
-boost::optional<std::string> file_source::next_packet() {
-  while (true) {
-    int ret = av_read_frame(_fmt_ctx, &_pkt);
-    if (ret < 0) {
-      if (ret == AVERROR_EOF) {
-        if (_is_replayed) {
-          av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
-                        AVSEEK_FLAG_BACKWARD);
-          continue;
-        } else {
-          stop_timers();
-          return boost::none;
-        }
-      } else {
-        std::cerr << "*** Failed to read frame: " << avutils::error_msg(ret)
-                  << "\n";
-        return boost::none;
+  void generate(int count, streams::observer<encoded_packet> &observer) {
+    if (_fmt_ctx == nullptr) {
+      if (int ret = init()) {
+        observer.on_error(video_error::StreamInitializationError);
+        return;
       }
     }
 
-    if (_pkt.stream_index == _stream_idx) {
+    int packets = 0;
+    while (packets < count) {
+      if (!_metadata_sent) {
+        send_metadata(observer);
+        ++packets;
+        continue;
+      }
+
+      int ret = av_read_frame(_fmt_ctx, &_pkt);
+      if (ret < 0) {
+        if (ret == AVERROR_EOF) {
+          if (_loop) {
+            av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
+                          AVSEEK_FLAG_BACKWARD);
+            continue;
+          } else {
+            observer.on_complete();
+            return;
+          }
+        } else {
+          observer.on_error(video_error::FrameGenerationError);
+          return;
+        }
+      }
+
       auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
-      return std::string{_pkt.data, _pkt.data + _pkt.size};
-    } else {
-      av_packet_unref(&_pkt);
-      continue;
+
+      if (_pkt.stream_index == _stream_idx) {
+        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}};
+        observer.on_next(frame);
+        packets++;
+      }
     }
   }
-}
+
+  void send_metadata(streams::observer<encoded_packet> &observer) {
+    observer.on_next(encoded_metadata{
+        _dec->name,
+        {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size}});
+    _metadata_sent = true;
+  }
+
+  const std::string _filename;
+  const bool _loop{false};
+
+  AVFormatContext *_fmt_ctx{nullptr};
+  int _stream_idx{-1};
+  AVStream *_stream{nullptr};
+  AVCodec *_dec{nullptr};  // TODO: check if possible to destroy it
+  AVCodecContext *_dec_ctx{nullptr};
+  AVPacket _pkt{0};
+  bool _metadata_sent{false};
+};
+
+streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
+                                               std::string filename, bool loop,
+                                               bool synchronous) {
+  streams::publisher<encoded_packet> result =
+      streams::generators<encoded_packet>::stateful(
+          [filename, loop]() { return new file_source_impl(filename, loop); },
+          [](file_source_impl *impl, int count, streams::observer<encoded_packet> &sink) {
+            return impl->generate(count, sink);
+          });
+
+  if (synchronous) {
+    // todo: fps
+    int fps = 25;
+    result = std::move(result) >> streams::lift(streams::asio::interval<encoded_packet>(
+                                      io, std::chrono::milliseconds(1000 / fps)));
+  }
+
+  return result;
+};
 
 }  // namespace video
 }  // namespace rtm

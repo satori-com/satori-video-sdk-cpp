@@ -14,6 +14,10 @@ namespace asio {
 template <typename Fn>
 inline auto delay(boost::asio::io_service &io, Fn &&fn);
 
+// Periodically drains pipeline.
+template <typename T>
+streams::op<T, T> interval(boost::asio::io_service &io, std::chrono::milliseconds period);
+
 }  // namespace asio
 }  // namespace streams
 

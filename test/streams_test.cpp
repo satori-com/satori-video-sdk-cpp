@@ -68,10 +68,7 @@ BOOST_AUTO_TEST_CASE(take) {
 BOOST_AUTO_TEST_CASE(merge) {
   auto p1 = streams::publishers::range(1, 3);
   auto p2 = streams::publishers::range(3, 6);
-  std::vector<streams::publisher<int>> pp;
-  pp.push_back(std::move(p1));
-  pp.push_back(std::move(p2));
-  auto p = streams::publishers::merge(std::move(pp));
+  auto p = streams::publishers::merge(std::move(p1), std::move(p2));
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "5", "."}));
 }
 

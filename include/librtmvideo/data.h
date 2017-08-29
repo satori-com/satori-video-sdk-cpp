@@ -86,5 +86,7 @@ struct image_frame {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
+using image_packet = boost::variant<image_metadata, image_frame>;
+
 }  // namespace video
 }  // namespace rtm

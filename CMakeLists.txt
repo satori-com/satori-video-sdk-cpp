@@ -20,6 +20,8 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
+set(CMAKE_CXX_FLAGS "-ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
+
 add_subdirectory(decoder)
 
 add_library(rtmvideo
@@ -28,18 +30,19 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
-    src/flow_decoder.cpp
-    src/flow_rtm_aggregator.cpp
+    src/error.cpp
     src/rtmclient.cpp
     src/sink_rtm.cpp
-    src/source.cpp
     src/source_camera.cpp
     src/source_file.cpp
     src/source_replay.cpp
     src/source_rtm.cpp
+    src/streams.cpp
     src/tele.cpp
     src/video_bot.cpp
-    src/vp9_transcoder.cpp)
+    src/video_streams.cpp
+    src/vp9_encoder.cpp
+    )
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
     PUBLIC
@@ -79,7 +82,8 @@ target_link_libraries(rtmvideo_publisher_cli
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
 
-add_executable(test_bot test/test_bot.cpp)
+add_executable(test_bot
+    test/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(test_bot test)
 add_dependencies(test_bot rtmvideo)
@@ -116,4 +120,4 @@ add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --vid
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
 add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)
-add_rtmvideo_test(vp9_transcoder_test test/vp9_transcoder_test.cpp)
+add_rtmvideo_test(vp9_encoder_test test/vp9_encoder_test.cpp)
