@@ -3,6 +3,7 @@
 #include <cbor.h>
 #include <chrono>
 #include <string>
+#include <boost/variant.hpp>
 
 namespace rtm {
 namespace video {
@@ -27,6 +28,8 @@ struct network_frame {
 
   cbor_item_t *to_cbor() const;
 };
+
+using network_packet = boost::variant<network_metadata, network_frame>;
 
 }  // namespace video
 }  // namespace rtm
