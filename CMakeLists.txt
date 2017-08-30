@@ -78,10 +78,9 @@ target_link_libraries(rtmvideo_publisher_cli
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
 
-add_executable(test_bot
-    src/test_bot.cpp)
+add_executable(test_bot test/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(test_bot bin)
+set_binary_output_directory(test_bot test)
 add_dependencies(test_bot rtmvideo)
 target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(test_bot
@@ -92,6 +91,11 @@ target_link_libraries(test_bot
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
+
+add_executable(empty_bot test/empty_bot.cpp)
+set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(empty_bot test)
+target_link_libraries(empty_bot PRIVATE rtmvideo)
 
 function(add_rtmvideo_test TEST_NAME TEST_FILE)
     add_executable(${TEST_NAME} ${TEST_FILE})
@@ -105,6 +109,6 @@ endfunction()
 
 enable_testing()
 file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME ReplayTest COMMAND bash -c "./bin/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis=a1.txt --debug=d1.txt && grep \"Hello from bot 1\" a1.txt && grep \"Hello from bot 2\" d1.txt")
-add_test(NAME VideoTest COMMAND bash -c "./bin/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")
+add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis=a1.txt --debug=d1.txt && grep \"Hello from bot 1\" a1.txt && grep \"Hello from bot 2\" d1.txt")
+add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
