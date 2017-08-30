@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/variant.hpp>
 #include <vector>
 
 #include "rtmpacket.h"
@@ -23,6 +24,8 @@ struct encoded_frame {
   std::vector<network_frame> to_network(
       std::chrono::system_clock::time_point t) const;
 };
+
+using encoded_packet = boost::variant<metadata, encoded_frame>;
 
 // for unencoded video frames
 struct image_frame {
