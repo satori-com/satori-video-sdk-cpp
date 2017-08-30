@@ -245,9 +245,9 @@ struct decoder {
                            : 25 /* devices often do not report frame rate */;
   }
 
+  // TODO: consider using https://www.ffmpeg.org/doxygen/3.2/group__lavu__picture.html
   uint8_t *image_data(uint8_t plane_index) const { return _image->data[plane_index]; }
 
-  // TODO: should use av_image_get_buffer_size() instead
   uint64_t image_size() const { return _image->linesize[0] * _image->height; }
 
   uint64_t image_line_size(uint8_t plane_index) const { return _image->linesize[plane_index]; }
