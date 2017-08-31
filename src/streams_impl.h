@@ -71,9 +71,9 @@ publisher<T> of_impl(std::initializer_list<T> values) {
              return idx;
            },
        .gen_fn =
-           [data](size_t *idx, long n, observer<T> &sink) {
+           [data](size_t *idx, long n, observer<T> &sink) mutable {
              for (int i = 0; i < n && *idx < data.size(); ++i, ++*idx) {
-               sink.on_next(data[*idx]);
+               sink.on_next(std::move(data[*idx]));
              }
 
              if (*idx == data.size()) {
@@ -94,7 +94,7 @@ publisher<T> range_impl(T from, T to) {
        .gen_fn =
            [to](T *t, long n, observer<T> &sink) {
              for (int i = 0; i < n && *t < to; ++i, ++*t) {
-               sink.on_next(*t);
+               sink.on_next(std::move(*t));
              }
 
              if (*t == to) {
@@ -143,9 +143,9 @@ struct generator_publisher : public publisher_impl<T> {
 
     void cancel() override { BOOST_ASSERT_MSG(false, "not implemented"); }
 
-    void on_next(const T &t) override {
+    void on_next(T &&t) override {
       _outstanding--;
-      _sink.on_next(t);
+      _sink.on_next(std::move(t));
     }
     void on_error(const std::string &message) override {
       _sink.on_error(message);
@@ -183,7 +183,7 @@ struct map_op {
     explicit source_sub(Fn &&fn, subscriber<T> &sink)
         : _fn(std::move(fn)), _sink(sink) {}
 
-    void on_next(const S &t) override { _sink.on_next(_fn(t)); }
+    void on_next(S &&t) override { _sink.on_next(_fn(std::move(t))); }
 
     void on_error(const std::string &message) override {
       BOOST_ASSERT_MSG(false, "not implemented");
@@ -234,10 +234,10 @@ struct flat_map_op {
       _sink.on_subscribe(*this);
     }
 
-    void on_next(const S &t) override {
+    void on_next(S &&t) override {
       BOOST_ASSERT(!_current_result);
       _requested_next = false;
-      _current_result = _fn(t);
+      _current_result = _fn(std::move(t));
       _current_result->subscribe(*(new fwd_sub(_sink, this)));
       drain();
     }
@@ -292,9 +292,9 @@ struct flat_map_op {
       _sub->request(_source_sub->_outstanding);
     }
 
-    void on_next(const T &t) override {
+    void on_next(T &&t) override {
       _source_sub->_outstanding--;
-      _sink.on_next(t);
+      _sink.on_next(std::move(t));
     }
 
     void on_error(const std::string &message) override {

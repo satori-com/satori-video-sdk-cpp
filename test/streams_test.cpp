@@ -14,7 +14,7 @@ std::vector<std::string> events(streams::publisher<T> &&p) {
   struct subscriber : streams::subscriber<T> {
     std::vector<std::string> events;
 
-    void on_next(const T &t) override { events.push_back(std::to_string(t)); }
+    void on_next(T &&t) override { events.push_back(std::to_string(t)); }
     void on_error(const std::string &message) override { BOOST_ASSERT(false); }
     void on_complete() override { events.push_back("."); }
     void on_subscribe(streams::subscription &s) override {

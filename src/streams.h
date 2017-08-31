@@ -16,7 +16,7 @@ struct subscription {
 template <typename T>
 struct observer {
   virtual ~observer() = default;
-  virtual void on_next(const T &t) = 0;
+  virtual void on_next(T &&t) = 0;
   virtual void on_error(const std::string &message) = 0;
   virtual void on_complete() = 0;
 };
