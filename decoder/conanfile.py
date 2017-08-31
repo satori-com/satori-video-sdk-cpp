@@ -5,7 +5,7 @@ class DecoderConan(ConanFile):
     name = "Decoder"
     url = "https://bitbucket.addsrv.com/projects/PLATFORM/repos/video/browse"
     description = "Satori Video Client Library"
-    requires = "Ffmpeg/3.3.3@satorivideo/master"
+    requires = "Ffmpeg/3.3.3_02@satorivideo/master"
     license = "proprietary"
     version = "0.1"
     settings = "os", "compiler", "build_type", "arch"
