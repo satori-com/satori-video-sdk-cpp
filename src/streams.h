@@ -37,6 +37,10 @@ struct publisher_impl {
   // subscriber instance should be kept alive until on_error/on_complete or
   // cancel() call.
   virtual void subscribe(subscriber<T> &s) = 0;
+
+  // subscribe to a publisher using given callbacks.
+  template <typename OnNext, typename OnComplete, typename OnError>
+  void process(OnNext &&on_next, OnComplete &&on_complete, OnError &&on_error);
 };
 
 template <typename T>
@@ -44,32 +48,50 @@ using publisher = std::unique_ptr<publisher_impl<T>>;
 
 // process stream with an operator and return the result.
 template <typename T, typename Op>
-publisher<typename Op::value_t> operator|(publisher<T> &&src, Op &&op);
+auto operator>>(publisher<T> &&src, Op &&op);
 
 // ----------------------------------------------------------------------
-
-template <typename T, typename State>
-struct generator {
-  using create_fn_t = std::function<State *()>;
-  using gen_fn_t = std::function<void(State *, int, observer<T> &)>;
-
-  create_fn_t create_fn;
-  gen_fn_t gen_fn;
-};
-
 template <typename T>
 struct publishers {
   static publisher<T> empty();
 
-  template <typename State>
-  static publisher<T> generate(generator<T, State> gen);
+  // Stateful stream generator.
+  // create_fn - State*() - creates new state object
+  // gen_fn - void(State* state, int n, observer<T>) - called periodically. Should
+  // generate no more than n objects. Less is OK.
+  template <typename CreateFn, typename GenFn>
+  static publisher<T> generate(CreateFn &&create_fn, GenFn &&gen_fn);
 
+  // Creates a stream from extern asynchronous process.
   static publisher<T> async(std::function<void(observer<T> &observer)> init_fn);
 
+  // Stream of given values.
   static publisher<T> of(std::initializer_list<T> values);
 
+  // Stream of given values.
+  static publisher<T> of(std::vector<T> &&values);
+
+  // Stream of values [from, to).
   static publisher<T> range(T from, T to);
+
+  // Streams each publisher consequently.
+  static publisher<T> merge(std::vector<publisher<T>> &&publishers);
 };
+
+// head operation produces a stream with only first element.
+auto head();
+
+// take operation produces a stream with only count elements.
+auto take(int count);
+
+// map operation transforms each element into immediate value.
+template <typename Fn>
+auto map(Fn &&fn);
+
+// flat_map operation transforms each element a stream and produces element out of them
+// consequently.
+template <typename Fn>
+auto flat_map(Fn &&fn);
 
 }  // namespace streams
 

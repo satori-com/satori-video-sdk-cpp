@@ -11,19 +11,13 @@
 namespace {
 template <typename T>
 std::vector<std::string> events(streams::publisher<T> &&p) {
-  struct subscriber : streams::subscriber<T> {
-    std::vector<std::string> events;
-
-    void on_next(T &&t) override { events.push_back(std::to_string(t)); }
-    void on_error(const std::string &message) override { BOOST_ASSERT(false); }
-    void on_complete() override { events.push_back("."); }
-    void on_subscribe(streams::subscription &s) override {
-      s.request(std::numeric_limits<int>::max());
-    }
-  };
-  auto s = new subscriber;
-  p->subscribe(*s);
-  return s->events;
+  std::vector<std::string> events;
+  p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); },
+             [&events]() mutable { events.push_back("."); },
+             [&events](const std::string &message) mutable {
+               events.push_back("error:" + message);
+             });
+  return events;
 }
 
 std::vector<std::string> strings(std::initializer_list<std::string> strs) {
@@ -49,16 +43,35 @@ BOOST_AUTO_TEST_CASE(range) {
 }
 
 BOOST_AUTO_TEST_CASE(map) {
-  auto p = streams::publishers<int>::range(2, 5) |
-           streams::map([](int i) { return i * i; });
+  auto p =
+      streams::publishers<int>::range(2, 5) >> streams::map([](int i) { return i * i; });
   BOOST_TEST(events(std::move(p)) == strings({"4", "9", "16", "."}));
 }
 
-BOOST_AUTO_TEST_CASE(test_flat_map) {
+BOOST_AUTO_TEST_CASE(flat_map) {
   auto idx = streams::publishers<int>::range(1, 4);
-  auto p = std::move(idx) | streams::flat_map([](int i) {
-             return streams::publishers<int>::range(0, i);
-           });
+  auto p = std::move(idx) >>
+           streams::flat_map([](int i) { return streams::publishers<int>::range(0, i); });
   auto e = events(std::move(p));
   BOOST_TEST(e == strings({"0", "0", "1", "0", "1", "2", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(head) {
+  auto p = streams::publishers<int>::range(3, 300000000) >> streams::head();
+  BOOST_TEST(events(std::move(p)) == strings({"3", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(take) {
+  auto p = streams::publishers<int>::range(2, 300000000) >> streams::take(4);
+  BOOST_TEST(events(std::move(p)) == strings({"2", "3", "4", "5", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(merge) {
+  auto p1 = streams::publishers<int>::range(1, 3);
+  auto p2 = streams::publishers<int>::range(3, 6);
+  std::vector<streams::publisher<int>> pp;
+  pp.push_back(std::move(p1));
+  pp.push_back(std::move(p2));
+  auto p = streams::publishers<int>::merge(std::move(pp));
+  BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "5", "."}));
 }
