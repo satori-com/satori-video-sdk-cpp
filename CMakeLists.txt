@@ -28,6 +28,7 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
+    src/flow_decoder.cpp
     src/flow_rtm_aggregator.cpp
     src/rtmclient.cpp
     src/rtmpacket.cpp
@@ -114,3 +115,4 @@ add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --re
 add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
+add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)

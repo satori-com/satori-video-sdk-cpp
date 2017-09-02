@@ -1,6 +1,8 @@
 #pragma once
 
 #include <boost/variant.hpp>
+#include <chrono>
+#include <string>
 #include <vector>
 
 #include "rtmpacket.h"
@@ -26,6 +28,8 @@ struct encoded_frame {
 };
 
 using encoded_packet = boost::variant<metadata, encoded_frame>;
+
+struct image_metadata {};
 
 // for unencoded video frames
 struct image_frame {
