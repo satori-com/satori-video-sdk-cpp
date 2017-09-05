@@ -108,6 +108,15 @@ struct empty_publisher : public publisher_impl<T> {
 };
 
 template <typename T>
+struct error_publisher : public publisher_impl<T> {
+  explicit error_publisher(const std::string &message) : _message(message) {}
+
+  void subscribe(subscriber<T> &s) override { s.on_error(_message); }
+
+  const std::string _message;
+};
+
+template <typename T>
 publisher<T> of_impl(std::vector<T> &&values) {
   struct state {
     std::vector<T> data;
@@ -238,23 +247,41 @@ struct generator_publisher : public publisher_impl<T> {
 
 // operators -------
 
+template <typename S, typename T, typename Op>
+struct op_publisher : public publisher_impl<T> {
+  using value_t = T;
+
+  op_publisher(publisher<S> &&source, Op &&op)
+      : _source(std::move(source)), _op(std::move(op)) {}
+
+  void subscribe(subscriber<value_t> &sink) override {
+    using instance_t = typename Op::template instance<S>;
+    instance_t *instance = new instance_t(std::move(_op), sink);
+    _source->subscribe(*instance);
+  }
+
+  publisher<S> _source;
+  Op _op;
+};
+
 template <typename Fn>
 struct map_op {
+  using T = typename function_traits<Fn>::result_type;
+
   template <typename S>
   struct instance : public subscriber<S>, private subscription {
-    using T = typename function_traits<Fn>::result_type;
     using value_t = T;
 
-    static void subscribe(map_op<Fn> &&map_op, publisher<S> &source,
-                          subscriber<value_t> &sink) {
-      source->subscribe(*(new instance(std::move(map_op._fn), sink)));
+    static publisher<value_t> apply(publisher<S> &&source, map_op<Fn> &&op) {
+      return publisher<value_t>(
+          new op_publisher<S, T, map_op<Fn>>(std::move(source), std::move(op)));
     }
 
     Fn _fn;
     subscriber<T> &_sink;
     subscription *_source{nullptr};
 
-    instance(Fn &&fn, subscriber<T> &sink) : _fn(std::move(fn)), _sink(sink) {}
+    instance(map_op<Fn> &&op, subscriber<T> &sink) : _fn(std::move(op._fn)), _sink(sink) {}
 
     void on_next(S &&t) override { _sink.on_next(_fn(std::move(t))); }
 
@@ -289,21 +316,23 @@ struct map_op {
 
 template <typename Fn>
 struct flat_map_op {
+  explicit flat_map_op(Fn &&fn) : _fn(std::move(fn)) {}
+
   template <typename S>
   struct instance : public subscriber<S>, subscription {
     using Tx = typename function_traits<Fn>::result_type;
     using T = typename impl::strip_publisher<Tx>::type;
     using value_t = T;
 
-    static void subscribe(flat_map_op<Fn> &&op, publisher<S> &source,
-                          subscriber<value_t> &sink) {
-      source->subscribe(*(new instance(sink, std::move(op._fn))));
+    static publisher<value_t> apply(publisher<S> &&source, flat_map_op<Fn> &&op) {
+      return publisher<value_t>(
+          new op_publisher<S, T, flat_map_op<Fn>>(std::move(source), std::move(op)));
     }
 
     struct fwd_sub;
 
-    subscriber<value_t> &_sink;
     Fn _fn;
+    subscriber<value_t> &_sink;
 
     subscription *_source{nullptr};
     bool _in_drain{false};
@@ -313,7 +342,7 @@ struct flat_map_op {
     std::atomic<long> _outstanding{0};
     fwd_sub *_fwd_sub{nullptr};
 
-    instance(subscriber<value_t> &sink, Fn fn) : _sink(sink), _fn(fn) {}
+    instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink) : _fn(std::move(op._fn)), _sink(sink) {}
 
     void on_subscribe(subscription &s) override {
       BOOST_ASSERT(!_source);
@@ -425,30 +454,15 @@ struct flat_map_op {
 
       void request(int n) override { _source->request(n); }
 
-      void cancel() override { _source->cancel(); }
+      void cancel() override {
+        _source->cancel();
+        delete this;
+      }
     };
   };
 
-  explicit flat_map_op(Fn &&fn) : _fn(std::move(fn)) {}
-
  private:
   Fn _fn;
-};
-
-template <typename S, typename T, typename Op>
-struct op_publisher : public publisher_impl<T> {
-  using value_t = T;
-
-  op_publisher(publisher<S> &&source, Op &&op)
-      : _source(std::move(source)), _op(std::move(op)) {}
-
-  void subscribe(subscriber<value_t> &sink) override {
-    using instance_t = typename Op::template instance<S>;
-    instance_t::subscribe(std::move(_op), _source, sink);
-  }
-
-  publisher<S> _source;
-  Op _op;
 };
 
 struct take_op {
@@ -458,10 +472,11 @@ struct take_op {
   struct instance : subscriber<S>, subscription {
     using value_t = S;
 
-    instance(int n, subscriber<value_t> &sink) : _remaining(n), _sink(sink) {}
+    instance(take_op &&op, subscriber<value_t> &sink) : _remaining(op._n), _sink(sink) {}
 
-    static void subscribe(take_op &&op, publisher<S> &source, subscriber<value_t> &sink) {
-      source->subscribe(*(new instance(op._n, sink)));
+    static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
+      return publisher<value_t>(
+          new op_publisher<S, S, take_op>(std::move(source), std::move(op)));
     }
 
     void on_next(S &&s) override {
@@ -496,7 +511,10 @@ struct take_op {
       _source_sub->request(actual);
     }
 
-    void cancel() override { _source_sub->cancel(); }
+    void cancel() override {
+      _source_sub->cancel();
+      delete this;
+    }
 
     std::atomic<long> _remaining;
     std::atomic<long> _outstanding{0};
@@ -506,6 +524,74 @@ struct take_op {
 
  private:
   int _n;
+};
+
+template <typename S, typename T>
+struct lift_op {
+  explicit lift_op(op<S, T> fn) : _fn(fn) {}
+
+  template <typename S1>
+  struct instance {
+    static_assert(std::is_same<S, S1>::value, "types do not match");
+    using value_t = T;
+
+    static publisher<value_t> apply(publisher<S> &&source, lift_op &&op) {
+      return op._fn(std::move(source));
+    }
+  };
+
+  op<S, T> _fn;
+};
+
+template <typename Fn>
+struct do_finally_op {
+  explicit do_finally_op(Fn &&fn) : _fn(std::move(fn)) {}
+
+  template <typename T>
+  struct instance : subscriber<T>, subscription {
+    using value_t = T;
+
+    static publisher<T> apply(publisher<T> &&source, do_finally_op<Fn> &&op) {
+      return publisher<T>(
+          new op_publisher<T, T, do_finally_op<Fn>>(std::move(source), std::move(op)));
+    }
+
+    instance(do_finally_op<Fn> &&op, subscriber<T> &sink)
+        : _fn(std::move(op._fn)), _sink(sink) {}
+
+    void on_next(T &&s) override { _sink.on_next(std::move(s)); };
+
+    void on_error(const std::string &message) override {
+      _sink.on_error(message);
+      _fn();
+      delete this;
+    };
+
+    void on_complete() override {
+      _sink.on_complete();
+      _fn();
+      delete this;
+    };
+
+    void on_subscribe(subscription &s) override {
+      _source_sub = &s;
+      _sink.on_subscribe(*this);
+    };
+
+    void request(int n) override { _source_sub->request(n); }
+
+    void cancel() override {
+      _source_sub->cancel();
+      _fn();
+      delete this;
+    }
+
+    Fn _fn;
+    subscriber<value_t> &_sink;
+    subscription *_source_sub;
+  };
+
+  Fn _fn;
 };
 
 }  // namespace impl
@@ -528,6 +614,11 @@ publisher<T> publishers<T>::range(T from, T to) {
 template <typename T>
 publisher<T> publishers<T>::empty() {
   return publisher<T>(new impl::empty_publisher<T>());
+}
+
+template <typename T>
+publisher<T> publishers<T>::error(const std::string &message) {
+  return publisher<T>(new impl::error_publisher<T>(message));
 }
 
 template <typename T>
@@ -554,9 +645,7 @@ publisher<T> publishers<T>::merge(std::vector<publisher<T>> &&publishers) {
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op) {
   using instance_t = typename Op::template instance<T>;
-  using value_t = typename instance_t::value_t;
-  auto impl = new impl::op_publisher<T, value_t, Op>(std::move(src), std::move(op));
-  return publisher<value_t>(impl);
+  return instance_t::apply(std::move(src), std::move(op));
 };
 
 template <typename Fn>
@@ -572,5 +661,15 @@ auto map(Fn &&fn) {
 inline auto take(int count) { return impl::take_op{count}; }
 
 inline auto head() { return take(1); }
+
+template <typename S, typename T>
+auto lift(op<S, T> fn) {
+  return impl::lift_op<S, T>(fn);
+};
+
+template <typename Fn>
+auto do_finally(Fn &&fn) {
+  return impl::do_finally_op<Fn>{std::move(fn)};
+}
 
 }  // namespace streams

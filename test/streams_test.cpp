@@ -75,3 +75,41 @@ BOOST_AUTO_TEST_CASE(merge) {
   auto p = streams::publishers<int>::merge(std::move(pp));
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "5", "."}));
 }
+
+BOOST_AUTO_TEST_CASE(on_finally_empty) {
+  bool terminated = false;
+  auto p = streams::publishers<int>::empty() >>
+           streams::do_finally([&terminated]() { terminated = true; });
+  BOOST_TEST(!terminated);
+  events(std::move(p));
+  BOOST_TEST(terminated);
+}
+
+BOOST_AUTO_TEST_CASE(on_finally_error) {
+  bool terminated = false;
+  auto p = streams::publishers<int>::error("") >>
+           streams::do_finally([&terminated]() { terminated = true; });
+  BOOST_TEST(!terminated);
+  events(std::move(p));
+  BOOST_TEST(terminated);
+}
+
+BOOST_AUTO_TEST_CASE(on_finally_unsubscribe) {
+  bool terminated = false;
+  auto p = streams::publishers<int>::range(3, 300000000) >>
+           streams::do_finally([&terminated]() { terminated = true; }) >> streams::head();
+  BOOST_TEST(!terminated);
+  events(std::move(p));
+  BOOST_TEST(terminated);
+}
+
+streams::op<int, int> square() {
+  return [](streams::publisher<int> &&src) {
+    return std::move(src) >> streams::map([](int i) { return i * i; });
+  };
+};
+
+BOOST_AUTO_TEST_CASE(lift_square) {
+  auto p = streams::publishers<int>::range(2, 5) >> streams::lift(square());
+  BOOST_TEST(events(std::move(p)) == strings({"4", "9", "16", "."}));
+}

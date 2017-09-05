@@ -53,7 +53,11 @@ auto operator>>(publisher<T> &&src, Op &&op);
 // ----------------------------------------------------------------------
 template <typename T>
 struct publishers {
+  // Creates empty stream.
   static publisher<T> empty();
+
+  // Creates stream in error state.
+  static publisher<T> error(const std::string &message);
 
   // Stateful stream generator.
   // create_fn - State*() - creates new state object
@@ -92,6 +96,23 @@ auto map(Fn &&fn);
 // consequently.
 template <typename Fn>
 auto flat_map(Fn &&fn);
+
+// do_finally operation creates a new stream that calls fn when underlying stream is
+// either signals on_complete, on_error or gets cancelled by downstream
+template <typename Fn>
+auto do_finally(Fn &&fn);
+
+template <typename S, typename T>
+using op = std::function<publisher<T>(publisher<S> &&)>;
+
+// lift publisher -> publisher function to an operator.
+template <typename S, typename T>
+auto lift(op<S, T> fn);
+
+template <typename S, typename T>
+auto lift(publisher<T> (*fn)(publisher<S> &&)) {
+  return lift(static_cast<op<S, T>>(fn));
+};
 
 }  // namespace streams
 
