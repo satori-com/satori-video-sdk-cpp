@@ -1,7 +1,7 @@
 #pragma once
 
-#include <boost/variant.hpp>
 #include <cbor.h>
+#include <boost/variant.hpp>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -13,8 +13,18 @@ namespace video {
 
 static constexpr size_t max_payload_size = 65000;
 
-using frame_id = std::pair<uint64_t, uint64_t>;
+// frame id is an integer interval [i1, i2),
+// it was implemented this way because one of the sources is RTP
+struct frame_id {
+  int64_t i1;
+  int64_t i2;
+};
 
+bool operator==(const frame_id &lhs, const frame_id &rhs);
+bool operator!=(const frame_id &lhs, const frame_id &rhs);
+
+// network representation of codec parameters, e.g. in binary data
+// is converted into base64, because RTM supports only text/json data
 struct network_metadata {
   std::string codec_name;
   std::string base64_data;
@@ -22,6 +32,8 @@ struct network_metadata {
   cbor_item_t *to_cbor() const;
 };
 
+// network representation of encoded video frame, e.g. binary data
+// is converted into base64, because RTM supports only text/json data
 struct network_frame {
   std::string base64_data;
   frame_id id{0, 0};
@@ -32,8 +44,10 @@ struct network_frame {
   cbor_item_t *to_cbor() const;
 };
 
+// algebraic type to support flow of network data using streams API
 using network_packet = boost::variant<network_metadata, network_frame>;
 
+// codec parameters to decode encoded frames
 struct metadata {
   std::string codec_name;
   std::string codec_data;
@@ -41,20 +55,26 @@ struct metadata {
   network_metadata to_network() const;
 };
 
-// for encoded frames
+// encoded frame
 struct encoded_frame {
   std::string data;
   frame_id id;
 
-  std::vector<network_frame> to_network(
-      std::chrono::system_clock::time_point t) const;
+  std::vector<network_frame> to_network(std::chrono::system_clock::time_point t) const;
 };
 
+// algebraic type to support flow of encoded frame data using streams API
 using encoded_packet = boost::variant<metadata, encoded_frame>;
 
+// TODO: may contain some data like FPS, etc.
 struct image_metadata {};
 
-// for unencoded video frames
+// If an image uses packed pixel format like packed RGB or packed YUV,
+// then it has only a single plane, e.g. all it's data is within plane_data[0].
+// If an image uses planar pixel format like planar YUV or HSV,
+// then every component is stored as a separate array (e.g. separate plane),
+// for example, for YUV  Y is plane_data[0], U is plane_data[1] and V is
+// plane_data[2]. A stride is a plane size with alignment.
 struct image_frame {
   frame_id id;
 
@@ -66,5 +86,5 @@ struct image_frame {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
-}
-}
+}  // namespace video
+}  // namespace rtm

@@ -222,21 +222,21 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     }
     _descriptor.img_callback(*this, frame.width, frame.height, plane_data,
                              frame.plane_strides);
-    send_messages(frame.id.first, frame.id.second);
+    send_messages(frame.id);
   }
 
   virtual void transmit(const bot_message_kind kind, cbor_item_t* message) = 0;
 
-  void send_messages(int64_t i1, int64_t i2) {
+  void send_messages(const frame_id &id) {
     for (auto&& msg : _message_buffer) {
       cbor_item_t* data = msg.data;
 
-      if (i1 >= 0) {
+      if (id.i1 >= 0) {
         cbor_item_t* is = cbor_new_definite_array(2);
         cbor_array_set(is, 0,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(i1))));
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(id.i1))));
         cbor_array_set(is, 1,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(i2))));
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(id.i2))));
         cbor_map_add(data, {.key = cbor_move(cbor_build_string("i")),
                             .value = cbor_move(is)});
       }
@@ -373,7 +373,7 @@ class bot_online_instance : public bot_instance,
       queue_message(bot_message_kind::CONTROL, cbor_move(response));
     }
 
-    send_messages(-1, -1);
+    send_messages({.i1 = -1, .i2 = -1});
     return;
   }
 

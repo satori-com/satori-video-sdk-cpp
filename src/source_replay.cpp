@@ -64,8 +64,8 @@ void replay_source::start() {
     for (const auto &msg : data["messages"].GetArray()) {
       const std::string base64_data = msg["d"].GetString();
       const auto t = msg["i"].GetArray();
-      const uint64_t i1 = t[0].GetUint64();
-      const uint64_t i2 = t[1].GetUint64();
+      const int64_t i1 = t[0].GetInt64();
+      const int64_t i2 = t[1].GetInt64();
 
       const double ntp_timestamp =
           msg.HasMember("t") ? msg["t"].GetDouble() : 0;
@@ -79,7 +79,7 @@ void replay_source::start() {
       source::foreach_sink([&base64_data, &t, i1, i2, &ntp_timestamp, chunk,
                             chunks](auto s) {
         s->on_frame({.base64_data = base64_data,
-                     .id = std::make_pair(i1, i2),
+                     .id = {.i1 = i1, .i2 = i2},
                      .t = std::chrono::system_clock::from_time_t(ntp_timestamp),
                      .chunk = chunk,
                      .chunks = chunks});
