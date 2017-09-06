@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "librtmvideo/rtmpacket.h"
+#include "librtmvideo/data.h"
 #include "sink.h"
 #include "source.h"
 

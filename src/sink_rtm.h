@@ -1,5 +1,6 @@
 #pragma once
 
+#include "librtmvideo/data.h"
 #include "rtmclient.h"
 #include "sink.h"
 

@@ -31,7 +31,6 @@ add_library(rtmvideo
     src/flow_decoder.cpp
     src/flow_rtm_aggregator.cpp
     src/rtmclient.cpp
-    src/rtmpacket.cpp
     src/sink_rtm.cpp
     src/source.cpp
     src/source_camera.cpp

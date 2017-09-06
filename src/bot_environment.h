@@ -6,6 +6,7 @@
 #include <gsl/gsl>
 #include <memory>
 
+#include "librtmvideo/data.h"
 #include "librtmvideo/video_bot.h"
 #include "rtmclient.h"
 #include "source.h"
