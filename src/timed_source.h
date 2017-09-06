@@ -32,7 +32,7 @@ struct timed_source : public source<metadata, encoded_frame> {
   boost::asio::deadline_timer _metadata_timer{_io_service};
   std::string _codec_name;
   std::string _codec_data;
-  uint64_t _seq_id{0};
+  int64_t _seq_id{0};
 };
 
 }  // namespace video

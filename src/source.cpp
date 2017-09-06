@@ -63,7 +63,7 @@ void timed_source::metadata_tick() {
 
 void timed_source::frames_tick() {
   if (auto data = next_packet()) {
-    uint64_t seq_id = _seq_id++;
+    int64_t seq_id = _seq_id++;
     source::foreach_sink([&data, seq_id](auto s) {
       s->on_frame({.data = data.get(), .id = {seq_id, seq_id}});
     });
