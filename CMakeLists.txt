@@ -38,7 +38,8 @@ add_library(rtmvideo
     src/source_replay.cpp
     src/source_rtm.cpp
     src/tele.cpp
-    src/video_bot.cpp)
+    src/video_bot.cpp
+    src/vp9_transcoder.cpp)
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
     PUBLIC
@@ -115,3 +116,4 @@ add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --vid
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
 add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)
+add_rtmvideo_test(vp9_transcoder_test test/vp9_transcoder_test.cpp)
