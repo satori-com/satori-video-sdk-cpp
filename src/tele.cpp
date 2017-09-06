@@ -11,6 +11,7 @@ namespace tele {
 
 namespace {
 boost::posix_time::seconds tele_interval(1);
+bool tele_running{false};
 
 tele::counter *messages_published =
     tele::counter_new("tele", "messages_published");
@@ -69,6 +70,10 @@ EXPORT counter *counter_new(const char *group, const char *name) noexcept {
   return c;
 }
 
+EXPORT void counter_delete(counter *c) noexcept {
+  delete c;
+}
+
 EXPORT void counter_inc(counter *counter, uint64_t delta) noexcept {
   counter->inc(delta);
 }
@@ -112,6 +117,9 @@ struct distribution : public cell<std::vector<int64_t>> {
   }
 
   void add(int64_t value) {
+    if (!tele_running)
+      return;
+
     // todo: calculate distribution statistics rather than send it to the server
     std::lock_guard<std::mutex> guard(_mutex);
     if (_value.size() > max_distribution_size) {
@@ -202,6 +210,7 @@ void on_tele_tick(rtm::publisher &publisher, boost::asio::deadline_timer &timer,
 publisher::publisher(rtm::publisher &rtm_publisher,
                      boost::asio::io_service &io_service)
     : _timer(io_service, tele_interval) {
+  tele_running = true;
   on_tele_tick(rtm_publisher, _timer, boost::system::error_code{});
 }
 }  // namespace tele

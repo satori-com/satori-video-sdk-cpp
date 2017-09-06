@@ -17,6 +17,9 @@ EXPORT struct counter;
 // Returns a pointer to newly created counter.
 EXPORT counter *counter_new(const char *group, const char *name) noexcept;
 
+// Deallocates the counter.
+EXPORT void counter_delete(counter *) noexcept;
+
 // Increments counter value.
 EXPORT void counter_inc(counter *counter, uint64_t delta = 1) noexcept;
 
