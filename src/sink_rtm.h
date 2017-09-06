@@ -7,12 +7,12 @@
 namespace rtm {
 namespace video {
 
-struct rtm_sink : public rtm::video::sink<metadata, encoded_frame> {
+struct rtm_sink : public rtm::video::sink<encoded_metadata, encoded_frame> {
  public:
   rtm_sink(std::shared_ptr<rtm::publisher> client,
            const std::string &rtm_channel);
 
-  void on_metadata(metadata &&m) override;
+  void on_metadata(encoded_metadata &&m) override;
   void on_frame(encoded_frame &&f) override;
   bool empty() override;
 

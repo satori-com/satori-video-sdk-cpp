@@ -48,7 +48,7 @@ struct network_frame {
 using network_packet = boost::variant<network_metadata, network_frame>;
 
 // codec parameters to decode encoded frames
-struct metadata {
+struct encoded_metadata {
   std::string codec_name;
   std::string codec_data;
 
@@ -64,7 +64,7 @@ struct encoded_frame {
 };
 
 // algebraic type to support flow of encoded frame data using streams API
-using encoded_packet = boost::variant<metadata, encoded_frame>;
+using encoded_packet = boost::variant<encoded_metadata, encoded_frame>;
 
 // TODO: may contain some data like FPS, etc.
 struct image_metadata {};

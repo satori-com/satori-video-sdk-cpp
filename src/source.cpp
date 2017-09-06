@@ -82,17 +82,17 @@ void timed_source::frames_tick() {
 
 struct video_source {
   std::unique_ptr<
-      rtm::video::source<rtm::video::metadata, rtm::video::encoded_frame>>
+      rtm::video::source<rtm::video::encoded_metadata, rtm::video::encoded_frame>>
       source;
 };
 
 struct callbacks_sink
-    : public rtm::video::sink<rtm::video::metadata, rtm::video::encoded_frame> {
+    : public rtm::video::sink<rtm::video::encoded_metadata, rtm::video::encoded_frame> {
  public:
   callbacks_sink(metadata_handler metadata_handler, frame_handler frame_handler)
       : _metadata_handler(metadata_handler), _frame_handler(frame_handler) {}
 
-  void on_metadata(rtm::video::metadata &&m) override {
+  void on_metadata(rtm::video::encoded_metadata &&m) override {
     _metadata_handler(m.codec_name.c_str(), m.codec_data.size(),
                       (const uint8_t *)m.codec_data.data());
   }

@@ -34,7 +34,7 @@ int flow_decoder::init() { return 0; }
 
 void flow_decoder::start() {}
 
-void flow_decoder::on_metadata(metadata &&m) {
+void flow_decoder::on_metadata(encoded_metadata &&m) {
   if (m.codec_data == _metadata.codec_data &&
       m.codec_name == _metadata.codec_name) {
     return;

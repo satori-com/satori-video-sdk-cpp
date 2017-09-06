@@ -12,7 +12,7 @@ rtm_sink::rtm_sink(std::shared_ptr<rtm::publisher> client,
       _frames_channel(rtm_channel),
       _metadata_channel(rtm_channel + metadata_channel_suffix) {}
 
-void rtm_sink::on_metadata(metadata &&m) {
+void rtm_sink::on_metadata(encoded_metadata &&m) {
   cbor_item_t *packet = m.to_network().to_cbor();
   _client->publish(_metadata_channel, packet, nullptr);
   cbor_decref(&packet);

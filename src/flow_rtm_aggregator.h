@@ -10,10 +10,9 @@
 namespace rtm {
 namespace video {
 
-struct flow_rtm_aggregator
-    : public sink<network_metadata, network_frame>,
-      public source<metadata, encoded_frame>,
-      public std::enable_shared_from_this<flow_rtm_aggregator> {
+struct flow_rtm_aggregator : public sink<network_metadata, network_frame>,
+                             public source<encoded_metadata, encoded_frame>,
+                             public std::enable_shared_from_this<flow_rtm_aggregator> {
  public:
   // TODO: use streams API instead
   flow_rtm_aggregator(

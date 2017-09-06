@@ -10,7 +10,7 @@
 namespace rtm {
 namespace video {
 
-struct timed_source : public source<metadata, encoded_frame> {
+struct timed_source : public source<encoded_metadata, encoded_frame> {
  protected:
   void start(const std::string &codec_name, const std::string &codec_data,
              std::chrono::milliseconds frames_interval,

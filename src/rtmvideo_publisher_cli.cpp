@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
 
   rtm::video::initialize_source_library();
   std::unique_ptr<
-      rtm::video::source<rtm::video::metadata, rtm::video::encoded_frame>>
+      rtm::video::source<rtm::video::encoded_metadata, rtm::video::encoded_frame>>
       source;
 
   if (source_type == "camera") {

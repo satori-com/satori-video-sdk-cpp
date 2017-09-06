@@ -37,7 +37,7 @@ class bot_environment : public subscription_callbacks {
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _client;
-  std::shared_ptr<source<metadata, encoded_frame>> _source;
+  std::shared_ptr<source<encoded_metadata, encoded_frame>> _source;
 };
 
 }  // namespace video

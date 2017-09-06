@@ -103,14 +103,14 @@ class bot_api_exception : public std::runtime_error {
   bot_api_exception() : runtime_error("bot api error") {}
 };
 
-metadata decode_metadata_frame(const rapidjson::Value& msg) {
+encoded_metadata decode_metadata_frame(const rapidjson::Value& msg) {
   std::string codec_data =
       msg.HasMember("codecData") ? decode64(msg["codecData"].GetString()) : "";
   std::string codec_name = msg["codecName"].GetString();
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
+class bot_instance : public bot_context, public sink<encoded_metadata, encoded_frame> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
@@ -129,7 +129,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
     _message_buffer.push_back(newmsg);
   }
 
-  void on_metadata(metadata&& m) override {
+  void on_metadata(encoded_metadata&& m) override {
     tele::counter_inc(metadata_received);
 
     if (m.codec_data == _metadata.codec_data &&
@@ -257,7 +257,7 @@ class bot_instance : public bot_context, public sink<metadata, encoded_frame> {
   std::list<rtm::video::bot_message> _message_buffer;
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
-  metadata _metadata;
+  encoded_metadata _metadata;
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
