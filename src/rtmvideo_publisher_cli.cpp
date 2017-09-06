@@ -8,8 +8,8 @@
 namespace {
 
 struct rtm_error_handler : public rtm::error_callbacks {
-  void on_error(rtm::error e, const std::string &msg) override {
-    std::cerr << "ERROR: " << (int)e << " " << msg << "\n";
+  void on_error(std::error_condition ec) override {
+    std::cerr << "ERROR: " << ec.message() << "\n";
   }
 };
 

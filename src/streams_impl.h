@@ -36,8 +36,8 @@ void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
       delete this;
     }
 
-    void on_error(const std::string &message) override {
-      _on_error(message);
+    void on_error(std::error_condition ec) override {
+      _on_error(ec);
       delete this;
     }
 
@@ -109,11 +109,11 @@ struct empty_publisher : public publisher_impl<T> {
 
 template <typename T>
 struct error_publisher : public publisher_impl<T> {
-  explicit error_publisher(const std::string &message) : _message(message) {}
+  explicit error_publisher(std::error_condition ec) : _ec(ec) {}
 
-  void subscribe(subscriber<T> &s) override { s.on_error(_message); }
+  void subscribe(subscriber<T> &s) override { s.on_error(_ec); }
 
-  const std::string _message;
+  const std::error_condition _ec;
 };
 
 template <typename T>
@@ -216,8 +216,8 @@ struct generator_publisher : public publisher_impl<T> {
       _outstanding--;
       _sink.on_next(std::move(t));
     }
-    void on_error(const std::string &message) override {
-      _sink.on_error(message);
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
       _active = false;
       if (!_in_drain) {
         delete this;
@@ -285,8 +285,8 @@ struct map_op {
 
     void on_next(S &&t) override { _sink.on_next(_fn(std::move(t))); }
 
-    void on_error(const std::string &message) override {
-      _sink.on_error(message);
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
       delete this;
     }
 
@@ -357,9 +357,9 @@ struct flat_map_op {
       drain();
     }
 
-    void on_error(const std::string &message) override {
+    void on_error(std::error_condition ec) override {
       _active = false;
-      _sink.on_error(message);
+      _sink.on_error(ec);
       delete this;
     }
 
@@ -442,8 +442,8 @@ struct flat_map_op {
         _sink.on_next(std::move(t));
       }
 
-      void on_error(const std::string &message) override {
-        _sink.on_error(message);
+      void on_error(std::error_condition ec) override {
+        _sink.on_error(ec);
         delete this;
       }
 
@@ -490,8 +490,8 @@ struct take_op {
       }
     };
 
-    void on_error(const std::string &message) override {
-      _sink.on_error(message);
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
       delete this;
     };
 
@@ -561,8 +561,8 @@ struct do_finally_op {
 
     void on_next(T &&s) override { _sink.on_next(std::move(s)); };
 
-    void on_error(const std::string &message) override {
-      _sink.on_error(message);
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
       _fn();
       delete this;
     };
@@ -617,8 +617,8 @@ publisher<T> publishers<T>::empty() {
 }
 
 template <typename T>
-publisher<T> publishers<T>::error(const std::string &message) {
-  return publisher<T>(new impl::error_publisher<T>(message));
+publisher<T> publishers<T>::error(std::error_condition ec) {
+  return publisher<T>(new impl::error_publisher<T>(ec));
 }
 
 template <typename T>

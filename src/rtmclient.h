@@ -12,11 +12,14 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace rtm {
 
 enum class error : unsigned char {
+  // 0 - not used, success.
+
   Unknown = 1,
   NotConnected = 2,
   ResponseParsingError = 3,
@@ -24,10 +27,12 @@ enum class error : unsigned char {
   SubscriptionError = 5
 };
 
+std::error_condition make_error_condition(error e);
+
 struct error_callbacks {
   virtual ~error_callbacks() = default;
 
-  virtual void on_error(error /*error*/, const std::string & /*message*/) {}
+  virtual void on_error(std::error_condition ec) {}
 };
 
 struct channel_position {
@@ -178,3 +183,8 @@ class resilient_client : public client {
 };
 
 }  // namespace rtm
+
+namespace std {
+template <>
+struct is_error_condition_enum<rtm::error> : std::true_type {};
+}  // namespace std

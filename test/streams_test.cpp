@@ -14,8 +14,8 @@ std::vector<std::string> events(streams::publisher<T> &&p) {
   std::vector<std::string> events;
   p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); },
              [&events]() mutable { events.push_back("."); },
-             [&events](const std::string &message) mutable {
-               events.push_back("error:" + message);
+             [&events](std::error_condition ec) mutable {
+               events.push_back("error:" + ec.message());
              });
   return events;
 }
@@ -87,7 +87,7 @@ BOOST_AUTO_TEST_CASE(on_finally_empty) {
 
 BOOST_AUTO_TEST_CASE(on_finally_error) {
   bool terminated = false;
-  auto p = streams::publishers<int>::error("") >>
+  auto p = streams::publishers<int>::error(std::errc::not_supported) >>
            streams::do_finally([&terminated]() { terminated = true; });
   BOOST_TEST(!terminated);
   events(std::move(p));

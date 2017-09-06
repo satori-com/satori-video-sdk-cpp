@@ -305,8 +305,8 @@ class bot_online_instance : public bot_instance,
     }
   }
 
-  void on_error(error e, const std::string& msg) override {
-    std::cerr << "ERROR: " << (int)e << " " << msg << "\n";
+  void on_error(std::error_condition ec) override {
+    std::cerr << "ERROR: " << ec.message() << "\n";
     throw bot_api_exception();
   }
 
