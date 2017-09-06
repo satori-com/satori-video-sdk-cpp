@@ -15,6 +15,7 @@ struct flow_rtm_aggregator
       public source<metadata, encoded_frame>,
       public std::enable_shared_from_this<flow_rtm_aggregator> {
  public:
+  // TODO: use streams API instead
   flow_rtm_aggregator(
       std::unique_ptr<source<network_metadata, network_frame>> source);
   ~flow_rtm_aggregator();

@@ -1,7 +1,7 @@
-#define BOOST_TEST_MODULE av utils
+#define BOOST_TEST_MODULE AVUtilsTest
 #include <boost/test/included/unit_test.hpp>
 
-#include "../src/avutils.h"
+#include "avutils.h"
 
 BOOST_AUTO_TEST_CASE(av_error_messages) {
   BOOST_CHECK_EQUAL("Resource temporarily unavailable",
