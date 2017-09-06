@@ -5,6 +5,7 @@
 #include <initializer_list>
 #include <memory>
 #include <system_error>
+#include <vector>
 
 namespace streams {
 
@@ -51,37 +52,50 @@ using publisher = std::unique_ptr<publisher_impl<T>>;
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op);
 
-// ----------------------------------------------------------------------
-template <typename T>
+// ----- Creating streams
+
 struct publishers {
   // Creates empty stream.
+  template <typename T>
   static publisher<T> empty();
 
   // Creates stream in error state.
+  template <typename T>
   static publisher<T> error(std::error_condition ec);
 
+  // Stream of given values.
+  template <typename T>
+  static publisher<T> of(std::initializer_list<T> values);
+
+  template <typename T>
+  static publisher<T> of(std::vector<T> &&values);
+
+  // Stream of values [from, to).
+  template <typename T>
+  static publisher<T> range(T from, T to);
+
+  // Streams each publisher consequently.
+  template <typename T>
+  static publisher<T> merge(std::vector<publisher<T>> &&publishers);
+};
+
+template <typename T>
+struct generators {
   // Stateful stream generator.
   // create_fn - State*() - creates new state object
   // gen_fn - void(State* state, int n, observer<T>) - called periodically. Should
   // generate no more than n objects. Less is OK.
   template <typename CreateFn, typename GenFn>
-  static publisher<T> generate(CreateFn &&create_fn, GenFn &&gen_fn);
+  static publisher<T> stateful(CreateFn &&create_fn, GenFn &&gen_fn);
 
   // Creates a stream from extern asynchronous process.
   static publisher<T> async(std::function<void(observer<T> &observer)> init_fn);
-
-  // Stream of given values.
-  static publisher<T> of(std::initializer_list<T> values);
-
-  // Stream of given values.
-  static publisher<T> of(std::vector<T> &&values);
-
-  // Stream of values [from, to).
-  static publisher<T> range(T from, T to);
-
-  // Streams each publisher consequently.
-  static publisher<T> merge(std::vector<publisher<T>> &&publishers);
 };
+
+// read file line by line.
+publisher<std::string> read_lines(const std::string &filename);
+
+// ----- Transforming streams
 
 // head operation produces a stream with only first element.
 auto head();

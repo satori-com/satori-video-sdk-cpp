@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <boost/assert.hpp>
 #include <chrono>
 #include <functional>
 #include <iostream>
@@ -123,7 +124,7 @@ publisher<T> of_impl(std::vector<T> &&values) {
     size_t idx{0};
   };
 
-  return publishers<T>::generate(
+  return generators<T>::stateful(
       [data = std::move(values)]() mutable { return new state{std::move(data)}; },
       [](state *s, long n, observer<T> &sink) {
         for (long i = 0; i < n && s->idx < s->data.size(); ++i, ++s->idx) {
@@ -138,7 +139,7 @@ publisher<T> of_impl(std::vector<T> &&values) {
 
 template <typename T>
 publisher<T> range_impl(T from, T to) {
-  return publishers<T>::generate([from]() { return new T{from}; },
+  return generators<T>::stateful([from]() { return new T{from}; },
                                  [to](T *t, long n, observer<T> &sink) {
                                    for (int i = 0; i < n && *t < to; ++i, ++*t) {
                                      sink.on_next(std::move(*t));
@@ -149,10 +150,6 @@ publisher<T> range_impl(T from, T to) {
                                    }
                                  });
 }
-
-struct interval_op {};
-
-inline auto interval(std::chrono::milliseconds i) { return interval_op(); }
 
 template <typename CreateFn, typename GenFn>
 struct generator_impl {
@@ -471,7 +468,6 @@ struct take_op {
   template <typename S>
   struct instance : subscriber<S>, subscription {
     using value_t = S;
-
     instance(take_op &&op, subscriber<value_t> &sink) : _remaining(op._n), _sink(sink) {}
 
     static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
@@ -597,38 +593,38 @@ struct do_finally_op {
 }  // namespace impl
 
 template <typename T>
-publisher<T> publishers<T>::of(std::initializer_list<T> values) {
+publisher<T> publishers::of(std::initializer_list<T> values) {
   return of(std::vector<T>{values});
 }
 
 template <typename T>
-publisher<T> publishers<T>::of(std::vector<T> &&values) {
+publisher<T> publishers::of(std::vector<T> &&values) {
   return impl::of_impl(std::move(values));
 }
 
 template <typename T>
-publisher<T> publishers<T>::range(T from, T to) {
+publisher<T> publishers::range(T from, T to) {
   return impl::range_impl(from, to);
 }
 
 template <typename T>
-publisher<T> publishers<T>::empty() {
+publisher<T> publishers::empty() {
   return publisher<T>(new impl::empty_publisher<T>());
 }
 
 template <typename T>
-publisher<T> publishers<T>::error(std::error_condition ec) {
+publisher<T> publishers::error(std::error_condition ec) {
   return publisher<T>(new impl::error_publisher<T>(ec));
 }
 
 template <typename T>
-publisher<T> publishers<T>::async(std::function<void(observer<T> &observer)> init_fn) {
+publisher<T> generators<T>::async(std::function<void(observer<T> &observer)> init_fn) {
   return publisher<T>(new impl::async_publisher_impl<T>(init_fn));
 }
 
 template <typename T>
 template <typename CreateFn, typename GenFn>
-publisher<T> publishers<T>::generate(CreateFn &&create_fn, GenFn &&gen_fn) {
+publisher<T> generators<T>::stateful(CreateFn &&create_fn, GenFn &&gen_fn) {
   using generator_t = impl::generator_impl<CreateFn, GenFn>;
   using state_t = std::remove_pointer_t<typename function_traits<CreateFn>::result_type>;
 
@@ -637,8 +633,8 @@ publisher<T> publishers<T>::generate(CreateFn &&create_fn, GenFn &&gen_fn) {
 }
 
 template <typename T>
-publisher<T> publishers<T>::merge(std::vector<publisher<T>> &&publishers) {
-  auto p = streams::publishers<publisher<T>>::of(std::move(publishers));
+publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
+  auto p = streams::publishers::of(std::move(publishers));
   return std::move(p) >> flat_map([](publisher<T> &&p) { return std::move(p); });
 }
 
