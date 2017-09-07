@@ -31,8 +31,8 @@ add_library(rtmvideo
     src/cbor_tools.cpp
     src/data.cpp
     src/error.cpp
+    src/rtm_sink.cpp
     src/rtmclient.cpp
-    src/sink_rtm.cpp
     src/source_camera.cpp
     src/source_file.cpp
     src/source_replay.cpp

@@ -2,7 +2,6 @@
 #include <iostream>
 #include "asio_streams.h"
 #include "rtmclient.h"
-#include "sink_rtm.h"
 #include "video_streams.h"
 
 namespace {
@@ -22,13 +21,11 @@ int main(int argc, char *argv[]) {
   namespace po = boost::program_options;
   po::options_description generic_options("Generic options");
   generic_options.add_options()("help", "produce help message")(
-      "source-type", po::value<std::string>(&source_type),
-      "Source type: [file|camera]");
+      "source-type", po::value<std::string>(&source_type), "Source type: [file|camera]");
 
   po::options_description rtm_options("RTM connection options");
-  rtm_options.add_options()("endpoint", po::value<std::string>(),
-                            "RTM endpoint")("appkey", po::value<std::string>(),
-                                            "RTM appkey")(
+  rtm_options.add_options()("endpoint", po::value<std::string>(), "RTM endpoint")(
+      "appkey", po::value<std::string>(), "RTM appkey")(
       "channel", po::value<std::string>(), "RTM channel")(
       "port", po::value<std::string>()->default_value("443"), "RTM port");
 
@@ -38,8 +35,7 @@ int main(int argc, char *argv[]) {
 
   po::options_description camera_options("Camera options");
   camera_options.add_options()(
-      "dimensions", po::value<std::string>()->default_value("320x240"),
-      "Dimensions");
+      "dimensions", po::value<std::string>()->default_value("320x240"), "Dimensions");
 
   po::options_description cmdline_options;
   cmdline_options.add(generic_options)
@@ -55,8 +51,7 @@ int main(int argc, char *argv[]) {
     std::cout << cmdline_options << "\n";
     return 1;
   }
-  if (!vm.count("source-type") ||
-      (source_type != "camera" && source_type != "file")) {
+  if (!vm.count("source-type") || (source_type != "camera" && source_type != "file")) {
     std::cerr << "*** --source-type type either was not specified or has invalid value\n";
     return -1;
   }
@@ -96,11 +91,9 @@ int main(int argc, char *argv[]) {
   rtm_error_handler error_handler;
   std::shared_ptr<rtm::publisher> rtm_client = rtm::new_client(
       vm["endpoint"].as<std::string>(), vm["port"].as<std::string>(),
-      vm["appkey"].as<std::string>(), io_service, ssl_context, 1,
-      error_handler);
+      vm["appkey"].as<std::string>(), io_service, ssl_context, 1, error_handler);
 
-  source->subscribe(
-      *(new rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>())));
+  source->subscribe(rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>()));
 
   io_service.run();
 }

@@ -32,5 +32,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream();
 streams::op<encoded_packet, image_frame> decode_image_frames(
     int bounding_width, int bounding_height, image_pixel_format pixel_format);
 
+streams::subscriber<encoded_packet> &rtm_sink(std::shared_ptr<rtm::publisher> client,
+                                              const std::string &rtm_channel);
 }  // namespace video
 }  // namespace rtm
