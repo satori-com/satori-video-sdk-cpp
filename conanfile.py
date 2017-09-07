@@ -31,7 +31,7 @@ class SatorivideoConan(ConanFile):
         cmake = CMake(self)
         self.run('cmake . %s' % cmake.command_line)
         self.run("cmake --build . %s" % cmake.build_config)
-        self.run("make test")
+        self.run("CTEST_OUTPUT_ON_FAILURE=TRUE make test")
 
     def package(self):
         self.copy("*.h", dst="include", src="include")
