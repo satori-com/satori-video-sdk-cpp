@@ -51,10 +51,11 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Libcbor
         CONAN_PKG::Ffmpeg
     PRIVATE
+        rtmvideo-decoder
         CONAN_PKG::Boost
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
-        rtmvideo-decoder
+        CONAN_PKG::Loguru
     )
 target_link_libraries(rtmvideo PUBLIC dl)
 

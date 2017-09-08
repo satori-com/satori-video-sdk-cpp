@@ -12,6 +12,7 @@ extern "C" {
 #include "asio_streams.h"
 #include "avutils.h"
 #include "error.h"
+#include "logging.h"
 #include "video_streams.h"
 
 namespace rtm {
@@ -29,57 +30,56 @@ struct file_source_impl {
   int init() {
     int ret = 0;
 
-    std::cout << "*** Opening file " << _filename << "\n";
+    LOG_S(1) << "Opening file " << _filename;
     if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr, nullptr)) < 0) {
       std::cerr << "*** Could not open file: " << _filename << ", "
-                << avutils::error_msg(ret) << "\n";
+                << avutils::error_msg(ret);
       return ret;
     }
-    std::cout << "*** File " << _filename << " is open\n";
+    LOG_S(1) << "File " << _filename << " is open";
 
-    std::cout << "*** Looking for stream info...\n";
+    LOG_S(1) << "Looking for stream info...";
     if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-      std::cerr << "*** Could not find stream information:" << avutils::error_msg(ret)
-                << "\n";
+      std::cerr << "*** Could not find stream information:" << avutils::error_msg(ret);
       return ret;
     }
-    std::cout << "*** Stream info found\n";
+    LOG_S(1) << "Stream info found";
 
-    std::cout << "*** Number of streams " << _fmt_ctx->nb_streams << "\n";
+    LOG_S(1) << "Number of streams " << _fmt_ctx->nb_streams;
 
-    std::cout << "*** Looking for best stream...\n";
+    LOG_S(1) << "Looking for best stream...";
     if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec, 0)) < 0) {
-      std::cerr << "*** Could not find video stream:" << avutils::error_msg(ret) << "\n";
+      LOG_S(ERROR) << "Could not find video stream:" << avutils::error_msg(ret);
       return ret;
     }
-    std::cout << "*** Best stream found\n";
+    LOG_S(1) << "Best stream found";
 
     _stream_idx = ret;
     _stream = _fmt_ctx->streams[_stream_idx];
 
-    std::cout << "*** Allocating codec context...\n";
+    LOG_S(1) << "Allocating codec context...";
     _dec_ctx = avcodec_alloc_context3(_dec);
     if (!_dec_ctx) {
-      std::cerr << "*** Failed to allocate codec context\n";
+      LOG_S(ERROR) << "Failed to allocate codec context";
       return -1;
     }
-    std::cout << "*** Codec context is allocated\n";
+    LOG_S(1) << "Codec context is allocated";
 
-    std::cout << "*** Copying codec parameters to codec context...\n";
+    LOG_S(1) << "Copying codec parameters to codec context...";
     if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-      std::cerr << "*** Failed to copy codec parameters to codec context:"
-                << avutils::error_msg(ret) << "\n";
+      LOG_S(ERROR) << "Failed to copy codec parameters to codec context:"
+                << avutils::error_msg(ret);
       return ret;
     }
-    std::cout << "*** Codec parameters were copied to codec context\n";
+    LOG_S(1) << "Codec parameters were copied to codec context";
 
-    std::cout << "*** Opening video codec...\n";
+    LOG_S(1) << "Opening video codec...";
     AVDictionary *opts = nullptr;
     if ((ret = avcodec_open2(_dec_ctx, _dec, &opts)) < 0) {
-      std::cerr << "*** Failed to open video codec:" << avutils::error_msg(ret) << "\n";
+      LOG_S(ERROR) << "*** Failed to open video codec:" << avutils::error_msg(ret);
       return ret;
     }
-    std::cout << "*** Video codec is open\n";
+    LOG_S(1) << "Video codec is open";
 
     return 0;
   }

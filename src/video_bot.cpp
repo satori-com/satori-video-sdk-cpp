@@ -27,6 +27,7 @@ extern "C" {
 #include "librtmvideo/rtmvideo.h"
 #include "librtmvideo/tele.h"
 #include "librtmvideo/video_bot.h"
+#include "logging_implementation.h"
 #include "rtmclient.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
@@ -132,12 +133,12 @@ class bot_instance : public bot_context, public streams::subscriber<image_frame>
   }
 
   void on_complete() override {
-    std::cout << "processing complete\n";
+    LOG_S(INFO) << "processing complete\n";
     _sub = nullptr;
   }
 
   void on_error(std::error_condition ec) override {
-    std::cerr << "unexpected error: " << ec.message() << "\n";
+    LOG_S(ERROR) << ec.message() << "\n";
     _sub = nullptr;
     exit(2);
   }
@@ -245,7 +246,7 @@ class bot_online_instance : public bot_instance,
   }
 
   void on_error(std::error_condition ec) override {
-    std::cerr << "ERROR: " << ec.message() << "\n";
+    LOG_S(ERROR) << ec.message() << "\n";
     throw bot_api_exception();
   }
 
@@ -282,7 +283,7 @@ class bot_online_instance : public bot_instance,
     }
 
     if (!msg.IsObject()) {
-      std::cerr << "ERROR: Unsupported kind of message\n";
+      LOG_S(ERROR) << "unsupported kind of message\n";
       return;
     }
 
@@ -576,6 +577,8 @@ int bot_environment::main_offline(variables_map cmd_args) {
 }  // namespace video
 
 int bot_environment::main(int argc, char* argv[]) {
+  loguru::init(argc, argv);
+  loguru::g_stderr_verbosity = 1;
   signal(SIGSEGV, sigsegv_handler);
 
   auto cmd_args = parse_command_line(argc, argv);

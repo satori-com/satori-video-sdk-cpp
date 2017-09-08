@@ -11,7 +11,8 @@ class SatorivideoConan(ConanFile):
                "Beast/95@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
                "Rapidjson/1.1.0@satorivideo/master", \
-               "Ffmpeg/3.3.3_03@satorivideo/master"
+               "Ffmpeg/3.3.3_03@satorivideo/master", \
+               "Loguru/1.5.1@satorivideo/master"
     license = "proprietary"
     version = '0.1.12'
     settings = "os", "compiler", "build_type", "arch"
