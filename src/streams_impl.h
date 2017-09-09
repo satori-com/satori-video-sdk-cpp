@@ -278,7 +278,8 @@ struct map_op {
     subscriber<T> &_sink;
     subscription *_source{nullptr};
 
-    instance(map_op<Fn> &&op, subscriber<T> &sink) : _fn(std::move(op._fn)), _sink(sink) {}
+    instance(map_op<Fn> &&op, subscriber<T> &sink)
+        : _fn(std::move(op._fn)), _sink(sink) {}
 
     void on_next(S &&t) override { _sink.on_next(_fn(std::move(t))); }
 
@@ -339,7 +340,8 @@ struct flat_map_op {
     std::atomic<long> _outstanding{0};
     fwd_sub *_fwd_sub{nullptr};
 
-    instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink) : _fn(std::move(op._fn)), _sink(sink) {}
+    instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink)
+        : _fn(std::move(op._fn)), _sink(sink) {}
 
     void on_subscribe(subscription &s) override {
       BOOST_ASSERT(!_source);
@@ -522,6 +524,62 @@ struct take_op {
   int _n;
 };
 
+template <typename T>
+struct take_while_op {
+  take_while_op(predicate<T> &&p) : _p(p) {}
+
+  template <typename T1>
+  struct instance : public subscriber<T>, private subscription {
+    static_assert(std::is_same<T, T1>::value, "types do not match");
+
+    static publisher<T> apply(publisher<T> &&source, take_while_op<T> &&op) {
+      return publisher<T>(
+          new op_publisher<T, T, take_while_op<T>>(std::move(source), std::move(op)));
+    }
+
+    predicate<T> _p;
+    subscriber<T> &_sink;
+    subscription *_source{nullptr};
+
+    instance(take_while_op<T> &&op, subscriber<T> &sink)
+        : _p(std::move(op._p)), _sink(sink) {}
+
+    void on_next(T &&t) override {
+      if (!_p(t)) {
+        _source->cancel();
+        on_complete();
+      } else {
+        _sink.on_next(std::move(t));
+      }
+    }
+
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
+      delete this;
+    }
+
+    void on_complete() override {
+      _sink.on_complete();
+      delete this;
+    }
+
+    void on_subscribe(subscription &s) override {
+      BOOST_ASSERT(!_source);
+      _source = &s;
+      _sink.on_subscribe(*this);
+    }
+
+    void request(int n) override { _source->request(n); }
+
+    void cancel() override {
+      _source->cancel();
+      delete this;
+    }
+  };
+
+  predicate<T> _p;
+};
+
 template <typename S, typename T>
 struct lift_op {
   explicit lift_op(op<S, T> fn) : _fn(fn) {}
@@ -657,6 +715,11 @@ auto map(Fn &&fn) {
 inline auto take(int count) { return impl::take_op{count}; }
 
 inline auto head() { return take(1); }
+
+template <typename T>
+auto take_while(predicate<T> &&p) {
+  return impl::take_while_op<T>{std::move(p)};
+}
 
 template <typename S, typename T>
 auto lift(op<S, T> fn) {

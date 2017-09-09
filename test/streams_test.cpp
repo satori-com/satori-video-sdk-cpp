@@ -82,6 +82,13 @@ BOOST_AUTO_TEST_CASE(take) {
   BOOST_TEST(events(std::move(p)) == strings({"2", "3", "4", "5", "."}));
 }
 
+BOOST_AUTO_TEST_CASE(take_while) {
+  auto p = streams::publishers::range(2, 300000000) >>
+           streams::take_while<int>([](const int &i) { return i < 10; });
+  BOOST_TEST(events(std::move(p)) ==
+             strings({"2", "3", "4", "5", "6", "7", "8", "9", "."}));
+}
+
 BOOST_AUTO_TEST_CASE(merge) {
   auto p1 = streams::publishers::range(1, 3);
   auto p2 = streams::publishers::range(3, 6);
