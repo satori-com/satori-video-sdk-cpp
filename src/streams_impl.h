@@ -464,84 +464,22 @@ struct flat_map_op {
   Fn _fn;
 };
 
-struct take_op {
-  explicit take_op(int count) : _n(count) {}
-
-  template <typename S>
-  struct instance : subscriber<S>, subscription {
-    using value_t = S;
-    instance(take_op &&op, subscriber<value_t> &sink) : _remaining(op._n), _sink(sink) {}
-
-    static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
-      return publisher<value_t>(
-          new op_publisher<S, S, take_op>(std::move(source), std::move(op)));
-    }
-
-    void on_next(S &&s) override {
-      _sink.on_next(std::move(s));
-      _remaining--;
-      _outstanding--;
-
-      if (!_remaining) {
-        _source_sub->cancel();
-        on_complete();
-      }
-    };
-
-    void on_error(std::error_condition ec) override {
-      _sink.on_error(ec);
-      delete this;
-    };
-
-    void on_complete() override {
-      _sink.on_complete();
-      delete this;
-    };
-
-    void on_subscribe(subscription &s) override {
-      _source_sub = &s;
-      _sink.on_subscribe(*this);
-    };
-
-    void request(int n) override {
-      long actual = std::min((long)n, _remaining - _outstanding);
-      _outstanding += actual;
-      _source_sub->request(actual);
-    }
-
-    void cancel() override {
-      _source_sub->cancel();
-      delete this;
-    }
-
-    std::atomic<long> _remaining;
-    std::atomic<long> _outstanding{0};
-    subscriber<value_t> &_sink;
-    subscription *_source_sub;
-  };
-
- private:
-  int _n;
-};
-
-template <typename T>
+template <typename Predicate>
 struct take_while_op {
-  take_while_op(predicate<T> &&p) : _p(p) {}
+  take_while_op(Predicate &&p) : _p(p) {}
 
-  template <typename T1>
+  template <typename T>
   struct instance : public subscriber<T>, private subscription {
-    static_assert(std::is_same<T, T1>::value, "types do not match");
-
-    static publisher<T> apply(publisher<T> &&source, take_while_op<T> &&op) {
-      return publisher<T>(
-          new op_publisher<T, T, take_while_op<T>>(std::move(source), std::move(op)));
+    static publisher<T> apply(publisher<T> &&source, take_while_op<Predicate> &&op) {
+      return publisher<T>(new op_publisher<T, T, take_while_op<Predicate>>(
+          std::move(source), std::move(op)));
     }
 
-    predicate<T> _p;
+    Predicate _p;
     subscriber<T> &_sink;
     subscription *_source{nullptr};
 
-    instance(take_while_op<T> &&op, subscriber<T> &sink)
+    instance(take_while_op<Predicate> &&op, subscriber<T> &sink)
         : _p(std::move(op._p)), _sink(sink) {}
 
     void on_next(T &&t) override {
@@ -577,7 +515,7 @@ struct take_while_op {
     }
   };
 
-  predicate<T> _p;
+  Predicate _p;
 };
 
 template <typename S, typename T>
@@ -712,14 +650,17 @@ auto map(Fn &&fn) {
   return impl::map_op<Fn>{std::move(fn)};
 };
 
-inline auto take(int count) { return impl::take_op{count}; }
+template <typename Predicate>
+auto take_while(Predicate &&p) {
+  return impl::take_while_op<Predicate>{std::move(p)};
+}
+
+inline auto take(int count) {
+  int counter = 0;
+  return take_while([counter, count](const auto &) mutable { return counter++ < count; });
+}
 
 inline auto head() { return take(1); }
-
-template <typename T>
-auto take_while(predicate<T> &&p) {
-  return impl::take_while_op<T>{std::move(p)};
-}
 
 template <typename S, typename T>
 auto lift(op<S, T> fn) {

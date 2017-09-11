@@ -104,9 +104,6 @@ struct generators {
 // read file line by line.
 publisher<std::string> read_lines(const std::string &filename);
 
-template <typename T>
-using predicate = std::function<bool(const T &)>;
-
 // ----- Transforming streams
 
 // head operation produces a stream with only first element.
@@ -116,8 +113,8 @@ auto head();
 auto take(int count);
 
 // take operation produces a stream while predicate is true.
-template <typename T>
-auto take_while(predicate<T> &&);
+template <typename Predicate>
+auto take_while(Predicate &&p);
 
 // map operation transforms each element into immediate value.
 template <typename Fn>

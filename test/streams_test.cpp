@@ -5,8 +5,8 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <vector>
 #include <thread>
+#include <vector>
 
 #include "streams.h"
 #include "worker.h"
@@ -17,7 +17,10 @@ std::vector<std::string> events(streams::publisher<T> &&p) {
   std::vector<std::string> events;
   bool complete{false}, error{false};
   p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); },
-             [&events, &complete]() mutable { events.push_back("."); complete = true; },
+             [&events, &complete]() mutable {
+               events.push_back(".");
+               complete = true;
+             },
              [&events, &error](std::error_condition ec) mutable {
                events.push_back("error:" + ec.message());
                error = true;
@@ -84,7 +87,7 @@ BOOST_AUTO_TEST_CASE(take) {
 
 BOOST_AUTO_TEST_CASE(take_while) {
   auto p = streams::publishers::range(2, 300000000) >>
-           streams::take_while<int>([](const int &i) { return i < 10; });
+           streams::take_while([](const int &i) { return i < 10; });
   BOOST_TEST(events(std::move(p)) ==
              strings({"2", "3", "4", "5", "6", "7", "8", "9", "."}));
 }
