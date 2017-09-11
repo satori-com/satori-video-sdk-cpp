@@ -61,7 +61,7 @@ struct encoded_frame {
 using encoded_packet = boost::variant<encoded_metadata, encoded_frame>;
 
 // TODO: may contain some data like FPS, etc.
-struct internal_image_metadata {};
+struct owned_image_metadata {};
 
 // If an image uses packed pixel format like packed RGB or packed YUV,
 // then it has only a single plane, e.g. all it's data is within plane_data[0].
@@ -69,7 +69,7 @@ struct internal_image_metadata {};
 // then every component is stored as a separate array (e.g. separate plane),
 // for example, for YUV  Y is plane_data[0], U is plane_data[1] and V is
 // plane_data[2]. A stride is a plane size with alignment.
-struct internal_image_frame {
+struct owned_image_frame {
   frame_id id;
 
   image_pixel_format pixel_format;
@@ -80,7 +80,7 @@ struct internal_image_frame {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
-using image_packet = boost::variant<image_metadata, internal_image_frame>;
+using owned_image_packet = boost::variant<image_metadata, owned_image_frame>;
 
 }  // namespace video
 }  // namespace rtm

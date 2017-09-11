@@ -107,11 +107,13 @@ encoded_metadata decode_metadata_frame(const rapidjson::Value& msg) {
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public streams::subscriber<internal_image_frame> {
+class bot_instance : public bot_context, public streams::subscriber<owned_image_frame> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
-      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {}
+      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
+          metadata = &_image_metadata;
+      }
 
   virtual void stop() {
     if (_sub) {
@@ -151,13 +153,13 @@ class bot_instance : public bot_context, public streams::subscriber<internal_ima
     exit(2);
   }
 
-  void on_next(internal_image_frame&& f) override {
+  void on_next(owned_image_frame&& f) override {
     process_image_frame(std::move(f));
     _sub->request(1);
   }
 
  protected:
-  virtual void process_image_frame(internal_image_frame&& frame) {
+  virtual void process_image_frame(owned_image_frame&& frame) {
     stopwatch<> s;
 
     if (frame.width != _image_metadata.width) {
