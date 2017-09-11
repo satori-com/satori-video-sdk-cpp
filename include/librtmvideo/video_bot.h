@@ -37,8 +37,8 @@ EXPORT struct frame_id {
 // for example, for YUV  Y is plane_data[0], U is plane_data[1] and V is
 // plane_data[2]. A stride is a plane size with alignment.
 EXPORT struct image_frame {
-    const uint8_t *plane_data[MAX_IMAGE_PLANES];
     frame_id id;
+    const uint8_t *plane_data[MAX_IMAGE_PLANES];
 };
 
 // Metadata contains information which is unchangeable for a channel
