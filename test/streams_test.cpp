@@ -1,22 +1,39 @@
 #define BOOST_TEST_MODULE StreamsTest
 #include <boost/test/included/unit_test.hpp>
 
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
 
 #include "streams.h"
+#include "worker.h"
 
 namespace {
 template <typename T>
 std::vector<std::string> events(streams::publisher<T> &&p) {
   std::vector<std::string> events;
+  bool complete{false}, error{false};
   p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); },
-             [&events]() mutable { events.push_back("."); },
-             [&events](std::error_condition ec) mutable {
+             [&events, &complete]() mutable { events.push_back("."); complete = true; },
+             [&events, &error](std::error_condition ec) mutable {
                events.push_back("error:" + ec.message());
+               error = true;
              });
+
+  auto start = std::chrono::high_resolution_clock::now();
+  while (!complete && !error) {
+    auto elapsed = std::chrono::high_resolution_clock::now() - start;
+    if (elapsed >= std::chrono::seconds(1)) {
+      BOOST_TEST_ERROR("timeout waiting for stream");
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  BOOST_TEST(complete | error);
+
   return events;
 }
 
@@ -108,4 +125,9 @@ streams::op<int, int> square() {
 BOOST_AUTO_TEST_CASE(lift_square) {
   auto p = streams::publishers::range(2, 5) >> streams::lift(square());
   BOOST_TEST(events(std::move(p)) == strings({"4", "9", "16", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(buffered_worker) {
+  auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10);
+  BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "."}));
 }

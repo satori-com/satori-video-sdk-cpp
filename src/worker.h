@@ -12,58 +12,6 @@
 namespace rtm {
 namespace video {
 
-template <typename T>
-class threaded_worker {
- public:
-  using callback_t = std::function<void(T &&)>;
-
-  threaded_worker(size_t buffer_size, callback_t &&callback)
-      : _channel(std::make_unique<channel<T>>(buffer_size)),
-        _callback(std::move(callback)) {
-    _worker_thread =
-        std::make_unique<std::thread>(&threaded_worker::thread_loop, this);
-  }
-
-  ~threaded_worker() {
-    _should_exit = true;
-    _channel->try_send(T{});
-    _worker_thread->join();
-  }
-
-  bool try_send(T &&t) noexcept {
-    if (_should_exit) {
-      return false;
-    }
-
-    return _channel->try_send(std::move(t));
-  }
-
-  void send(T &&t) noexcept {
-    _channel->send(std::move(t));
-  }
-
-  size_t queue_size() noexcept { return _channel->size(); }
-
-  void clear() noexcept { _channel->clear(); }
-
- private:
-  void thread_loop() noexcept {
-    while (true) {
-      T t = _channel->recv();
-      if (_should_exit) {
-        return;
-      }
-      _callback(std::move(t));
-    }
-  }
-
-  std::atomic_bool _should_exit{false};
-  std::unique_ptr<channel<T>> _channel;
-  std::unique_ptr<std::thread> _worker_thread;
-  callback_t _callback;
-};
-
-
 // streams operator.
 struct buffered_worker_op {
   buffered_worker_op(const std::string &name, size_t buffer_size)
@@ -85,10 +33,8 @@ struct buffered_worker_op {
     }
 
     instance(buffered_worker_op &&op, streams::subscriber<T> &sink)
-        : _sink(sink) {
-      _worker.reset(new rtm::video::threaded_worker<msg>(op._size, [this](msg&& m) {
-        on_msg(std::move(m));
-      }));
+        : _sink(sink), _channel(op._size) {
+      _worker_thread = std::make_unique<std::thread>(&instance::worker_thread_loop, this);
       _dropped_items = tele::counter_new(op._name.c_str(), "dropped");
       _delivered_items = tele::counter_new(op._name.c_str(), "delivered");
     }
@@ -99,23 +45,29 @@ struct buffered_worker_op {
     }
 
     void on_next(T &&t) override {
-      if (!_worker->try_send(next{std::move(t)})) {
+      if (!_channel.try_send(next{std::move(t)})) {
         tele::counter_inc(_dropped_items);
       }
       _source_sub->request(1);
     };
 
     void on_error(std::error_condition ec) override {
-      _worker->send(error{ec});
+      _channel.send(error{ec});
+      _worker_thread->join();
+      _worker_thread.reset();
+      delete this;
     };
 
     void on_complete() override {
-      _worker->send(complete{});
+      _channel.send(complete{});
+      _worker_thread->join();
+      _worker_thread.reset();
+      delete this;
     };
 
     void on_subscribe(subscription &s) override {
       _source_sub = &s;
-      _worker->send(subscribe{});
+      _channel.send(subscribe{});
       _source_sub->request(1);
     };
 
@@ -127,27 +79,36 @@ struct buffered_worker_op {
       BOOST_ASSERT_MSG(false, "not implemented");
     }
 
-    void on_msg(msg &&m) {
-      if (boost::get<subscribe>(&m)) {
-        _sink.on_subscribe(*this);
-      } else if (next* n = boost::get<next>(&m)) {
-        BOOST_ASSERT(_outstanding > 0);
-        _sink.on_next(std::move(n->t));
-        _outstanding--;
-        tele::counter_inc(_delivered_items);
-      } else if (boost::get<complete>(&m)) {
-        _sink.on_complete();
-        delete this;
-      } else if (error *e = boost::get<error>(&m)) {
-        _sink.on_error(e->ec);
-        delete this;
-      } else {
-        BOOST_ASSERT_MSG(false, "unexpected message");
+  private:
+    void worker_thread_loop() noexcept {
+      while (true) {
+        msg m = _channel.recv();
+
+        if (boost::get<subscribe>(&m)) {
+          _sink.on_subscribe(*this);
+        } else if (next* n = boost::get<next>(&m)) {
+          BOOST_ASSERT(_outstanding > 0);
+          _sink.on_next(std::move(n->t));
+          _outstanding--;
+          tele::counter_inc(_delivered_items);
+        } else if (boost::get<complete>(&m)) {
+          _sink.on_complete();
+          // break the loop
+          return;
+        } else if (error *e = boost::get<error>(&m)) {
+          _sink.on_error(e->ec);
+          // break the loop
+          return;
+        } else {
+          BOOST_ASSERT_MSG(false, "unexpected message");
+        }
       }
     }
 
     streams::subscriber<T> &_sink;
-    std::unique_ptr<rtm::video::threaded_worker<msg>> _worker;
+    channel<msg> _channel;
+    std::unique_ptr<std::thread> _worker_thread;
+
     tele::counter *_dropped_items;
     tele::counter *_delivered_items;
     streams::subscription *_source_sub;

@@ -110,7 +110,12 @@ function(add_rtmvideo_test TEST_NAME TEST_FILE)
     add_dependencies(${TEST_NAME} rtmvideo)
     target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_link_libraries(${TEST_NAME} PRIVATE rtmvideo CONAN_PKG::Boost)
+    target_link_libraries(${TEST_NAME}
+        PRIVATE
+            rtmvideo
+            CONAN_PKG::Boost
+            CONAN_PKG::Loguru
+        )
     add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME} )
 endfunction()
 
