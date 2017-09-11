@@ -10,7 +10,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
   auto frames =
       streams::publishers::range(0, number_of_frames) >> streams::map([](int i) {
         uint8_t pixel_data[] = {0xff, 0x88, 0x11};
-        image_frame f{
+        internal_image_frame f{
             .id = {i, i},
             .pixel_format = image_pixel_format::RGB0,
             .width = 1,

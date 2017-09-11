@@ -29,7 +29,7 @@ streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> c
 
 streams::op<network_packet, encoded_packet> decode_network_stream();
 
-streams::op<encoded_packet, image_frame> decode_image_frames(
+streams::op<encoded_packet, internal_image_frame> decode_image_frames(
     int bounding_width, int bounding_height, image_pixel_format pixel_format);
 
 streams::subscriber<encoded_packet> &rtm_sink(std::shared_ptr<rtm::publisher> client,

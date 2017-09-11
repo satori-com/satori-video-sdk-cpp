@@ -5,10 +5,10 @@
 
 namespace empty_bot {
 
-void process_image(bot_context &context, uint16_t width, uint16_t height,
-                   const uint8_t *plane_data[MAX_IMAGE_PLANES],
-                   const uint32_t plane_strides[MAX_IMAGE_PLANES]) {
-  std::cout << "got frame " << width << "x" << height << "\n";
+void process_image(bot_context &context, const image_frame &frame) {
+  image_metadata m;
+  rtm_video_bot_get_metadata(m, context);
+  std::cout << "got frame " << m.width << "x" << m.height << "\n";
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   return nullptr;

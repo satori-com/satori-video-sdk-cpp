@@ -7,18 +7,12 @@
 #include <vector>
 
 #include "rtmvideo.h"
+#include "video_bot.h"
 
 namespace rtm {
 namespace video {
 
 static constexpr size_t max_payload_size = 65000;
-
-// frame id is an integer interval [i1, i2),
-// it was implemented this way because one of the sources is RTP
-struct frame_id {
-  int64_t i1;
-  int64_t i2;
-};
 
 bool operator==(const frame_id &lhs, const frame_id &rhs);
 bool operator!=(const frame_id &lhs, const frame_id &rhs);
@@ -67,7 +61,7 @@ struct encoded_frame {
 using encoded_packet = boost::variant<encoded_metadata, encoded_frame>;
 
 // TODO: may contain some data like FPS, etc.
-struct image_metadata {};
+struct internal_image_metadata {};
 
 // If an image uses packed pixel format like packed RGB or packed YUV,
 // then it has only a single plane, e.g. all it's data is within plane_data[0].
@@ -75,7 +69,7 @@ struct image_metadata {};
 // then every component is stored as a separate array (e.g. separate plane),
 // for example, for YUV  Y is plane_data[0], U is plane_data[1] and V is
 // plane_data[2]. A stride is a plane size with alignment.
-struct image_frame {
+struct internal_image_frame {
   frame_id id;
 
   image_pixel_format pixel_format;
@@ -86,7 +80,7 @@ struct image_frame {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
-using image_packet = boost::variant<image_metadata, image_frame>;
+using image_packet = boost::variant<image_metadata, internal_image_frame>;
 
 }  // namespace video
 }  // namespace rtm

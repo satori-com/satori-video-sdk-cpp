@@ -13,7 +13,7 @@ namespace video {
 struct vp9_encoder {
   vp9_encoder(uint8_t lag_in_frames) : _lag_in_frames(lag_in_frames) {}
 
-  streams::publisher<encoded_packet> init(const image_frame &f) {
+  streams::publisher<encoded_packet> init(const internal_image_frame &f) {
     BOOST_ASSERT(!_encoder_context);
     std::cout << "initializing encoder\n";
 
@@ -49,7 +49,7 @@ struct vp9_encoder {
             _encoder_context->extradata + _encoder_context->extradata_size}}}});
   }
 
-  streams::publisher<encoded_packet> on_image_frame(const image_frame &f) {
+  streams::publisher<encoded_packet> on_image_frame(const internal_image_frame &f) {
     if (!_encoder_context) {
       auto metadata = init(f);
       auto frames = encode_frame(f);
@@ -59,7 +59,7 @@ struct vp9_encoder {
     return encode_frame(f);
   }
 
-  streams::publisher<encoded_packet> encode_frame(const image_frame &f) {
+  streams::publisher<encoded_packet> encode_frame(const internal_image_frame &f) {
     avutils::sws_scale(_sws_context, _tmp_frame, _frame);
     avcodec_send_frame(_encoder_context.get(), _frame.get());
 
@@ -99,7 +99,8 @@ streams::op<image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames) {
     vp9_encoder *encoder = new vp9_encoder(lag_in_frames);
 
     return std::move(src) >> streams::flat_map([encoder](image_packet &&packet) {
-             if (const image_frame *frame = boost::get<image_frame>(&packet)) {
+             if (const internal_image_frame *frame =
+                     boost::get<internal_image_frame>(&packet)) {
                return encoder->on_image_frame(*frame);
              }
              return streams::publishers::empty<encoded_packet>();
