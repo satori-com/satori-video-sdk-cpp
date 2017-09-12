@@ -13,12 +13,11 @@ cbor_item_t *build_message(const std::string &text) {
                          .value = cbor_move(cbor_build_string(text.c_str()))});
   return cbor_move(message);
 }
-void process_image(bot_context &context, uint16_t width, uint16_t height,
-                   const uint8_t *plane_data[MAX_IMAGE_PLANES],
-                   const uint32_t plane_strides[MAX_IMAGE_PLANES]) {
+void process_image(bot_context &context, const image_frame &frame) {
   assert(context.instance_data != nullptr);  // Make sure initialization passed
-  std::cout << "got frame " << width << "x" << height
-            << ", BGR stride " << plane_strides[0] << "\n";
+  assert(context.frame_metadata->width != 0);
+  std::cout << "got frame " << context.frame_metadata->width << "x" << context.frame_metadata->height
+            << ", BGR stride " << context.frame_metadata->plane_strides[0] << "\n";
   rtm_video_bot_message(context, bot_message_kind::ANALYSIS,
                         cbor_move(build_message("Hello from bot 1")));
   rtm_video_bot_message(context, bot_message_kind::DEBUG,

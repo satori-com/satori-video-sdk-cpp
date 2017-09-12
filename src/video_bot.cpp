@@ -67,6 +67,7 @@ auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
 struct bot_message {
   cbor_item_t* data;
   bot_message_kind kind;
+  frame_id id;
 };
 
 struct channel_names {
@@ -107,11 +108,13 @@ encoded_metadata decode_metadata_frame(const rapidjson::Value& msg) {
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public streams::subscriber<image_frame> {
+class bot_instance : public bot_context, public streams::subscriber<owned_image_frame> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
-      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {}
+      : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
+          frame_metadata = &_image_metadata;
+      }
 
   virtual void stop() {
     if (_sub) {
@@ -119,10 +122,18 @@ class bot_instance : public bot_context, public streams::subscriber<image_frame>
     }
   }
 
-  void queue_message(const bot_message_kind kind, cbor_item_t* message) {
-    bot_message newmsg{message, kind};
+  void queue_message(const bot_message_kind kind, cbor_item_t* message,
+                     const frame_id &id) {
+    bot_message newmsg{message, kind, id};
     cbor_incref(message);
     _message_buffer.push_back(newmsg);
+  }
+
+  void get_metadata(image_metadata &data) const {
+    data.width = _image_metadata.width;
+    data.height = _image_metadata.height;
+    std::copy(_image_metadata.plane_strides,
+              _image_metadata.plane_strides + MAX_IMAGE_PLANES, data.plane_strides);
   }
 
   streams::subscription* _sub{nullptr};
@@ -143,27 +154,36 @@ class bot_instance : public bot_context, public streams::subscriber<image_frame>
     exit(2);
   }
 
-  void on_next(image_frame&& f) override {
+  void on_next(owned_image_frame&& f) override {
     process_image_frame(std::move(f));
     _sub->request(1);
   }
 
  protected:
-  virtual void process_image_frame(image_frame&& frame) {
+  virtual void process_image_frame(owned_image_frame&& frame) {
     stopwatch<> s;
 
-    const uint8_t* plane_data[MAX_IMAGE_PLANES];
+    if (frame.width != _image_metadata.width) {
+        _image_metadata.width = frame.width;
+        _image_metadata.height = frame.height;
+        std::copy(frame.plane_strides, frame.plane_strides + MAX_IMAGE_PLANES,
+                  _image_metadata.plane_strides);
+    }
+    image_frame bframe{
+        .id = frame.id
+    };
+
     for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
       if (frame.plane_data[i].empty()) {
-        plane_data[i] = nullptr;
+        bframe.plane_data[i] = nullptr;
       } else {
-        plane_data[i] = (const uint8_t*)frame.plane_data[i].data();
+        bframe.plane_data[i] = (const uint8_t*)frame.plane_data[i].data();
       }
     }
-    _descriptor.img_callback(*this, frame.width, frame.height, plane_data,
-                             frame.plane_strides);
 
+    _descriptor.img_callback(*this, bframe);
     tele::distribution_add(processing_times_millis, s.millis());
+
     send_messages(frame.id);
   }
 
@@ -173,12 +193,15 @@ class bot_instance : public bot_context, public streams::subscriber<image_frame>
     for (auto&& msg : _message_buffer) {
       cbor_item_t* data = msg.data;
 
-      if (id.i1 >= 0) {
+      int64_t ei1 = msg.id.i1 == 0 ? id.i1 : msg.id.i1;
+      int64_t ei2 = msg.id.i2 == 0 ? id.i1 : msg.id.i2;
+
+      if (ei1 >= 0) {
         cbor_item_t* is = cbor_new_definite_array(2);
         cbor_array_set(is, 0,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(id.i1))));
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei1))));
         cbor_array_set(is, 1,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(id.i2))));
+                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei2))));
         cbor_map_add(data, {.key = cbor_move(cbor_build_string("i")),
                             .value = cbor_move(is)});
       }
@@ -200,6 +223,7 @@ class bot_instance : public bot_context, public streams::subscriber<image_frame>
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
   encoded_metadata _metadata;
+  image_metadata _image_metadata{0,0};
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
@@ -305,11 +329,10 @@ class bot_online_instance : public bot_instance,
                          .value = cbor_move(cbor_copy(request_id))});
       }
 
-      queue_message(bot_message_kind::CONTROL, cbor_move(response));
+      queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0,0});
     }
 
     send_messages({.i1 = -1, .i2 = -1});
-    return;
   }
 
   const channel_names _channels;
@@ -460,7 +483,7 @@ void bot_environment::parse_config(boost::optional<std::string> config_file) {
 
   cbor_item_t* response = _bot_descriptor->ctrl_callback(*_bot_instance, cmd);
   if (response != nullptr) {
-    _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response));
+    _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0,0});
   }
 }
 
@@ -594,10 +617,14 @@ int bot_environment::main(int argc, char* argv[]) {
 }  // namespace rtm
 
 void rtm_video_bot_message(bot_context& ctx, const bot_message_kind kind,
-                           cbor_item_t* message) {
+                           cbor_item_t* message, const frame_id &id) {
   BOOST_ASSERT_MSG(cbor_map_is_indefinite(message),
                    "Message must be indefinite map");
-  static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message);
+  static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message, id);
+}
+
+void rtm_video_bot_get_metadata(image_metadata &data, const bot_context &ctx) {
+  static_cast<const rtm::video::bot_instance&>(ctx).get_metadata(data);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {
