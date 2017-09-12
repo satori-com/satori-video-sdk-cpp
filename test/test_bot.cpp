@@ -15,9 +15,9 @@ cbor_item_t *build_message(const std::string &text) {
 }
 void process_image(bot_context &context, const image_frame &frame) {
   assert(context.instance_data != nullptr);  // Make sure initialization passed
-  assert(context.metadata->width != 0);
-  std::cout << "got frame " << context.metadata->width << "x" << context.metadata->height
-            << ", BGR stride " << context.metadata->plane_strides[0] << "\n";
+  assert(context.frame_metadata->width != 0);
+  std::cout << "got frame " << context.frame_metadata->width << "x" << context.frame_metadata->height
+            << ", BGR stride " << context.frame_metadata->plane_strides[0] << "\n";
   rtm_video_bot_message(context, bot_message_kind::ANALYSIS,
                         cbor_move(build_message("Hello from bot 1")));
   rtm_video_bot_message(context, bot_message_kind::DEBUG,

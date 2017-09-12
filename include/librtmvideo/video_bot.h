@@ -25,7 +25,6 @@ EXPORT struct frame_id {
   int64_t i2;
 };
 
-// API for image handler callback
 // If an image uses packed pixel format like packed RGB or packed YUV,
 // then it has only a single plane, e.g. all it's data is within plane_data[0].
 // If an image uses planar pixel format like planar YUV or HSV,
@@ -44,12 +43,14 @@ EXPORT struct image_metadata {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
-// Used to store user defined state.
+// instance_data can be used to store data across multiple callbacks within a single bot instance
+// image_metadata contains frame size information
 EXPORT struct bot_context {
   void *instance_data{nullptr};
-  const image_metadata *metadata;
+  const image_metadata *frame_metadata;
 };
 
+// API for image handler callback
 using bot_img_callback_t = void (*)(bot_context &context, const image_frame &frame);
 
 // API for control command callback
@@ -79,6 +80,8 @@ struct bot_descriptor {
 EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 
 // Sends bot implementation output to RTM subchannel.
+// id parameter is used to bind a message to a frame, by default a message is
+// binded to the current frame that is received by callback function
 EXPORT void rtm_video_bot_message(bot_context &context, const bot_message_kind kind,
                                   cbor_item_t *message,
                                   const frame_id &id = frame_id{0, 0});

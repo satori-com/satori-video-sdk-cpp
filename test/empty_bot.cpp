@@ -6,7 +6,7 @@
 namespace empty_bot {
 
 void process_image(bot_context &context, const image_frame &frame) {
-  std::cout << "got frame " << context.metadata->width << "x" << context.metadata->height
+  std::cout << "got frame " << context.frame_metadata->width << "x" << context.frame_metadata->height
             << "\n";
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) { return nullptr; }

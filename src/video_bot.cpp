@@ -112,7 +112,7 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
       : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
-          metadata = &_image_metadata;
+          frame_metadata = &_image_metadata;
       }
 
   virtual void stop() {
