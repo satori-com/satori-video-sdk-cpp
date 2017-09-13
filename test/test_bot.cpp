@@ -9,15 +9,17 @@ struct State {
 };
 cbor_item_t *build_message(const std::string &text) {
   cbor_item_t *message = cbor_new_indefinite_map();
-  cbor_map_add(message, {.key = cbor_move(cbor_build_string("message")),
-                         .value = cbor_move(cbor_build_string(text.c_str()))});
+  cbor_map_add(message,
+               {.key = cbor_move(cbor_build_string("message")),
+                .value = cbor_move(cbor_build_string(text.c_str()))});
   return cbor_move(message);
 }
 void process_image(bot_context &context, const image_frame &frame) {
   assert(context.instance_data != nullptr);  // Make sure initialization passed
   assert(context.frame_metadata->width != 0);
-  std::cout << "got frame " << context.frame_metadata->width << "x" << context.frame_metadata->height
-            << ", BGR stride " << context.frame_metadata->plane_strides[0] << "\n";
+  std::cout << "got frame " << context.frame_metadata->width << "x"
+            << context.frame_metadata->height << ", BGR stride "
+            << context.frame_metadata->plane_strides[0] << "\n";
   rtm_video_bot_message(context, bot_message_kind::ANALYSIS,
                         cbor_move(build_message("Hello from bot 1")));
   rtm_video_bot_message(context, bot_message_kind::DEBUG,
@@ -28,8 +30,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
     assert(ctx.instance_data == nullptr);  // Make sure is has initialized once
     State *state = new State;
     std::cout << "bot is initializing, libraries are ok" << '\n';
-    std::string p =
-        cbor::map_get_str(cbor::map_get(config, "body"), "myparam", "");
+    std::string p = cbor::map_get_str(cbor::map_get(config, "body"), "myparam", "");
     assert(p.compare("myvalue") == 0);  // Make sure parameter passed
     ctx.instance_data = state;
   }

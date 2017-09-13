@@ -9,8 +9,7 @@ struct decoder;
 
 EXPORT void decoder_init_library();
 
-EXPORT decoder *decoder_new(int width, int height,
-                            image_pixel_format pixel_format);
+EXPORT decoder *decoder_new(int width, int height, image_pixel_format pixel_format);
 
 EXPORT decoder *decoder_new_keep_proportions(int width, int height,
                                              image_pixel_format pixel_format);

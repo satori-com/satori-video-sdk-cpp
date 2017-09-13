@@ -28,9 +28,7 @@ EXPORT gauge *gauge_new(const char *group, const char *name) noexcept;
 EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept;
 
 EXPORT struct distribution;
-EXPORT distribution *distribution_new(const char *group,
-                                      const char *name) noexcept;
-EXPORT void distribution_add(distribution *distribution,
-                             int64_t value) noexcept;
+EXPORT distribution *distribution_new(const char *group, const char *name) noexcept;
+EXPORT void distribution_add(distribution *distribution, int64_t value) noexcept;
 
 }  // namespace tele

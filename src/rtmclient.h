@@ -39,9 +39,7 @@ struct channel_position {
   uint32_t gen;
   uint64_t pos;
 
-  std::string str() const {
-    return std::to_string(gen) + ":" + std::to_string(pos);
-  }
+  std::string str() const { return std::to_string(gen) + ":" + std::to_string(pos); }
 
   static channel_position parse(const std::string &str) {
     char *str_pos = nullptr;
@@ -95,15 +93,13 @@ struct subscription_options {
 struct subscriber {
   virtual ~subscriber() = default;
 
-  virtual void subscribe_channel(
-      const std::string &channel, const subscription &sub,
-      subscription_callbacks &callbacks,
-      const subscription_options *options = nullptr) = 0;
+  virtual void subscribe_channel(const std::string &channel, const subscription &sub,
+                                 subscription_callbacks &callbacks,
+                                 const subscription_options *options = nullptr) = 0;
 
-  virtual void subscribe_filter(
-      const std::string &filter, const subscription &sub,
-      subscription_callbacks &callbacks,
-      const subscription_options *options = nullptr) = 0;
+  virtual void subscribe_filter(const std::string &filter, const subscription &sub,
+                                subscription_callbacks &callbacks,
+                                const subscription_options *options = nullptr) = 0;
 
   virtual void unsubscribe(const subscription &sub) = 0;
 
@@ -114,12 +110,11 @@ struct subscriber {
 
 class client : public publisher, public subscriber {};
 
-std::unique_ptr<client> new_client(const std::string &endpoint,
-                                   const std::string &port,
+std::unique_ptr<client> new_client(const std::string &endpoint, const std::string &port,
                                    const std::string &appkey,
                                    boost::asio::io_service &io_service,
-                                   boost::asio::ssl::context &ssl_ctx,
-                                   size_t id, error_callbacks &callbacks);
+                                   boost::asio::ssl::context &ssl_ctx, size_t id,
+                                   error_callbacks &callbacks);
 
 // reconnects on errors.
 // todo(mike): once I have several error reports, I will figure out how to handle those.
@@ -127,8 +122,7 @@ class resilient_client : public client {
  public:
   using client_factory_t = std::function<std::unique_ptr<client>()>;
 
-  explicit resilient_client(client_factory_t &&factory)
-      : _factory(std::move(factory)) {
+  explicit resilient_client(client_factory_t &&factory) : _factory(std::move(factory)) {
     _client = _factory();
   }
 
@@ -155,9 +149,8 @@ class resilient_client : public client {
   void unsubscribe(const subscription &sub) override {
     std::lock_guard<std::mutex> guard(_client_mutex);
     _client->unsubscribe(sub);
-    std::remove_if(
-        _subscriptions.begin(), _subscriptions.end(),
-        [&sub](const subscription_info &si) { return &sub == si.sub; });
+    std::remove_if(_subscriptions.begin(), _subscriptions.end(),
+                   [&sub](const subscription_info &si) { return &sub == si.sub; });
   }
 
   const channel_position &position(const subscription &sub) override {

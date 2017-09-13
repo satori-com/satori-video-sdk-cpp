@@ -7,8 +7,7 @@ cbor_item_t *map_get(cbor_item_t *map, const std::string name,
   if (map != nullptr && cbor_map_is_definite(map)) {
     for (size_t i = 0; i < cbor_map_size(map); i++) {
       cbor_item_t *key = cbor_map_handle(map)[i].key;
-      if (strncmp(name.c_str(),
-                  reinterpret_cast<char *>(cbor_string_handle(key)),
+      if (strncmp(name.c_str(), reinterpret_cast<char *>(cbor_string_handle(key)),
                   cbor_string_length(key)) == 0) {
         return cbor_map_handle(map)[i].value;
       }
@@ -22,8 +21,7 @@ bool map_has_str_value(cbor_item_t *map, const std::string name,
   cbor_item_t *item = map_get(map, name);
   if (item == nullptr) return 0;
   if (cbor_string_length(item) != value.length()) return false;
-  return strncmp(value.c_str(),
-                 reinterpret_cast<char *>(cbor_string_handle(item)),
+  return strncmp(value.c_str(), reinterpret_cast<char *>(cbor_string_handle(item)),
                  cbor_string_length(item)) == 0;
 }
 
@@ -35,8 +33,7 @@ std::string map_get_str(cbor_item_t *map, const std::string name,
                      cbor_string_length(value));
 }
 
-int map_get_int(cbor_item_t *map, const std::string name,
-                        const int default_value) {
+int map_get_int(cbor_item_t *map, const std::string name, const int default_value) {
   cbor_item_t *value = map_get(map, name);
   if (value == nullptr) return default_value;
   return cbor_get_int(value);

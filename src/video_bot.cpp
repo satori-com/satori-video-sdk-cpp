@@ -50,18 +50,13 @@ auto messages_received = tele::counter_new("vbot", "messages_received");
 auto bytes_received = tele::counter_new("vbot", "bytes_received");
 auto metadata_received = tele::counter_new("vbot", "metadata_received");
 
-auto encoded_frame_buffer_size =
-    tele::gauge_new("vbot", "encoded_frame_buffer_size");
-auto image_frame_buffer_size =
-    tele::gauge_new("vbot", "image_frame_buffer_size");
+auto encoded_frame_buffer_size = tele::gauge_new("vbot", "encoded_frame_buffer_size");
+auto image_frame_buffer_size = tele::gauge_new("vbot", "image_frame_buffer_size");
 
-auto decoding_times_millis =
-    tele::distribution_new("vbot", "decoding_times_millis");
-auto processing_times_millis =
-    tele::distribution_new("vbot", "processing_times_millis");
+auto decoding_times_millis = tele::distribution_new("vbot", "decoding_times_millis");
+auto processing_times_millis = tele::distribution_new("vbot", "processing_times_millis");
 
-auto encoded_frames_dropped =
-    tele::counter_new("vbot", "encoded_frames_dropped");
+auto encoded_frames_dropped = tele::counter_new("vbot", "encoded_frames_dropped");
 auto image_frames_dropped = tele::counter_new("vbot", "image_frames_dropped");
 
 struct bot_message {
@@ -113,8 +108,8 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
       : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
-          frame_metadata = &_image_metadata;
-      }
+    frame_metadata = &_image_metadata;
+  }
 
   virtual void stop() {
     if (_sub) {
@@ -123,13 +118,13 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
   }
 
   void queue_message(const bot_message_kind kind, cbor_item_t* message,
-                     const frame_id &id) {
+                     const frame_id& id) {
     bot_message newmsg{message, kind, id};
     cbor_incref(message);
     _message_buffer.push_back(newmsg);
   }
 
-  void get_metadata(image_metadata &data) const {
+  void get_metadata(image_metadata& data) const {
     data.width = _image_metadata.width;
     data.height = _image_metadata.height;
     std::copy(_image_metadata.plane_strides,
@@ -164,14 +159,12 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
     stopwatch<> s;
 
     if (frame.width != _image_metadata.width) {
-        _image_metadata.width = frame.width;
-        _image_metadata.height = frame.height;
-        std::copy(frame.plane_strides, frame.plane_strides + MAX_IMAGE_PLANES,
-                  _image_metadata.plane_strides);
+      _image_metadata.width = frame.width;
+      _image_metadata.height = frame.height;
+      std::copy(frame.plane_strides, frame.plane_strides + MAX_IMAGE_PLANES,
+                _image_metadata.plane_strides);
     }
-    image_frame bframe{
-        .id = frame.id
-    };
+    image_frame bframe{.id = frame.id};
 
     for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
       if (frame.plane_data[i].empty()) {
@@ -189,7 +182,7 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
 
   virtual void transmit(const bot_message_kind kind, cbor_item_t* message) = 0;
 
-  void send_messages(const frame_id &id) {
+  void send_messages(const frame_id& id) {
     for (auto&& msg : _message_buffer) {
       cbor_item_t* data = msg.data;
 
@@ -198,12 +191,10 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
 
       if (ei1 >= 0) {
         cbor_item_t* is = cbor_new_definite_array(2);
-        cbor_array_set(is, 0,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei1))));
-        cbor_array_set(is, 1,
-                       cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei2))));
-        cbor_map_add(data, {.key = cbor_move(cbor_build_string("i")),
-                            .value = cbor_move(is)});
+        cbor_array_set(is, 0, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei1))));
+        cbor_array_set(is, 1, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei2))));
+        cbor_map_add(data,
+                     {.key = cbor_move(cbor_build_string("i")), .value = cbor_move(is)});
       }
 
       if (!_bot_id.empty()) {
@@ -223,7 +214,7 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
   std::shared_ptr<decoder> _decoder;
   std::mutex _decoder_mutex;
   encoded_metadata _metadata;
-  image_metadata _image_metadata{0,0};
+  image_metadata _image_metadata{0, 0};
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
@@ -231,12 +222,10 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
 
 class bot_offline_instance : public bot_instance {
  public:
-  bot_offline_instance(const std::string& bot_id,
-                       const bot_descriptor& descriptor, std::ostream& analysis,
-                       std::ostream& debug, rtm::video::bot_environment& env)
-      : bot_instance(bot_id, descriptor, env),
-        _analysis(analysis),
-        _debug(debug) {}
+  bot_offline_instance(const std::string& bot_id, const bot_descriptor& descriptor,
+                       std::ostream& analysis, std::ostream& debug,
+                       rtm::video::bot_environment& env)
+      : bot_instance(bot_id, descriptor, env), _analysis(analysis), _debug(debug) {}
 
  private:
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
@@ -254,13 +243,10 @@ class bot_offline_instance : public bot_instance {
   std::ostream &_analysis, &_debug;
 };
 
-class bot_online_instance : public bot_instance,
-                            public rtm::subscription_callbacks {
+class bot_online_instance : public bot_instance, public rtm::subscription_callbacks {
  public:
-  bot_online_instance(const std::string& bot_id,
-                      const bot_descriptor& descriptor,
-                      const std::string& channel,
-                      rtm::video::bot_environment& env)
+  bot_online_instance(const std::string& bot_id, const bot_descriptor& descriptor,
+                      const std::string& channel, rtm::video::bot_environment& env)
       : bot_instance(bot_id, descriptor, env), _channels(channel) {}
 
   void subscribe_to_control_channel(rtm::subscriber& s) {
@@ -283,7 +269,6 @@ class bot_online_instance : public bot_instance,
   }
 
  private:
-
   void transmit(const bot_message_kind kind, cbor_item_t* message) override {
     std::string channel;
     switch (kind) {
@@ -324,12 +309,11 @@ class bot_online_instance : public bot_instance,
       cbor_item_t* request_id = cbor::map_get(request, "request_id");
       if (request_id != nullptr) {
         cbor_map_add(response,
-                     (struct cbor_pair){
-                         .key = cbor_move(cbor_build_string("request_id")),
-                         .value = cbor_move(cbor_copy(request_id))});
+                     (struct cbor_pair){.key = cbor_move(cbor_build_string("request_id")),
+                                        .value = cbor_move(cbor_copy(request_id))});
       }
 
-      queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0,0});
+      queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
     }
 
     send_messages({.i1 = -1, .i2 = -1});
@@ -341,12 +325,11 @@ class bot_online_instance : public bot_instance,
 
 cbor_item_t* configure_command(cbor_item_t* config) {
   cbor_item_t* cmd = cbor_new_definite_map(2);
-  cbor_map_add(cmd, (struct cbor_pair){
-                        .key = cbor_move(cbor_build_string("action")),
-                        .value = cbor_move(cbor_build_string("configure"))});
   cbor_map_add(cmd,
-               (struct cbor_pair){.key = cbor_move(cbor_build_string("body")),
-                                  .value = config});
+               (struct cbor_pair){.key = cbor_move(cbor_build_string("action")),
+                                  .value = cbor_move(cbor_build_string("configure"))});
+  cbor_map_add(cmd, (struct cbor_pair){.key = cbor_move(cbor_build_string("body")),
+                                       .value = config});
   return cmd;
 }
 
@@ -369,10 +352,10 @@ variables_map parse_command_line(int argc, char* argv[]) {
 
   po::options_description online("Online options");
   online.add_options()("endpoint", po::value<std::string>(), "app endpoint")(
-      "appkey", po::value<std::string>(), "app key")(
-      "channel", po::value<std::string>(), "channel")(
-      "port", po::value<std::string>(), "port")(
-      "time_limit", po::value<double>(), "time in seconds");
+      "appkey", po::value<std::string>(), "app key")("channel", po::value<std::string>(),
+                                                     "channel")(
+      "port", po::value<std::string>(), "port")("time_limit", po::value<double>(),
+                                                "time in seconds");
 
   po::options_description offline("Offline options");
   offline.add_options()("video_file", po::value<std::string>(), "input mp4")(
@@ -393,9 +376,8 @@ variables_map parse_command_line(int argc, char* argv[]) {
     exit(1);
   }
 
-  bool online_mode =
-      (vm.count("endpoint") || vm.count("appkey") || vm.count("channel") ||
-       vm.count("port") || vm.count("time_limit"));
+  bool online_mode = (vm.count("endpoint") || vm.count("appkey") || vm.count("channel") ||
+                      vm.count("port") || vm.count("time_limit"));
 
   bool offline_mode = (vm.count("video_file") || vm.count("analysis_file") ||
                        vm.count("debug_file") || vm.count("replay_file"));
@@ -483,7 +465,8 @@ void bot_environment::parse_config(boost::optional<std::string> config_file) {
 
   cbor_item_t* response = _bot_descriptor->ctrl_callback(*_bot_instance, cmd);
   if (response != nullptr) {
-    _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0,0});
+    _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response),
+                                 frame_id{0, 0});
   }
 }
 
@@ -494,10 +477,9 @@ int bot_environment::main_online(variables_map cmd_args) {
       new bot_online_instance(id, *_bot_descriptor, channel, *this);
   _bot_instance.reset(_bot_online_instance);
 
-  parse_config(
-      cmd_args.count("config")
-          ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
-          : boost::optional<std::string>{});
+  parse_config(cmd_args.count("config")
+                   ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
+                   : boost::optional<std::string>{});
 
   const std::string endpoint = cmd_args["endpoint"].as<std::string>();
   const std::string appkey = cmd_args["appkey"].as<std::string>();
@@ -515,8 +497,7 @@ int bot_environment::main_online(variables_map cmd_args) {
 
   _client = std::make_shared<resilient_client>(
       [&endpoint, &port, &appkey, &io_service, &ssl_context, this]() {
-        return rtm::new_client(endpoint, port, appkey, io_service, ssl_context,
-                               1, *this);
+        return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1, *this);
       });
   _bot_online_instance->subscribe_to_control_channel(*_client);
   _source = rtm_source(_client, channel) >>
@@ -552,24 +533,21 @@ int bot_environment::main_offline(variables_map cmd_args) {
   rtm::video::initialize_source_library();
   std::ostream *_analysis, *_debug;
   if (cmd_args.count("analysis_file")) {
-    _analysis =
-        new std::ofstream(cmd_args["analysis_file"].as<std::string>().c_str());
+    _analysis = new std::ofstream(cmd_args["analysis_file"].as<std::string>().c_str());
   } else
     _analysis = &std::cout;
   if (cmd_args.count("debug_file")) {
-    _debug =
-        new std::ofstream(cmd_args["debug_file"].as<std::string>().c_str());
+    _debug = new std::ofstream(cmd_args["debug_file"].as<std::string>().c_str());
   } else
     _debug = &std::cerr;
 
-  bot_offline_instance* _bot_offline_instance = new bot_offline_instance(
-      id, *_bot_descriptor, *_analysis, *_debug, *this);
+  bot_offline_instance* _bot_offline_instance =
+      new bot_offline_instance(id, *_bot_descriptor, *_analysis, *_debug, *this);
   _bot_instance.reset(_bot_offline_instance);
 
-  parse_config(
-      cmd_args.count("config")
-          ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
-          : boost::optional<std::string>{});
+  parse_config(cmd_args.count("config")
+                   ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
+                   : boost::optional<std::string>{});
 
   streams::publisher<encoded_packet> src;
 
@@ -617,13 +595,12 @@ int bot_environment::main(int argc, char* argv[]) {
 }  // namespace rtm
 
 void rtm_video_bot_message(bot_context& ctx, const bot_message_kind kind,
-                           cbor_item_t* message, const frame_id &id) {
-  BOOST_ASSERT_MSG(cbor_map_is_indefinite(message),
-                   "Message must be indefinite map");
+                           cbor_item_t* message, const frame_id& id) {
+  BOOST_ASSERT_MSG(cbor_map_is_indefinite(message), "Message must be indefinite map");
   static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message, id);
 }
 
-void rtm_video_bot_get_metadata(image_metadata &data, const bot_context &ctx) {
+void rtm_video_bot_get_metadata(image_metadata& data, const bot_context& ctx) {
   static_cast<const rtm::video::bot_instance&>(ctx).get_metadata(data);
 }
 

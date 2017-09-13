@@ -5,8 +5,8 @@
 #include <functional>
 #include <thread>
 
-#include "librtmvideo/tele.h"
 #include "channel.h"
+#include "librtmvideo/tele.h"
 #include "streams.h"
 
 namespace rtm {
@@ -17,19 +17,25 @@ struct buffered_worker_op {
   buffered_worker_op(const std::string &name, size_t buffer_size)
       : _name(name), _size(buffer_size) {}
 
-  template<typename T>
+  template <typename T>
   struct instance : streams::subscriber<T>, streams::subscription {
     using value_t = T;
 
-    struct subscribe{};
-    struct complete{};
-    struct error{std::error_condition ec;};
-    struct next{T t;};
+    struct subscribe {};
+    struct complete {};
+    struct error {
+      std::error_condition ec;
+    };
+    struct next {
+      T t;
+    };
     using msg = boost::variant<subscribe, next, error, complete>;
 
-    static streams::publisher<T> apply(streams::publisher<T> &&src, buffered_worker_op &&op) {
+    static streams::publisher<T> apply(streams::publisher<T> &&src,
+                                       buffered_worker_op &&op) {
       return streams::publisher<T>(
-          new streams::impl::op_publisher<T, T, buffered_worker_op>(std::move(src), std::move(op)));
+          new streams::impl::op_publisher<T, T, buffered_worker_op>(std::move(src),
+                                                                    std::move(op)));
     }
 
     instance(buffered_worker_op &&op, streams::subscriber<T> &sink)
@@ -71,22 +77,18 @@ struct buffered_worker_op {
       _source_sub->request(1);
     };
 
-    void request(int n) override {
-      _outstanding += n;
-    }
+    void request(int n) override { _outstanding += n; }
 
-    void cancel() override {
-      BOOST_ASSERT_MSG(false, "not implemented");
-    }
+    void cancel() override { BOOST_ASSERT_MSG(false, "not implemented"); }
 
-  private:
+   private:
     void worker_thread_loop() noexcept {
       while (true) {
         msg m = _channel.recv();
 
         if (boost::get<subscribe>(&m)) {
           _sink.on_subscribe(*this);
-        } else if (next* n = boost::get<next>(&m)) {
+        } else if (next *n = boost::get<next>(&m)) {
           BOOST_ASSERT(_outstanding > 0);
           _sink.on_next(std::move(n->t));
           _outstanding--;
@@ -122,7 +124,6 @@ struct buffered_worker_op {
 inline auto buffered_worker(const std::string &name, size_t buffer_size) {
   return buffered_worker_op(name, buffer_size);
 }
-
 
 }  // namespace video
 }  // namespace rtm

@@ -160,8 +160,7 @@ struct decoder {
     if (err) {
       char av_error[AV_ERROR_MAX_STRING_SIZE];
       std::cerr << "avcodec_send_packet error: "
-                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err)
-                << "\n";
+                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err) << "\n";
       return err;
     }
 
@@ -169,8 +168,7 @@ struct decoder {
     if (err) {
       char av_error[AV_ERROR_MAX_STRING_SIZE];
       std::cerr << "avcodec_receive_frame error: "
-                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err)
-                << "\n";
+                << av_make_error_string(av_error, AV_ERROR_MAX_STRING_SIZE, err) << "\n";
       return err;
     }
 
@@ -191,8 +189,8 @@ struct decoder {
         }
       }
 
-      std::cout << "decoder resolution is " << _image_width << "x"
-                << _image_height << "\n";
+      std::cout << "decoder resolution is " << _image_width << "x" << _image_height
+                << "\n";
 
       // todo: move this code into Image class.
       _image = new Image;
@@ -202,16 +200,14 @@ struct decoder {
       int bytes = av_image_alloc(_image->data, _image->linesize, _image->width,
                                  _image->height, _image->format, 1);
       if (bytes <= 0) {
-        fprintf(stderr, "av_image_alloc failed for %dx%d (%dx%d)\n",
-                _image->width, _image->height, this->_image_width,
-                this->_image_height);
+        fprintf(stderr, "av_image_alloc failed for %dx%d (%dx%d)\n", _image->width,
+                _image->height, this->_image_width, this->_image_height);
         return 1;
       }
 
       _sws_context = sws_getContext(
-          _frame->width, _frame->height, (AVPixelFormat)_frame->format,
-          _image->width, _image->height, _image->format, SWS_FAST_BILINEAR,
-          nullptr, nullptr, nullptr);
+          _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image->width,
+          _image->height, _image->format, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
 
       if (!_sws_context) {
         fprintf(stderr, "_sws_context failed\n");
@@ -230,19 +226,13 @@ struct decoder {
 
   int image_height() const { return _image_height; }
 
-  int stream_width() const {
-    return _decoder_context ? _decoder_context->width : 0;
-  }
+  int stream_width() const { return _decoder_context ? _decoder_context->width : 0; }
 
-  int stream_height() const {
-    return _decoder_context ? _decoder_context->height : 0;
-  }
+  int stream_height() const { return _decoder_context ? _decoder_context->height : 0; }
 
   double stream_fps() const {
-    double frame_rate =
-        _decoder_context ? av_q2d(_decoder_context->framerate) : 0;
-    return frame_rate != 0 ? frame_rate
-                           : 25 /* devices often do not report frame rate */;
+    double frame_rate = _decoder_context ? av_q2d(_decoder_context->framerate) : 0;
+    return frame_rate != 0 ? frame_rate : 25 /* devices often do not report frame rate */;
   }
 
   // TODO: consider using https://www.ffmpeg.org/doxygen/3.2/group__lavu__picture.html
@@ -250,7 +240,9 @@ struct decoder {
 
   uint64_t image_size() const { return _image->linesize[0] * _image->height; }
 
-  uint64_t image_line_size(uint8_t plane_index) const { return _image->linesize[plane_index]; }
+  uint64_t image_line_size(uint8_t plane_index) const {
+    return _image->linesize[plane_index];
+  }
 
   bool frame_ready() const { return _frame_ready; }
 
@@ -276,8 +268,7 @@ struct decoder {
 
 EXPORT void decoder_init_library() { decoder::init_library(); }
 
-EXPORT decoder *decoder_new(int width, int height,
-                            image_pixel_format pixel_format) {
+EXPORT decoder *decoder_new(int width, int height, image_pixel_format pixel_format) {
   std::unique_ptr<decoder> d(
       new decoder(width, height, to_av_pixel_format(pixel_format), false));
   int err = d->init();
@@ -323,7 +314,11 @@ EXPORT int decoder_image_height(decoder *d) { return d->image_height(); }
 EXPORT int decoder_image_width(decoder *d) { return d->image_width(); }
 EXPORT int decoder_stream_height(decoder *d) { return d->stream_height(); }
 EXPORT int decoder_stream_width(decoder *d) { return d->stream_width(); }
-EXPORT int decoder_image_line_size(decoder *d, uint8_t plane_index) { return d->image_line_size(plane_index); }
+EXPORT int decoder_image_line_size(decoder *d, uint8_t plane_index) {
+  return d->image_line_size(plane_index);
+}
 EXPORT int decoder_image_size(decoder *d) { return d->image_size(); }
-EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index) { return d->image_data(plane_index); }
+EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index) {
+  return d->image_data(plane_index);
+}
 EXPORT double decoder_stream_fps(decoder *d) { return d->stream_fps(); }

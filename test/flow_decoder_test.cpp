@@ -76,44 +76,44 @@ void run_flow_decoder_test(test_definition &&td) {
 
 BOOST_AUTO_TEST_CASE(vp9) {
   run_flow_decoder_test({
-    .metadata_filename = "",
-    .frames_filename = "test_data/vp9_320x180.frame",
-    .codec_name = "vp9",
-    .expected_width = 320,
-    .expected_height = 180,
-    .expected_frames_count = 1,
+      .metadata_filename = "",
+      .frames_filename = "test_data/vp9_320x180.frame",
+      .codec_name = "vp9",
+      .expected_width = 320,
+      .expected_height = 180,
+      .expected_frames_count = 1,
   });
 }
 
 BOOST_AUTO_TEST_CASE(h264) {
   run_flow_decoder_test({
-    .metadata_filename = "test_data/h264_320x180.metadata",
-    .frames_filename =  "test_data/h264_320x180.frame",
-    .codec_name = "h264",
-    .expected_width = 320,
-    .expected_height = 180,
-    .expected_frames_count = 1,
+      .metadata_filename = "test_data/h264_320x180.metadata",
+      .frames_filename = "test_data/h264_320x180.frame",
+      .codec_name = "h264",
+      .expected_width = 320,
+      .expected_height = 180,
+      .expected_frames_count = 1,
   });
 }
 
 BOOST_AUTO_TEST_CASE(jpeg) {
   run_flow_decoder_test({
-    .metadata_filename = "",
-    .frames_filename = "test_data/jpeg_320x180.frame",
-    .codec_name = "mjpeg",
-    .expected_width = 320,
-    .expected_height = 180,
-    .expected_frames_count = 1,
+      .metadata_filename = "",
+      .frames_filename = "test_data/jpeg_320x180.frame",
+      .codec_name = "mjpeg",
+      .expected_width = 320,
+      .expected_height = 180,
+      .expected_frames_count = 1,
   });
 }
 
 BOOST_AUTO_TEST_CASE(mjpeg) {
   run_flow_decoder_test({
-    .metadata_filename = "",
-    .frames_filename = "test_data/mjpeg_320x180.frame",
-    .codec_name = "mjpeg",
-    .expected_width = 320,
-    .expected_height = 180,
-    .expected_frames_count = 1,
+      .metadata_filename = "",
+      .frames_filename = "test_data/mjpeg_320x180.frame",
+      .codec_name = "mjpeg",
+      .expected_width = 320,
+      .expected_height = 180,
+      .expected_frames_count = 1,
   });
 }

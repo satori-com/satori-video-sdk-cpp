@@ -68,7 +68,7 @@ struct file_source_impl {
     LOG_S(1) << "Copying codec parameters to codec context...";
     if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
       LOG_S(ERROR) << "Failed to copy codec parameters to codec context:"
-                << avutils::error_msg(ret);
+                   << avutils::error_msg(ret);
       return ret;
     }
     LOG_S(1) << "Codec parameters were copied to codec context";

@@ -75,8 +75,7 @@ static rapidjson::Value cbor_to_json(const cbor_item_t *item,
       } else {
         // unsigned char * -> char *
         a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)),
-                    static_cast<int>(cbor_string_length(item)),
-                    document.GetAllocator());
+                    static_cast<int>(cbor_string_length(item)), document.GetAllocator());
       }
       break;
     case CBOR_TYPE_ARRAY:
@@ -122,8 +121,7 @@ struct subscribe_request {
     BOOST_VERIFY(document.IsObject());
     document["id"].SetInt64(id);
     auto body = document["body"].GetObject();
-    body["channel"].SetString(channel.c_str(), channel.length(),
-                              document.GetAllocator());
+    body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
     body["subscription_id"].SetString(channel.c_str(), channel.length(),
                                       document.GetAllocator());
 
@@ -146,8 +144,7 @@ class secure_client : public client {
  public:
   explicit secure_client(std::string host, std::string port, std::string appkey,
                          uint64_t client_id, error_callbacks &callbacks,
-                         asio::io_service &io_service,
-                         asio::ssl::context &ssl_ctx)
+                         asio::io_service &io_service, asio::ssl::context &ssl_ctx)
       : _ws{io_service, ssl_ctx}, _client_id(client_id), _callbacks(callbacks) {
     boost::system::error_code ec;
 
@@ -183,11 +180,9 @@ class secure_client : public client {
     document.Parse(tmpl);
     BOOST_VERIFY(document.IsObject());
     auto body = document["body"].GetObject();
-    body["channel"].SetString(channel.c_str(), channel.length(),
-                              document.GetAllocator());
+    body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
 
-    body.AddMember("message", cbor_to_json(message, document),
-                   document.GetAllocator());
+    body.AddMember("message", cbor_to_json(message, document), document.GetAllocator());
 
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
@@ -198,8 +193,7 @@ class secure_client : public client {
   void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
-    _subscriptions.emplace(
-        std::make_pair(channel, subscription_impl{sub, callbacks}));
+    _subscriptions.emplace(std::make_pair(channel, subscription_impl{sub, callbacks}));
 
     rapidjson::Document document;
     subscribe_request req{++_request_id, channel};
@@ -238,8 +232,7 @@ class secure_client : public client {
                                         unsigned long) {
       if (ec) fail(ec);
 
-      std::string input =
-          boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
+      std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
       _read_buffer.consume(_read_buffer.size());
 
       rapidjson::StringStream s(input.c_str());
@@ -272,8 +265,7 @@ class secure_client : public client {
       std::cerr << "subscription error: " << to_string(d) << "\n";
       _callbacks.on_error(client_error::SubscriptionError);
     } else {
-      std::cerr << "unhandled action " << action << "\n"
-                << to_string(d) << "\n";
+      std::cerr << "unhandled action " << action << "\n" << to_string(d) << "\n";
       BOOST_VERIFY(false);
     }
   }
@@ -281,8 +273,7 @@ class secure_client : public client {
   uint64_t _client_id;
   error_callbacks &_callbacks;
 
-  boost::beast::websocket::stream<
-      boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
+  boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
   uint64_t _request_id{0};
   boost::beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
@@ -291,15 +282,14 @@ class secure_client : public client {
 
 }  // namespace
 
-std::unique_ptr<client> new_client(const std::string &endpoint,
-                                   const std::string &port,
+std::unique_ptr<client> new_client(const std::string &endpoint, const std::string &port,
                                    const std::string &appkey,
                                    asio::io_service &io_service,
                                    asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks) {
   std::cout << "Creating RTM client for " << endpoint << ":" << port << "\n";
-  std::unique_ptr<secure_client> client(new secure_client(
-      endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
+  std::unique_ptr<secure_client> client(
+      new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);
 }
 }  // namespace rtm
