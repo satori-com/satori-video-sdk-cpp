@@ -79,11 +79,14 @@ struct buffered_worker_op {
 
     void request(int n) override { _outstanding += n; }
 
-    void cancel() override { BOOST_ASSERT_MSG(false, "not implemented"); }
+    void cancel() override {
+      _source_sub->cancel();
+      _is_active = false;
+    }
 
    private:
     void worker_thread_loop() noexcept {
-      while (true) {
+      while (_is_active) {
         msg m = _channel.recv();
 
         if (boost::get<subscribe>(&m)) {
@@ -96,17 +99,18 @@ struct buffered_worker_op {
         } else if (boost::get<complete>(&m)) {
           _sink.on_complete();
           // break the loop
-          return;
+          _is_active = false;
         } else if (error *e = boost::get<error>(&m)) {
           _sink.on_error(e->ec);
           // break the loop
-          return;
+          _is_active = false;
         } else {
           BOOST_ASSERT_MSG(false, "unexpected message");
         }
       }
     }
 
+    bool _is_active{true};
     streams::subscriber<T> &_sink;
     channel<msg> _channel;
     std::unique_ptr<std::thread> _worker_thread;

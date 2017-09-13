@@ -141,3 +141,9 @@ BOOST_AUTO_TEST_CASE(buffered_worker) {
   auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "."}));
 }
+
+BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
+  auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10) >>
+           streams::take(3);
+  BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
+}
