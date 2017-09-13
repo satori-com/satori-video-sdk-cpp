@@ -5,6 +5,7 @@
 #include "error.h"
 #include "librtmvideo/decoder.h"
 #include "librtmvideo/tele.h"
+#include "logging.h"
 #include "stopwatch.h"
 #include "video_streams.h"
 
@@ -80,7 +81,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
            >> streams::do_finally([s]() { delete s; });
   };
 }
-streams::op<encoded_packet, owned_image_frame> decode_image_frames(
+streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     int bounding_width, int bounding_height, image_pixel_format pixel_format) {
   struct state {
     state(int bounding_width, int bounding_height, image_pixel_format pixel_format)
@@ -89,9 +90,9 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
           _pixel_format(pixel_format) {}
 
     // returns 0 on success.
-    streams::publisher<owned_image_frame> on_metadata(const encoded_metadata &m) {
+    streams::publisher<owned_image_packet> on_metadata(const encoded_metadata &m) {
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
-        return streams::publishers::empty<owned_image_frame>();
+        return streams::publishers::empty<owned_image_packet>();
       }
 
       _metadata = m;
@@ -99,7 +100,7 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
       _decoder.reset(
           decoder_new_keep_proportions(_bounding_width, _bounding_height, _pixel_format),
           [](decoder *d) {
-            std::cout << "Deleting decoder\n";
+            LOG_S(INFO) << "Deleting decoder";
             decoder_delete(d);
           });
       BOOST_VERIFY(_decoder);
@@ -108,19 +109,19 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
                                      (const uint8_t *)_metadata.codec_data.data(),
                                      _metadata.codec_data.size());
       if (err)
-        return streams::publishers::error<owned_image_frame>(
+        return streams::publishers::error<owned_image_packet>(
             video_error::StreamInitializationError);
-      std::cout << "Video decoder initialized\n";
-      return streams::publishers::empty<owned_image_frame>();
+      LOG_S(INFO) << "Video decoder initialized";
+      return streams::publishers::empty<owned_image_packet>();
     }
 
-    streams::publisher<owned_image_frame> on_image_frame(const encoded_frame &f) {
+    streams::publisher<owned_image_packet> on_image_frame(const encoded_frame &f) {
       tele::counter_inc(messages_received);
       tele::counter_inc(bytes_received, f.data.size());
 
       if (!_decoder) {
         tele::counter_inc(messages_dropped);
-        return streams::publishers::empty<owned_image_frame>();
+        return streams::publishers::empty<owned_image_packet>();
       }
 
       decoder *decoder = _decoder.get();
@@ -132,7 +133,7 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
       }
 
       if (!decoder_frame_ready(decoder)) {
-        return streams::publishers::empty<owned_image_frame>();
+        return streams::publishers::empty<owned_image_packet>();
       }
 
       tele::counter_inc(frames_received);
@@ -152,7 +153,7 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
         }
       }
 
-      return streams::publishers::of({frame});
+      return streams::publishers::of({owned_image_packet{frame}});
     }
 
    private:
@@ -166,7 +167,7 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
   return [bounding_width, bounding_height,
           pixel_format](streams::publisher<encoded_packet> &&src) {
     state *s = new state(bounding_width, bounding_height, pixel_format);
-    streams::publisher<owned_image_frame> result =
+    streams::publisher<owned_image_packet> result =
         std::move(src) >> streams::flat_map([s](encoded_packet &&packet) {
           if (const encoded_metadata *m = boost::get<encoded_metadata>(&packet)) {
             return s->on_metadata(*m);

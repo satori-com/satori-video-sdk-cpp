@@ -35,6 +35,7 @@ add_library(rtmvideo
     src/cbor_tools.cpp
     src/data.cpp
     src/error.cpp
+    src/mkv_sink.cpp
     src/rtm_sink.cpp
     src/rtm_source.cpp
     src/rtmclient.cpp
@@ -83,6 +84,23 @@ target_link_libraries(rtmvideo_publisher_cli
         rtmvideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Loguru
+        CONAN_PKG::Openssl
+        CONAN_PKG::Rapidjson
+        CONAN_PKG::Gsl)
+
+add_executable(rtmvideo_recorder_cli
+    src/rtmvideo_recorder_cli.cpp)
+set_property(TARGET rtmvideo_recorder_cli PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(rtmvideo_recorder_cli bin)
+add_dependencies(rtmvideo_recorder_cli rtmvideo)
+target_include_directories(rtmvideo_recorder_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(rtmvideo_recorder_cli
+        PRIVATE
+        rtmvideo
+        CONAN_PKG::Boost
+        CONAN_PKG::Ffmpeg
+        CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl

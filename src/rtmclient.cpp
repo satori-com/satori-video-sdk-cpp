@@ -217,10 +217,10 @@ class secure_client : public client {
     BOOST_VERIFY(_client_state == client_state::Running);
     LOG_S(INFO) << "Stopping secure RTM client";
 
+    _client_state = client_state::PendingStopped;
     boost::system::error_code ec;
     _ws.next_layer().next_layer().close(ec);
     if (ec) fail("sending close signal", ec);
-    _client_state = client_state::PendingStopped;
   }
 
   void publish(const std::string &channel, const cbor_item_t *message,

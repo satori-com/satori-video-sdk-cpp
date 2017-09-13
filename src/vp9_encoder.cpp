@@ -6,6 +6,7 @@ extern "C" {
 
 #include "avutils.h"
 #include "error.h"
+#include "logging.h"
 
 namespace rtm {
 namespace video {
@@ -15,15 +16,23 @@ struct vp9_encoder {
 
   streams::publisher<encoded_packet> init(const owned_image_frame &f) {
     BOOST_ASSERT(!_encoder_context);
-    std::cout << "initializing encoder\n";
+    LOG_S(INFO) << "Initializing encoder";
 
     avutils::init();
     _encoder_context = avutils::encoder_context(_encoder_id);
     _encoder_context->width = f.width;
     _encoder_context->height = f.height;
+
+    // http://wiki.webmproject.org/ffmpeg/vp9-encoding-guide
     AVDictionary *codec_options = nullptr;
+    // TODO: pass these parameters as an input, for example, via json file.
+    av_dict_set(&codec_options, "threads", "4", 0);
+    av_dict_set(&codec_options, "frame-parallel", "1", 0);
+    av_dict_set(&codec_options, "tile-columns", "6", 0);
+    av_dict_set(&codec_options, "auto-alt-ref", "1", 0);
     av_dict_set(&codec_options, "lag-in-frames", std::to_string(_lag_in_frames).c_str(),
                 0);
+
     int ret = avcodec_open2(_encoder_context.get(), nullptr, &codec_options);
     av_dict_free(&codec_options);
     if (ret < 0) {
@@ -44,9 +53,10 @@ struct vp9_encoder {
 
     return streams::publishers::of({encoded_packet{encoded_metadata{
         .codec_name = "vp9",
-        .codec_data = std::string{
-            _encoder_context->extradata,
-            _encoder_context->extradata + _encoder_context->extradata_size}}}});
+        .codec_data =
+            std::string{_encoder_context->extradata,
+                        _encoder_context->extradata + _encoder_context->extradata_size},
+        .image_size = image_size{.width = f.width, .height = f.height}}}});
   }
 
   streams::publisher<encoded_packet> on_image_frame(const owned_image_frame &f) {
@@ -60,6 +70,7 @@ struct vp9_encoder {
   }
 
   streams::publisher<encoded_packet> encode_frame(const owned_image_frame &f) {
+    avutils::copy_image_to_av_frame(f, _tmp_frame);
     avutils::sws_scale(_sws_context, _tmp_frame, _frame);
     avcodec_send_frame(_encoder_context.get(), _frame.get());
 
@@ -80,6 +91,12 @@ struct vp9_encoder {
       packets.push_back(encoded_frame{.data = data, .id = f.id});
     }
 
+    _counter++;
+    if (_counter % 100 == 0) {
+      LOG_S(INFO) << "Encoded " << _counter << " frames";
+    }
+    LOG_S(2) << "Encoded " << _counter << " frames";
+
     return streams::publishers::of(std::move(packets));
   }
 
@@ -92,6 +109,7 @@ struct vp9_encoder {
   std::shared_ptr<AVFrame> _tmp_frame{nullptr};  // for pixel format conversion
   std::shared_ptr<AVFrame> _frame{nullptr};
   std::shared_ptr<SwsContext> _sws_context{nullptr};
+  int64_t _counter{0};
 };
 
 streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames) {
@@ -105,7 +123,10 @@ streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames
              }
              return streams::publishers::empty<encoded_packet>();
            })
-           >> streams::do_finally([encoder]() { delete encoder; });
+           >> streams::do_finally([encoder]() {
+               LOG_S(INFO) << "Deleting VP9 encoder";
+               delete encoder;
+             });
   };
 };
 

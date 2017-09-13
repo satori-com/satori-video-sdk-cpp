@@ -37,7 +37,7 @@ class bot_environment : private error_callbacks {
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _client;
-  streams::publisher<owned_image_frame> _source;
+  streams::publisher<owned_image_packet> _source;
 };
 
 }  // namespace video

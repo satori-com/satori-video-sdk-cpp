@@ -103,7 +103,7 @@ encoded_metadata decode_metadata_frame(const rapidjson::Value& msg) {
   return {codec_name, codec_data};
 }
 
-class bot_instance : public bot_context, public streams::subscriber<owned_image_frame> {
+class bot_instance : public bot_context, public streams::subscriber<owned_image_packet> {
  public:
   bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
                rtm::video::bot_environment& env)
@@ -149,13 +149,21 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
     exit(2);
   }
 
-  void on_next(owned_image_frame&& f) override {
-    process_image_frame(std::move(f));
+  void on_next(owned_image_packet&& packet) override {
+    if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&packet)) {
+      process_image_metadata(*m);
+    } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&packet)) {
+      process_image_frame(*f);
+    } else {
+      BOOST_ASSERT_MSG(false, "Bad variant");
+    }
     _sub->request(1);
   }
 
  protected:
-  virtual void process_image_frame(owned_image_frame&& frame) {
+  virtual void process_image_metadata(const owned_image_metadata& metadata) {}
+
+  virtual void process_image_frame(const owned_image_frame& frame) {
     stopwatch<> s;
 
     if (frame.width != _image_metadata.width) {

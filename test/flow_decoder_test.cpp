@@ -50,7 +50,7 @@ void run_flow_decoder_test(test_definition &&td) {
 
   if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
 
-  streams::publisher<owned_image_frame> image_stream =
+  streams::publisher<owned_image_packet> image_stream =
       test_stream(td) >> lift(decode_image_frames(-1, -1, image_pixel_format::RGB0));
 
   int last_frame_width;
@@ -58,11 +58,17 @@ void run_flow_decoder_test(test_definition &&td) {
   int frames_count{0};
 
   image_stream->process(
-      [&last_frame_width, &last_frame_height, &frames_count](owned_image_frame &&f) {
-        last_frame_width = f.width;
-        last_frame_height = f.height;
+      [&last_frame_width, &last_frame_height,
+       &frames_count](owned_image_packet &&packet) {
+        if (const owned_image_metadata *m = boost::get<owned_image_metadata>(&packet)) {
+          // just count
+        } else if (const owned_image_frame *f = boost::get<owned_image_frame>(&packet)) {
+          last_frame_width = f->width;
+          last_frame_height = f->height;
+        } else {
+          BOOST_FAIL("Bad variant");
+        }
         frames_count++;
-
       },
       []() {}, [](const std::error_condition ec) { BOOST_FAIL(ec.message()); });
 

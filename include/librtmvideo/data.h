@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cbor.h>
+#include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <chrono>
 #include <string>
@@ -41,10 +42,17 @@ struct network_frame {
 // algebraic type to support flow of network data using streams API
 using network_packet = boost::variant<network_metadata, network_frame>;
 
+// image size
+struct image_size {
+  uint16_t width;
+  uint16_t height;
+};
+
 // codec parameters to decode encoded frames
 struct encoded_metadata {
   std::string codec_name;
   std::string codec_data;
+  boost::optional<struct image_size> image_size;
 
   network_metadata to_network() const;
 };
@@ -57,7 +65,7 @@ struct encoded_frame {
   std::vector<network_frame> to_network(std::chrono::system_clock::time_point t) const;
 };
 
-// algebraic type to support flow of encoded frame data using streams API
+// algebraic type to support flow of encoded data using streams API
 using encoded_packet = boost::variant<encoded_metadata, encoded_frame>;
 
 // TODO: may contain some data like FPS, etc.
@@ -80,7 +88,8 @@ struct owned_image_frame {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
-using owned_image_packet = boost::variant<image_metadata, owned_image_frame>;
+// algebraic type to support flow of image data using streams API
+using owned_image_packet = boost::variant<owned_image_metadata, owned_image_frame>;
 
 }  // namespace video
 }  // namespace rtm

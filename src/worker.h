@@ -130,7 +130,7 @@ struct buffered_worker_op {
       delete this;
     }
 
-    bool _is_active{true};
+    std::atomic<bool> _is_active{true};
     streams::subscriber<T> &_sink;
     channel<msg> _channel;
     std::unique_ptr<std::thread> _worker_thread;

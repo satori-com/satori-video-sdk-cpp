@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -9,6 +10,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include "librtmvideo/data.h"
 #include "librtmvideo/rtmvideo.h"
 
 namespace rtm {
@@ -40,6 +42,14 @@ void sws_scale(std::shared_ptr<SwsContext> sws_context,
                std::shared_ptr<const AVFrame> src_frame,
                std::shared_ptr<AVFrame> dst_frame);
 
+// Creates FFmpeg's format context to write data to files
+std::shared_ptr<AVFormatContext> format_context(
+    const std::string &format, const std::string &filename,
+    std::function<void(AVFormatContext *)> file_cleaner);
+
+// Copies image frame data to AVFrame
+void copy_image_to_av_frame(const owned_image_frame &image,
+                            std::shared_ptr<AVFrame> frame);
 }  // namespace avutils
 }  // namespace video
 }  // namespace rtm

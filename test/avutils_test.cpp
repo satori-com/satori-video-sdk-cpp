@@ -1,7 +1,10 @@
 #define BOOST_TEST_MODULE AVUtilsTest
+#define BOOST_TEST_NO_MAIN
+#define BOOST_TEST_ALTERNATIVE_INIT_API
 #include <boost/test/included/unit_test.hpp>
 
 #include "avutils.h"
+#include "logging_implementation.h"
 
 BOOST_AUTO_TEST_CASE(av_error_messages) {
   BOOST_CHECK_EQUAL("Resource temporarily unavailable",
@@ -26,7 +29,7 @@ BOOST_AUTO_TEST_CASE(encoder_context) {
   BOOST_CHECK_EQUAL(AVMEDIA_TYPE_VIDEO, ctx->codec_type);
   BOOST_CHECK_EQUAL(encoder_id, ctx->codec_id);
   BOOST_CHECK_EQUAL(encoder->pix_fmts[0], ctx->pix_fmt);
-  BOOST_CHECK_EQUAL(4, ctx->gop_size);
+  BOOST_CHECK_EQUAL(12, ctx->gop_size);
   BOOST_CHECK_EQUAL(1, ctx->time_base.num);
   BOOST_CHECK_EQUAL(1000, ctx->time_base.den);
 }
@@ -77,4 +80,41 @@ BOOST_AUTO_TEST_CASE(sws) {
   BOOST_CHECK_EQUAL(r, dst_frame->data[0][0]);
   BOOST_CHECK_EQUAL(g, dst_frame->data[0][1]);
   BOOST_CHECK_EQUAL(b, dst_frame->data[0][2]);
+}
+
+BOOST_AUTO_TEST_CASE(format_context) {
+  std::shared_ptr<AVFormatContext> ctx = rtm::video::avutils::format_context(
+      "matroska", "test.mkv", [](AVFormatContext *) {});
+
+  BOOST_CHECK_EQUAL("test.mkv", ctx->filename);
+  BOOST_CHECK_EQUAL("Matroska", ctx->oformat->long_name);
+}
+
+BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
+  int width = 100;
+  int height = 100;
+  int align = 1;
+  AVPixelFormat av_pixel_format = AV_PIX_FMT_RGB0;
+  std::shared_ptr<AVFrame> frame =
+      rtm::video::avutils::av_frame(width, height, align, av_pixel_format);
+
+  rtm::video::owned_image_frame image;
+  image.pixel_format = image_pixel_format::RGB0;
+  image.width = width;
+  image.height = height;
+  uint8_t data[width * height * 3];
+  for (size_t i = 0; i < sizeof(data); i++) {
+    data[i] = (i * i) % 256;
+  }
+  image.plane_data[0].assign(data, data + sizeof(data));
+  image.plane_strides[0] = width * 3;
+
+  rtm::video::avutils::copy_image_to_av_frame(image, frame);
+
+  BOOST_TEST(!memcmp(data, frame->data[0], sizeof(data)));
+}
+
+int main(int argc, char *argv[]) {
+  init_logging(argc, argv);
+  return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }
