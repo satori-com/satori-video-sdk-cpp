@@ -65,22 +65,26 @@ struct strip_publisher<publisher<T>> {
 template <typename T>
 struct async_publisher_impl : public publisher_impl<T> {
   using init_fn_t = std::function<void(observer<T> &observer)>;
+  using cancel_fn_t = std::function<void()>;
 
-  explicit async_publisher_impl(init_fn_t init_fn) : _init_fn(init_fn) {}
+  explicit async_publisher_impl(init_fn_t init_fn, cancel_fn_t cancel_fn)
+      : _init_fn(init_fn), _cancel_fn(cancel_fn) {}
 
   struct sub : subscription, public observer<T> {
     subscriber<T> &_sink;
-    std::atomic<long> outstanding;
+    std::atomic<long> _requested;
+    cancel_fn_t _cancel_fn;
 
-    explicit sub(subscriber<T> &sink) : _sink(sink) {}
+    explicit sub(subscriber<T> &sink, cancel_fn_t cancel_fn)
+        : _sink(sink), _cancel_fn(cancel_fn) {}
 
-    void request(int n) override { outstanding += n; }
+    void request(int n) override { _requested += n; }
 
-    void cancel() override { BOOST_ASSERT_MSG(false, "not implemented"); }
+    void cancel() override { _cancel_fn(); }
 
     void on_next(T &&t) override {
-      if (outstanding.fetch_sub(1) <= 0) {
-        outstanding++;
+      if (_requested.fetch_sub(1) <= 0) {
+        _requested++;
         return;
       }
 
@@ -95,12 +99,13 @@ struct async_publisher_impl : public publisher_impl<T> {
   };
 
   virtual void subscribe(subscriber<T> &s) {
-    auto inst = new sub(s);
-    _init_fn(*inst);
+    auto inst = new sub(s, _cancel_fn);
     s.on_subscribe(*inst);
+    _init_fn(*inst);
   }
 
   init_fn_t _init_fn;
+  cancel_fn_t _cancel_fn;
 };
 
 template <typename T>
@@ -614,8 +619,9 @@ publisher<T> publishers::error(std::error_condition ec) {
 }
 
 template <typename T>
-publisher<T> generators<T>::async(std::function<void(observer<T> &observer)> init_fn) {
-  return publisher<T>(new impl::async_publisher_impl<T>(init_fn));
+publisher<T> generators<T>::async(std::function<void(observer<T> &observer)> init_fn,
+                                  std::function<void()> cancel_fn) {
+  return publisher<T>(new impl::async_publisher_impl<T>(init_fn, cancel_fn));
 }
 
 template <typename T>

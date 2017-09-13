@@ -1,13 +1,28 @@
+#include "librtmvideo/data.h"
+#include "rtmclient.h"
+#include "streams.h"
 #include "video_streams.h"
 
 namespace rtm {
 namespace video {
 
-struct rtm_impl : public subscription_callbacks {
-  rtm_impl(std::shared_ptr<rtm::subscriber> subscriber, const std::string &channel_name)
+struct rtm_source_impl : public subscription_callbacks {
+  rtm_source_impl(std::shared_ptr<rtm::subscriber> subscriber,
+                  const std::string &channel_name)
       : _subscriber(subscriber),
         _frames_channel(channel_name),
-        _metadata_channel(channel_name + metadata_channel_suffix) {
+        _metadata_channel(channel_name + metadata_channel_suffix) {}
+
+  ~rtm_source_impl() {
+    if (_sink != nullptr) {
+      _subscriber->unsubscribe(_metadata_subscription);
+      _subscriber->unsubscribe(_frames_subscription);
+    }
+  }
+
+  void start(streams::observer<network_packet> &s) {
+    _sink = &s;
+
     subscription_options metadata_options;
     metadata_options.history.count = 1;
     _subscriber->subscribe_channel(_metadata_channel, _metadata_subscription, *this,
@@ -15,9 +30,7 @@ struct rtm_impl : public subscription_callbacks {
     _subscriber->subscribe_channel(_frames_channel, _frames_subscription, *this);
   }
 
-  void start(streams::observer<network_packet> &s) { _sink = &s; }
-
-  void on_data(const subscription &sub, rapidjson::Value &&value) {
+  void on_data(const subscription &sub, rapidjson::Value &&value) override {
     if (&sub == &_metadata_subscription) {
       on_metadata(value);
     } else if (&sub == &_frames_subscription) {
@@ -58,7 +71,7 @@ struct rtm_impl : public subscription_callbacks {
   }
 
   const std::shared_ptr<rtm::subscriber> _subscriber;
-  streams::observer<network_packet> *_sink;
+  streams::observer<network_packet> *_sink{nullptr};
   const std::string _metadata_channel;
   const std::string _frames_channel;
   rtm::subscription _metadata_subscription;
@@ -67,11 +80,14 @@ struct rtm_impl : public subscription_callbacks {
 
 streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
                                               const std::string &channel_name) {
+  rtm_source_impl *impl{nullptr};
   return streams::generators<network_packet>::async(
-      [client, channel_name](streams::observer<network_packet> &o) {
-        auto impl = new rtm_impl(client, channel_name);
+      [&impl, client, channel_name](streams::observer<network_packet> &o) mutable {
+        impl = new rtm_source_impl(client, channel_name);
         impl->start(o);
-      });
+      },
+      // TODO: maybe better to implement rtmclient::stop() and call it?
+      [&impl]() { delete impl; });
 };
 
 }  // namespace video

@@ -148,3 +148,31 @@ BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
            >> streams::take(3);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }
+
+BOOST_AUTO_TEST_CASE(async_cancel) {
+  struct async_source {
+    void start(streams::observer<int> *s) {
+      std::thread{[this, s]() {
+        int counter = 1;
+        while (_active) {
+          s->on_next(counter++);
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        delete this;
+      }}
+          .detach();
+    }
+
+    void stop() { _active = false; }
+
+    std::atomic<bool> _active{true};
+  };
+
+  auto src = new async_source();
+  auto p =
+      streams::generators<int>::async(
+          [src](streams::observer<int> &o) { src->start(&o); }, [src]() { src->stop(); })
+      >> streams::take(3);
+
+  BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
+}

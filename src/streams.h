@@ -98,7 +98,8 @@ struct generators {
   static publisher<T> stateful(CreateFn &&create_fn, GenFn &&gen_fn);
 
   // Creates a stream from extern asynchronous process.
-  static publisher<T> async(std::function<void(observer<T> &observer)> init_fn);
+  static publisher<T> async(std::function<void(observer<T> &observer)> init_fn,
+                            std::function<void()> cancel_fn);
 };
 
 // read file line by line.

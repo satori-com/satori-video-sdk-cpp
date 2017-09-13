@@ -32,11 +32,11 @@ add_library(rtmvideo
     src/data.cpp
     src/error.cpp
     src/rtm_sink.cpp
+    src/rtm_source.cpp
     src/rtmclient.cpp
     src/source_camera.cpp
     src/source_file.cpp
     src/source_replay.cpp
-    src/source_rtm.cpp
     src/streams.cpp
     src/tele.cpp
     src/video_bot.cpp
