@@ -148,7 +148,7 @@ struct file_source_impl {
 
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                std::string filename, bool loop,
-                                               bool synchronous) {
+                                               bool batch) {
   streams::publisher<encoded_packet> result =
       streams::generators<encoded_packet>::stateful(
           [filename, loop]() { return new file_source_impl(filename, loop); },
@@ -156,7 +156,7 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
             return impl->generate(count, sink);
           });
 
-  if (synchronous) {
+  if (!batch) {
     // todo: fps
     int fps = 25;
     result = std::move(result) >> streams::lift(streams::asio::interval<encoded_packet>(

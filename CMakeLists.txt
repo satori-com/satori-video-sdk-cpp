@@ -38,6 +38,7 @@ add_library(rtmvideo
     src/mkv_sink.cpp
     src/rtm_sink.cpp
     src/rtm_source.cpp
+    src/rtm_streams.cpp
     src/rtmclient.cpp
     src/source_camera.cpp
     src/source_file.cpp
@@ -145,8 +146,10 @@ endfunction()
 
 enable_testing()
 file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis=a1.txt --debug=d1.txt && grep \"Hello from bot 1\" a1.txt && grep \"Hello from bot 2\" d1.txt")
-add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis=a2.txt --debug=d2.txt && grep \"Hello from bot 1\" a2.txt && grep \"Hello from bot 2\" d2.txt")
+add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --replay_file=test_data/test.replay --config=test_data/config.json --analysis_file=a1.txt --debug=d1.txt -v 9 && grep test_analysis_message a1.txt && grep test_debug_message d1.txt")
+add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a2.txt --debug=d2.txt && grep test_analysis_message a2.txt && grep test_debug_message d2.txt")
+add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --replay_file=test_data/test.replay --config=test_data/config.json --analysis_file=a3.txt --debug=d3.txt && grep test_analysis_message a3.txt && grep test_debug_message d3.txt")
+add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --video_file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
 add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)

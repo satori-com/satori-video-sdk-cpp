@@ -91,6 +91,7 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
 
     // returns 0 on success.
     streams::publisher<owned_image_packet> on_metadata(const encoded_metadata &m) {
+      LOG_S(1) << "received stream metadata";
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
         return streams::publishers::empty<owned_image_packet>();
       }
@@ -100,7 +101,7 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
       _decoder.reset(
           decoder_new_keep_proportions(_bounding_width, _bounding_height, _pixel_format),
           [](decoder *d) {
-            LOG_S(INFO) << "Deleting decoder";
+            LOG_S(1) << "deleting decoder";
             decoder_delete(d);
           });
       BOOST_VERIFY(_decoder);
@@ -111,7 +112,7 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
       if (err)
         return streams::publishers::error<owned_image_packet>(
             video_error::StreamInitializationError);
-      LOG_S(INFO) << "Video decoder initialized";
+      LOG_S(INFO) << _metadata.codec_name << " video decoder  initialized";
       return streams::publishers::empty<owned_image_packet>();
     }
 

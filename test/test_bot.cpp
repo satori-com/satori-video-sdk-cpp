@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <librtmvideo/cbor_tools.h>
 #include <librtmvideo/video_bot.h>
+#include <boost/assert.hpp>
 #include <iostream>
 
 namespace test_bot {
@@ -21,9 +22,9 @@ void process_image(bot_context &context, const image_frame &frame) {
             << context.frame_metadata->height << ", BGR stride "
             << context.frame_metadata->plane_strides[0] << "\n";
   rtm_video_bot_message(context, bot_message_kind::ANALYSIS,
-                        cbor_move(build_message("Hello from bot 1")));
+                        cbor_move(build_message("test_analysis_message")));
   rtm_video_bot_message(context, bot_message_kind::DEBUG,
-                        cbor_move(build_message("Hello from bot 2")));
+                        cbor_move(build_message("test_debug_message")));
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   if (cbor::map_has_str_value(config, "action", "configure")) {
@@ -31,7 +32,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
     State *state = new State;
     std::cout << "bot is initializing, libraries are ok" << '\n';
     std::string p = cbor::map_get_str(cbor::map_get(config, "body"), "myparam", "");
-    assert(p.compare("myvalue") == 0);  // Make sure parameter passed
+    BOOST_ASSERT(p == "myvalue");
     ctx.instance_data = state;
   }
   return nullptr;

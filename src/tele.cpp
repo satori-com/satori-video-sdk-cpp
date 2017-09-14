@@ -69,7 +69,13 @@ EXPORT counter *counter_new(const char *group, const char *name) noexcept {
   return c;
 }
 
-EXPORT void counter_delete(counter *c) noexcept { delete c; }
+EXPORT void counter_delete(counter *c) noexcept {
+  auto &ctrs = counter::counters();
+  auto it = std::find(ctrs.begin(), ctrs.end(), c);
+  BOOST_ASSERT(it != ctrs.end());
+  ctrs.erase(it);
+  delete c;
+}
 
 EXPORT void counter_inc(counter *counter, uint64_t delta) noexcept {
   counter->inc(delta);
@@ -189,12 +195,14 @@ cbor_item_t *tele_serialize(std::vector<counter *> &counters,
 }
 
 void on_tele_tick(rtm::publisher &publisher, boost::asio::deadline_timer &timer,
-                  const boost::system::error_code & /*e*/) {
+                  const boost::system::error_code &ec) {
+  if (ec == boost::asio::error::operation_aborted) return;
+  BOOST_ASSERT(!ec);
   counter_inc(messages_published);
   publisher.publish(tele::channel, tele_serialize(counter::counters(), gauge::gauges(),
                                                   distribution::distributions()));
+  timer.expires_at(timer.expires_at() + tele_interval);
   timer.async_wait([&publisher, &timer](const boost::system::error_code &ec) {
-    timer.expires_at(timer.expires_at() + tele_interval);
     on_tele_tick(publisher, timer, ec);
   });
 }
@@ -204,4 +212,7 @@ publisher::publisher(rtm::publisher &rtm_publisher, boost::asio::io_service &io_
   tele_running = true;
   on_tele_tick(rtm_publisher, _timer, boost::system::error_code{});
 }
+
+publisher::~publisher() { _timer.cancel(); }
+
 }  // namespace tele

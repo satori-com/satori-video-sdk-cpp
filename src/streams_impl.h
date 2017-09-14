@@ -541,7 +541,9 @@ struct flat_map_op {
       }
 
       void cancel() override {
-        _source->cancel();
+        if (_source) {
+          _source->cancel();
+        }
         delete this;
       }
     };
@@ -740,10 +742,11 @@ struct do_finally_op {
     }
 
     void cancel() override {
-      BOOST_ASSERT(_source_sub);
       LOG_S(5) << "do_finally(" << this << ")::cancel";
-      _source_sub->cancel();
-      _source_sub = nullptr;
+      if (_source_sub) {
+        _source_sub->cancel();
+        _source_sub = nullptr;
+      }
       _fn();
       delete this;
     }

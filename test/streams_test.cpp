@@ -202,6 +202,52 @@ BOOST_AUTO_TEST_CASE(delay_finally) {
     BOOST_TEST(terminated);
 }
 
+template <typename T>
+struct collector_sink : public streams::subscriber<T> {
+  void on_next(T &&t) override {
+    BOOST_TEST(src);
+    items.push_back(t);
+    src->request(1);
+  }
+
+  void on_error(std::error_condition ec) override { error = true; }
+
+  void on_complete() override { complete = true; }
+
+  void on_subscribe(streams::subscription &s) override {
+    BOOST_TEST(!src);
+    src = &s;
+    src->request(1);
+  }
+
+  streams::subscription *src;
+  std::vector<T> items;
+  bool error{false};
+  bool complete{false};
+};
+
+BOOST_AUTO_TEST_CASE(collector_asio) {
+  LOG_SCOPE_FUNCTION(ERROR);
+  boost::asio::io_service io_service;
+  bool terminated = false;
+  auto p = streams::publishers::range(1, 300000000)
+           >> streams::lift(
+                  streams::asio::interval<int>(io_service, std::chrono::milliseconds(5)))
+           >> streams::take_while([](auto i) { return i < 10; })
+           >> streams::do_finally([&terminated]() { terminated = true; });
+  collector_sink<int> *s = new ::collector_sink<int>();
+  BOOST_TEST(!terminated);
+
+  p->subscribe(*s);
+  io_service.run();
+  std::vector<int> expected{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  BOOST_TEST(expected == s->items);
+  BOOST_TEST(s->complete);
+  BOOST_TEST(!s->error);
+
+  BOOST_TEST(terminated);
+}
+
 int main(int argc, char* argv[]) {
   init_logging(argc, argv);
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);

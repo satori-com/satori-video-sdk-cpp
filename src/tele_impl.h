@@ -11,6 +11,7 @@ namespace tele {
 class publisher {
  public:
   publisher(rtm::publisher &rtm_publisher, boost::asio::io_service &io_service);
+  ~publisher();
 
  private:
   boost::asio::deadline_timer _timer;

@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "asio_streams.h"
+#include "logging.h"
 #include "video_streams.h"
 
 extern "C" {
@@ -22,12 +23,19 @@ struct read_json_impl {
   explicit read_json_impl(const std::string &filename) : _input(filename) {}
 
   void generate(int count, streams::observer<rapidjson::Document> &observer) {
+    if (!_input.good()) {
+      std::make_error_condition(std::errc::no_such_file_or_directory);
+      return;
+    }
+
     for (int sent = 0; sent < count; ++sent) {
       std::string line;
       if (!std::getline(_input, line)) {
+        LOG_S(4) << "end of file";
         observer.on_complete();
         return;
       }
+      LOG_S(4) << "line=" << line;
 
       rapidjson::Document data;
       data.Parse<0>(line.c_str()).HasParseError();
@@ -62,18 +70,22 @@ streams::publisher<network_packet> read_metadata(const std::string &metadata_fil
 
 streams::publisher<network_packet> network_replay_source(boost::asio::io_service &io,
                                                          const std::string &filename,
-                                                         bool synchronous) {
+                                                         bool batch) {
   auto metadata = read_metadata(filename + ".metadata");
   streams::publisher<rapidjson::Document> docs = read_json(filename);
-  if (synchronous) {
+  if (!batch) {
     double *last_time = new double{-1.0};
-    docs = std::move(docs)
-           >> streams::asio::delay(
-                  io,
-                  [last_time](const rapidjson::Document &doc) {
-                    return std::chrono::milliseconds(
-                        (int)((doc["timestamp"].GetDouble() - *last_time) * 1000));
-                  })
+    docs = std::move(docs) >> streams::asio::delay(
+                                  io,
+                                  [last_time](const rapidjson::Document &doc) {
+                                    if (*last_time < 0) {
+                                      return std::chrono::milliseconds(0);
+                                    }
+
+                                    double timestamp = doc["timestamp"].GetDouble();
+                                    int delay_ms = (int)((timestamp - *last_time) * 1000);
+                                    return std::chrono::milliseconds(delay_ms);
+                                  })
            >> streams::map([last_time](rapidjson::Document &&doc) {
                *last_time = doc["timestamp"].GetDouble();
                return std::move(doc);

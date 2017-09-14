@@ -15,14 +15,14 @@ void initialize_source_library();
 
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                std::string filename, bool loop,
-                                               bool synchronous);
+                                               bool batch);
 
 streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
                                                  const std::string &dimensions);
 
 streams::publisher<network_packet> network_replay_source(boost::asio::io_service &io,
                                                          const std::string &filename,
-                                                         bool synchronous);
+                                                         bool batch);
 
 streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
                                               const std::string &channel_name);
