@@ -121,27 +121,27 @@ streams::op<T, T> interval(boost::asio::io_service &io,
     };
 
     state *s = new state();
-    return std::move(src) >>
-           delay(io,
-                 [s, period](const T &t) {
-                   if (!s->last_frame.time_since_epoch().count())
-                     return std::chrono::milliseconds(0);
+    return std::move(src)
+           >> delay(io,
+                    [s, period](const T &t) {
+                      if (!s->last_frame.time_since_epoch().count())
+                        return std::chrono::milliseconds(0);
 
-                   auto this_frame_time = s->last_frame + period;
-                   auto now = std::chrono::system_clock::now();
-                   if (this_frame_time < now) {
-                     std::cerr << "late frame in interval\n";
-                     return std::chrono::milliseconds(0);
-                   }
+                      auto this_frame_time = s->last_frame + period;
+                      auto now = std::chrono::system_clock::now();
+                      if (this_frame_time < now) {
+                        std::cerr << "late frame in interval\n";
+                        return std::chrono::milliseconds(0);
+                      }
 
-                   return std::chrono::duration_cast<std::chrono::milliseconds>(
-                       this_frame_time - now);
-                 }) >>
-           streams::map([s](T &&t) {
-             s->last_frame = std::chrono::system_clock::now();
-             return std::move(t);
-           }) >>
-           streams::do_finally([s]() { delete s; });
+                      return std::chrono::duration_cast<std::chrono::milliseconds>(
+                          this_frame_time - now);
+                    })
+           >> streams::map([s](T &&t) {
+               s->last_frame = std::chrono::system_clock::now();
+               return std::move(t);
+             })
+           >> streams::do_finally([s]() { delete s; });
   };
 };
 

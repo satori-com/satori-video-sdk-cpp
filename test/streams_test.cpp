@@ -69,8 +69,8 @@ BOOST_AUTO_TEST_CASE(map) {
 
 BOOST_AUTO_TEST_CASE(flat_map) {
   auto idx = streams::publishers::range(1, 4);
-  auto p = std::move(idx) >>
-           streams::flat_map([](int i) { return streams::publishers::range(0, i); });
+  auto p = std::move(idx)
+           >> streams::flat_map([](int i) { return streams::publishers::range(0, i); });
   auto e = events(std::move(p));
   BOOST_TEST(e == strings({"0", "0", "1", "0", "1", "2", "."}));
 }
@@ -86,10 +86,10 @@ BOOST_AUTO_TEST_CASE(take) {
 }
 
 BOOST_AUTO_TEST_CASE(take_while) {
-  auto p = streams::publishers::range(2, 300000000) >>
-           streams::take_while([](const int &i) { return i < 10; });
-  BOOST_TEST(events(std::move(p)) ==
-             strings({"2", "3", "4", "5", "6", "7", "8", "9", "."}));
+  auto p = streams::publishers::range(2, 300000000)
+           >> streams::take_while([](const int &i) { return i < 10; });
+  BOOST_TEST(events(std::move(p))
+             == strings({"2", "3", "4", "5", "6", "7", "8", "9", "."}));
 }
 
 BOOST_AUTO_TEST_CASE(merge) {
@@ -101,8 +101,8 @@ BOOST_AUTO_TEST_CASE(merge) {
 
 BOOST_AUTO_TEST_CASE(on_finally_empty) {
   bool terminated = false;
-  auto p = streams::publishers::empty<int>() >>
-           streams::do_finally([&terminated]() { terminated = true; });
+  auto p = streams::publishers::empty<int>()
+           >> streams::do_finally([&terminated]() { terminated = true; });
   BOOST_TEST(!terminated);
   events(std::move(p));
   BOOST_TEST(terminated);
@@ -110,8 +110,8 @@ BOOST_AUTO_TEST_CASE(on_finally_empty) {
 
 BOOST_AUTO_TEST_CASE(on_finally_error) {
   bool terminated = false;
-  auto p = streams::publishers::error<int>(std::errc::not_supported) >>
-           streams::do_finally([&terminated]() { terminated = true; });
+  auto p = streams::publishers::error<int>(std::errc::not_supported)
+           >> streams::do_finally([&terminated]() { terminated = true; });
   BOOST_TEST(!terminated);
   events(std::move(p));
   BOOST_TEST(terminated);
@@ -119,8 +119,9 @@ BOOST_AUTO_TEST_CASE(on_finally_error) {
 
 BOOST_AUTO_TEST_CASE(on_finally_unsubscribe) {
   bool terminated = false;
-  auto p = streams::publishers::range(3, 300000000) >>
-           streams::do_finally([&terminated]() { terminated = true; }) >> streams::head();
+  auto p = streams::publishers::range(3, 300000000)
+           >> streams::do_finally([&terminated]() { terminated = true; })
+           >> streams::head();
   BOOST_TEST(!terminated);
   events(std::move(p));
   BOOST_TEST(terminated);
@@ -143,7 +144,7 @@ BOOST_AUTO_TEST_CASE(buffered_worker) {
 }
 
 BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
-  auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10) >>
-           streams::take(3);
+  auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10)
+           >> streams::take(3);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }

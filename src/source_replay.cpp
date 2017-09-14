@@ -67,18 +67,18 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
   streams::publisher<rapidjson::Document> docs = read_json(filename);
   if (synchronous) {
     double *last_time = new double{-1.0};
-    docs = std::move(docs) >>
-           streams::asio::delay(
-               io,
-               [last_time](const rapidjson::Document &doc) {
-                 return std::chrono::milliseconds(
-                     (int)((doc["timestamp"].GetDouble() - *last_time) * 1000));
-               }) >>
-           streams::map([last_time](rapidjson::Document &&doc) {
-             *last_time = doc["timestamp"].GetDouble();
-             return std::move(doc);
-           }) >>
-           streams::do_finally([last_time]() { delete last_time; });
+    docs = std::move(docs)
+           >> streams::asio::delay(
+                  io,
+                  [last_time](const rapidjson::Document &doc) {
+                    return std::chrono::milliseconds(
+                        (int)((doc["timestamp"].GetDouble() - *last_time) * 1000));
+                  })
+           >> streams::map([last_time](rapidjson::Document &&doc) {
+               *last_time = doc["timestamp"].GetDouble();
+               return std::move(doc);
+             })
+           >> streams::do_finally([last_time]() { delete last_time; });
   }
   auto frames =
       std::move(docs) >> streams::flat_map([](rapidjson::Document &&doc) {

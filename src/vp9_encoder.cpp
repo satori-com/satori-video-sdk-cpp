@@ -104,8 +104,8 @@ streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames
                return encoder->on_image_frame(*frame);
              }
              return streams::publishers::empty<encoded_packet>();
-           }) >>
-           streams::do_finally([encoder]() { delete encoder; });
+           })
+           >> streams::do_finally([encoder]() { delete encoder; });
   };
 };
 

@@ -76,8 +76,8 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
              }
 
              BOOST_UNREACHABLE_RETURN();
-           }) >>
-           streams::do_finally([s]() { delete s; });
+           })
+           >> streams::do_finally([s]() { delete s; });
   };
 }
 streams::op<encoded_packet, owned_image_frame> decode_image_frames(
@@ -175,8 +175,8 @@ streams::op<encoded_packet, owned_image_frame> decode_image_frames(
           } else {
             BOOST_ASSERT_MSG(false, "Bad variant");
           }
-        }) >>
-        streams::do_finally([s]() { delete s; });
+        })
+        >> streams::do_finally([s]() { delete s; });
 
     return result;
   };

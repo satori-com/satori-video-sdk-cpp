@@ -34,8 +34,8 @@ AVPixelFormat to_av_pixel_format(const image_pixel_format pixel_format) {
     case image_pixel_format::RGB0:
       return AV_PIX_FMT_RGB0;
     default:
-      throw std::runtime_error{"Unsupported pixel format: " +
-                               std::to_string((int)pixel_format)};
+      throw std::runtime_error{"Unsupported pixel format: "
+                               + std::to_string((int)pixel_format)};
   }
 }
 

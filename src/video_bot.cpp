@@ -376,11 +376,11 @@ variables_map parse_command_line(int argc, char* argv[]) {
     exit(1);
   }
 
-  bool online_mode = (vm.count("endpoint") || vm.count("appkey") || vm.count("channel") ||
-                      vm.count("port") || vm.count("time_limit"));
+  bool online_mode = (vm.count("endpoint") || vm.count("appkey") || vm.count("channel")
+                      || vm.count("port") || vm.count("time_limit"));
 
-  bool offline_mode = (vm.count("video_file") || vm.count("analysis_file") ||
-                       vm.count("debug_file") || vm.count("replay_file"));
+  bool offline_mode = (vm.count("video_file") || vm.count("analysis_file")
+                       || vm.count("debug_file") || vm.count("replay_file"));
 
   if (online_mode && offline_mode) {
     std::cerr << "Online and offline modes are mutually exclusive"
@@ -500,14 +500,14 @@ int bot_environment::main_online(variables_map cmd_args) {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1, *this);
       });
   _bot_online_instance->subscribe_to_control_channel(*_client);
-  _source = rtm_source(_client, channel) >>
-            buffered_worker("vbot.network_buffer", network_frames_max_buffer_size) >>
-            streams::lift(decode_network_stream()) >>
-            buffered_worker("vbot.encoded_buffer", encoded_frames_max_buffer_size) >>
-            streams::lift(decode_image_frames(_bot_descriptor->image_width,
-                                              _bot_descriptor->image_height,
-                                              _bot_descriptor->pixel_format)) >>
-            buffered_worker("vbot.image_buffer", encoded_frames_max_buffer_size);
+  _source = rtm_source(_client, channel)
+            >> buffered_worker("vbot.network_buffer", network_frames_max_buffer_size)
+            >> streams::lift(decode_network_stream())
+            >> buffered_worker("vbot.encoded_buffer", encoded_frames_max_buffer_size)
+            >> streams::lift(decode_image_frames(_bot_descriptor->image_width,
+                                                 _bot_descriptor->image_height,
+                                                 _bot_descriptor->pixel_format))
+            >> buffered_worker("vbot.image_buffer", encoded_frames_max_buffer_size);
   _source->subscribe(*_bot_instance);
 
   tele::publisher tele_publisher(*_client, io_service);
@@ -558,8 +558,8 @@ int bot_environment::main_offline(variables_map cmd_args) {
                       cmd_args["synchronous"].as<bool>());
   else {
     src = network_replay_source(io_service, cmd_args["replay_file"].as<std::string>(),
-                                cmd_args["synchronous"].as<bool>()) >>
-          streams::lift(decode_network_stream());
+                                cmd_args["synchronous"].as<bool>())
+          >> streams::lift(decode_network_stream());
   }
 
   _source =
