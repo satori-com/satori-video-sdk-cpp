@@ -109,8 +109,10 @@ struct image_decoder_impl {
   }
 
   bool init_image() {
-    _image_width = _bounding_width != -1 ? _bounding_width : _frame->width;
-    _image_height = _bounding_height != -1 ? _bounding_height : _frame->height;
+    _image_width =
+        _bounding_width != ORIGINAL_IMAGE_WIDTH ? _bounding_width : _frame->width;
+    _image_height =
+        _bounding_height != ORIGINAL_IMAGE_HEIGHT ? _bounding_height : _frame->height;
 
     if (_keep_proportions) {
       double frame_ratio = (double)_frame->width / (double)_frame->height;

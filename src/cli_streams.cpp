@@ -29,7 +29,7 @@ po::options_description file_input_options(bool enable_batch_mode) {
 
   if (enable_batch_mode)
     file_sources.add_options()(
-        "batch", po::bool_switch()->default_value(false),
+        "batch",
         "turns on batch analysis mode, where analysis of a single video frame might take "
         "longer than frame duration (file source only).");
 
@@ -156,7 +156,8 @@ bool configuration::validate(const po::variables_map &vm) const {
 std::shared_ptr<rtm::client> configuration::rtm_client(
     const po::variables_map &vm, boost::asio::io_service &io_service,
     boost::asio::ssl::context &ssl_context, error_callbacks &rtm_error_callbacks) const {
-  if ((!enable_rtm_input && !enable_rtm_output) || !validate_rtm_args(vm)) return nullptr;
+  if (!enable_rtm_input && !enable_rtm_output) return nullptr;
+  if (!check_rtm_args_provided(vm)) return nullptr;
 
   const std::string endpoint = vm["endpoint"].as<std::string>();
   const std::string port = vm["port"].as<std::string>();
@@ -170,13 +171,14 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
 }
 
 std::string configuration::rtm_channel(const po::variables_map &vm) const {
-  if ((!enable_rtm_input && !enable_rtm_output) || !validate_rtm_args(vm)) return "";
+  if (!enable_rtm_input && !enable_rtm_output) return "";
+  if (!check_rtm_args_provided(vm)) return "";
 
   return vm["channel"].as<std::string>();
 }
 
 bool configuration::is_batch_mode(const po::variables_map &vm) const {
-  return enable_file_input && validate_file_input_args(vm) && vm["batch"].as<bool>();
+  return enable_file_input && enable_file_batch_mode && vm.count("batch");
 }
 
 streams::publisher<encoded_packet> configuration::encoded_publisher(
@@ -199,7 +201,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     return std::move(source) >> rtm::video::decode_network_stream()
            >> buffered_worker("input.encoded_buffer", encoded_buffer_size);
   } else if (has_input_file_args) {
-    const bool batch = vm["batch"].as<bool>();
+    const bool batch = enable_file_batch_mode && vm.count("batch");
 
     streams::publisher<encoded_packet> source;
     if (vm.count("input-video-file")) {

@@ -113,6 +113,19 @@ target_link_libraries(rtmvideo_recorder_cli
         CONAN_PKG::Loguru
         )
 
+add_executable(player src/player.cpp)
+set_property(TARGET player PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(player bin)
+add_dependencies(player rtmvideo)
+target_include_directories(player PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(player
+        PRIVATE
+        rtmvideo
+        CONAN_PKG::Boost
+        CONAN_PKG::Gsl
+        CONAN_PKG::Loguru
+        CONAN_PKG::SDL)
+
 add_executable(test_bot
     test/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
@@ -160,3 +173,4 @@ add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
 add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)
 add_rtmvideo_test(vp9_encoder_test test/vp9_encoder_test.cpp)
+add_rtmvideo_test(producer_consumer_queue_test test/producer_consumer_queue_test.cpp)

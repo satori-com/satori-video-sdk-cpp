@@ -113,6 +113,16 @@ BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
   BOOST_TEST(!memcmp(data, frame->data[0], sizeof(data)));
 }
 
+BOOST_AUTO_TEST_CASE(parse_image_size) {
+  boost::optional<rtm::video::image_size> s =
+      rtm::video::avutils::parse_image_size("asdf");
+  BOOST_TEST(!s);
+
+  s = rtm::video::avutils::parse_image_size("137x245");
+  BOOST_CHECK_EQUAL(137, s->width);
+  BOOST_CHECK_EQUAL(245, s->height);
+}
+
 int main(int argc, char *argv[]) {
   init_logging(argc, argv);
   rtm::video::avutils::init();
