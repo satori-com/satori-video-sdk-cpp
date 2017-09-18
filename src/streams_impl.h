@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "logging.h"
 #include "type_traits.h"
 
 namespace streams {
@@ -72,7 +73,7 @@ struct async_publisher_impl : public publisher_impl<T> {
 
   struct sub : subscription, public observer<T> {
     subscriber<T> &_sink;
-    std::atomic<long> _requested;
+    std::atomic<long> _requested{0};
     cancel_fn_t _cancel_fn;
 
     explicit sub(subscriber<T> &sink, cancel_fn_t cancel_fn)
@@ -80,10 +81,15 @@ struct async_publisher_impl : public publisher_impl<T> {
 
     void request(int n) override { _requested += n; }
 
-    void cancel() override { _cancel_fn(); }
+    void cancel() override {
+      LOG_S(5) << "async_publisher_impl::sub::cancel";
+      _cancel_fn();
+    }
 
     void on_next(T &&t) override {
+      LOG_S(5) << "async_publisher_impl::sub::on_next";
       if (_requested.fetch_sub(1) <= 0) {
+        LOG_S(1) << "dropping frame from async_publisher";
         _requested++;
         return;
       }
@@ -99,6 +105,7 @@ struct async_publisher_impl : public publisher_impl<T> {
   };
 
   virtual void subscribe(subscriber<T> &s) {
+    LOG_S(5) << "async_publisher_impl::subscribe";
     auto inst = new sub(s, _cancel_fn);
     s.on_subscribe(*inst);
     _init_fn(*inst);
@@ -268,7 +275,7 @@ struct op_publisher : public publisher_impl<T> {
 
 template <typename Fn>
 struct map_op {
-  using T = typename function_traits<Fn>::result_type;
+  using T = typename function_traits<std::decay_t<Fn>>::result_type;
 
   template <typename S>
   struct instance : public subscriber<S>, private subscription {
@@ -342,11 +349,16 @@ struct flat_map_op {
     bool _active{true};
     bool _source_complete{false};
     bool _requested_next{false};
-    std::atomic<long> _outstanding{0};
+    std::atomic<size_t> _requested{0};
+    std::atomic<size_t> _received{0};
     fwd_sub *_fwd_sub{nullptr};
 
     instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink)
         : _fn(std::move(op._fn)), _sink(sink) {}
+
+    ~instance() {
+      LOG_S(5) << "~flat_map_op::" << this;
+    }
 
     void on_subscribe(subscription &s) override {
       BOOST_ASSERT(!_source);
@@ -355,20 +367,26 @@ struct flat_map_op {
     }
 
     void on_next(S &&t) override {
+      LOG_S(5) << "flat_map_op::" << this << " on_next _requested=" << _requested << " _received=" << _received;
       BOOST_ASSERT(!_fwd_sub);
       _requested_next = false;
-      _fn(std::move(t))->subscribe(*(_fwd_sub = new fwd_sub(_sink, this)));
+      _fwd_sub = new fwd_sub(_sink, this);
+      _fn(std::move(t))->subscribe(*_fwd_sub);
       drain();
     }
 
     void on_error(std::error_condition ec) override {
+      LOG_S(5) << "flat_map_op::" << this << " on_error";
       _active = false;
       _sink.on_error(ec);
+      _source = nullptr;
       delete this;
     }
 
     void on_complete() override {
+      LOG_S(5) << "flat_map_op::" << this << " on_complete _fwd_sub=" << _fwd_sub << " _in_drain=" << _in_drain;
       _source_complete = true;
+      _source = nullptr;
 
       if (!_fwd_sub) {
         _active = false;
@@ -382,35 +400,43 @@ struct flat_map_op {
     }
 
     void request(int n) override {
-      _outstanding += n;
+      BOOST_ASSERT(_active);
+      LOG_S(5) << "flat_map_op::" << this << " request " << n;
+      _requested += n;
+      if (_fwd_sub) {
+        _fwd_sub->request(n);
+      }
       drain();
     }
 
     void drain() {
-      if (!_active || !_outstanding || _in_drain) {
+      if (!_active || (_requested == _received) || _in_drain) {
         return;
       }
 
       _in_drain = true;
-      while (_active && _outstanding) {
-        if (!_fwd_sub) {
-          if (_source_complete) {
-            on_complete();
-            break;
-          }
-
-          _requested_next = true;
-          _source->request(1);
-          if (!_fwd_sub && _requested_next) {
-            // next item hasn't arrived yet.
-            break;
-          }
-        } else {
-          BOOST_ASSERT(_fwd_sub);
-          _fwd_sub->request(_outstanding);
+      LOG_S(5) << "flat_map_op::" << this << " >drain _requested=" << _requested << " _received=" << _received;
+      while (_active && !_fwd_sub) {
+        if (_requested_next) {
+          // next publisher hasn't arrived yet.
+          break;
         }
+
+        if (_source_complete) {
+          on_complete();
+          break;
+        }
+
+        LOG_S(5) << "flat_map_op::" << this << " >requested_next from " << _source;
+        _requested_next = true;
+        _source->request(1);
+        LOG_S(5) << "flat_map_op::" << this << " <requested_next";
       }
+
       _in_drain = false;
+      LOG_S(5) << "flat_map_op::" << this << " <drain _active=" << _active
+               << " _requested=" << _requested << " _received = " << _received
+               << " _requested_next=" << _requested_next << " _fwd_sub=" << _fwd_sub;
 
       if (!_active) {
         delete this;
@@ -424,6 +450,8 @@ struct flat_map_op {
     }
 
     void current_result_complete() {
+      LOG_S(5) << "flat_map_op::" << this << " current_result_complete _requested=" << _requested << " _received=" << _received
+               << " in_drain=" << _in_drain;
       _fwd_sub = nullptr;
       drain();
     }
@@ -439,10 +467,12 @@ struct flat_map_op {
       void on_subscribe(subscription &s) override {
         BOOST_ASSERT(!_source);
         _source = &s;
+        _source->request(_instance->_requested - _instance->_received);
       }
 
       void on_next(T &&t) override {
-        _instance->_outstanding--;
+        LOG_S(5) << "flat_map_op::" << _instance << " fwd_sub::on_next";
+        _instance->_received++;
         _sink.on_next(std::move(t));
       }
 
@@ -452,11 +482,15 @@ struct flat_map_op {
       }
 
       void on_complete() override {
+        LOG_S(5) << "flat_map_op::" << _instance << " fw_src on_complete";
         _instance->current_result_complete();
         delete this;
       }
 
-      void request(int n) override { _source->request(n); }
+      void request(int n) override {
+        LOG_S(5) << "flat_map_op::" << _instance << " fwd_src request " << n;
+        _source->request(n);
+      }
 
       void cancel() override {
         _source->cancel();
@@ -488,6 +522,7 @@ struct take_while_op {
         : _p(std::move(op._p)), _sink(sink) {}
 
     void on_next(T &&t) override {
+      LOG_S(5) << "take_while::on_next";
       if (!_p(t)) {
         _source->cancel();
         on_complete();
@@ -559,12 +594,14 @@ struct do_finally_op {
     void on_next(T &&s) override { _sink.on_next(std::move(s)); };
 
     void on_error(std::error_condition ec) override {
+      _source_sub = nullptr;
       _sink.on_error(ec);
       _fn();
       delete this;
     };
 
     void on_complete() override {
+      _source_sub = nullptr;
       _sink.on_complete();
       _fn();
       delete this;
@@ -579,6 +616,7 @@ struct do_finally_op {
 
     void cancel() override {
       _source_sub->cancel();
+      _source_sub = nullptr;
       _fn();
       delete this;
     }

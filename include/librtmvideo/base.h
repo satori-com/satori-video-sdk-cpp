@@ -1,6 +1,6 @@
 #pragma once
 
-// Flag shows if bot was launched in debug mode
+// Flag shows if bot was compiled in debug mode
 #if defined(BOT_DEBUG)
 #define BOT_DEBUG 1
 #else
@@ -18,4 +18,10 @@
 #define PLATFORM_APPLE 1
 #else
 #define PLATFORM_APPLE 0
+#endif
+
+#if NDEBUG
+#define RELEASE_MODE 1
+#else
+#define RELEASE_MODE 0
 #endif
