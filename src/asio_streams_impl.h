@@ -40,18 +40,18 @@ struct delay_op {
 
     instance(delay_op &&op, subscriber<T> &sink)
         : _fn(std::move(op._fn)), _sink(sink), _io(op._io) {
-      LOG_S(5) << "delay_op::instance";
+      LOG_S(5) << "delay_op(" << this << ")";
     }
 
     ~instance() {
       _timer.reset();
-      LOG_S(5) << "delay_op::~instance";
+      LOG_S(5) << "delay_op(" << this << "::~delay_op";
     }
 
     void on_next(T &&t) override {
       BOOST_ASSERT(_active);
       auto delay = _fn(t);
-      LOG_S(5) << "delay_op::on_next delay=" << delay.count();
+      LOG_S(5) << "delay_op(" << this << ")::on_next delay=" << delay.count();
 
       if (delay.count()) {
         _buffer.push_back(std::move(t));
@@ -64,7 +64,8 @@ struct delay_op {
 
     void on_complete() override {
       BOOST_ASSERT(_active);
-      LOG_S(5) << "delay_op::on_complete _buffer.size()=" << _buffer.size();
+      LOG_S(5) << "delay_op(" << this
+               << ")::on_complete _buffer.size()=" << _buffer.size();
       if (_buffer.empty()) {
         _sink.on_complete();
         delete this;
@@ -75,7 +76,7 @@ struct delay_op {
 
     void on_error(std::error_condition ec) override {
       BOOST_ASSERT(_active);
-      LOG_S(5) << "delay_op::on_error _buffer.size()=" << _buffer.size();
+      LOG_S(5) << "delay_op(" << this << ")::on_error _buffer.size()=" << _buffer.size();
       if (_buffer.empty()) {
         _sink.on_error(ec);
         delete this;
@@ -92,14 +93,17 @@ struct delay_op {
     }
 
     void cancel() override {
-      LOG_S(5) << "delay_op::cancel _buffer.size()=" << _buffer.size();
+      LOG_S(5) << "delay_op(" << this << ")::cancel _buffer.size()=" << _buffer.size();
       BOOST_ASSERT(_active);
       _src->cancel();
+      _src = nullptr;
+      _active = false;
+      _cancelled = true;
+
       if (_buffer.empty()) {
         delete this;
-      } else {
-        _active = false;
       }
+      // otherwise there will be on_timer execution eventually;
     }
 
     void request(int n) override {
@@ -126,7 +130,7 @@ struct delay_op {
         if (_error) {
           LOG_S(5) << "delay_op not active, on_error";
           _sink.on_error(_error);
-        } else {
+        } else if (!_cancelled) {
           LOG_S(5) << "delay_op not active, on_complete";
           _sink.on_complete();
         }
@@ -143,6 +147,7 @@ struct delay_op {
     std::deque<T> _buffer;
     std::atomic<long> _queued{0};
     std::atomic<bool> _active{true};
+    std::atomic<bool> _cancelled{false};
     std::error_condition _error{};
   };
 

@@ -84,14 +84,14 @@ struct rtm_source_impl : public subscription_callbacks {
 
 streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
                                               const std::string &channel_name) {
-  rtm_source_impl *impl{nullptr};
-  return streams::generators<network_packet>::async(
-      [&impl, client, channel_name](streams::observer<network_packet> &o) mutable {
-        impl = new rtm_source_impl(client, channel_name);
+  return streams::generators<network_packet>::async<rtm_source_impl>(
+      [client, channel_name](streams::observer<network_packet> &o) mutable {
+        auto impl = new rtm_source_impl(client, channel_name);
         impl->start(o);
+        return impl;
       },
       // TODO: maybe better to implement rtmclient::stop() and call it?
-      [&impl]() { impl->stop(); });
+      [](rtm_source_impl *impl) { impl->stop(); });
 };
 
 }  // namespace video

@@ -63,10 +63,10 @@ struct strip_publisher<publisher<T>> {
   using type = T;
 };
 
-template <typename T>
+template <typename T, typename State>
 struct async_publisher_impl : public publisher_impl<T> {
-  using init_fn_t = std::function<void(observer<T> &observer)>;
-  using cancel_fn_t = std::function<void()>;
+  using init_fn_t = std::function<State *(observer<T> &observer)>;
+  using cancel_fn_t = std::function<void(State *)>;
 
   explicit async_publisher_impl(init_fn_t init_fn, cancel_fn_t cancel_fn)
       : _init_fn(init_fn), _cancel_fn(cancel_fn) {}
@@ -74,16 +74,21 @@ struct async_publisher_impl : public publisher_impl<T> {
   struct sub : subscription, public observer<T> {
     subscriber<T> &_sink;
     std::atomic<long> _requested{0};
+    init_fn_t _init_fn;
     cancel_fn_t _cancel_fn;
+    State *_state{nullptr};
 
-    explicit sub(subscriber<T> &sink, cancel_fn_t cancel_fn)
-        : _sink(sink), _cancel_fn(cancel_fn) {}
+    explicit sub(subscriber<T> &sink, init_fn_t init_fn, cancel_fn_t cancel_fn)
+        : _sink(sink), _init_fn(init_fn), _cancel_fn(cancel_fn) {}
+
+    void init() { _state = _init_fn(*this); }
 
     void request(int n) override { _requested += n; }
 
     void cancel() override {
       LOG_S(5) << "async_publisher_impl::sub::cancel";
-      _cancel_fn();
+      _cancel_fn(_state);
+      _state = nullptr;
     }
 
     void on_next(T &&t) override {
@@ -106,9 +111,9 @@ struct async_publisher_impl : public publisher_impl<T> {
 
   virtual void subscribe(subscriber<T> &s) {
     LOG_S(5) << "async_publisher_impl::subscribe";
-    auto inst = new sub(s, _cancel_fn);
+    auto inst = new sub(s, _init_fn, _cancel_fn);
     s.on_subscribe(*inst);
-    _init_fn(*inst);
+    inst->init();
   }
 
   init_fn_t _init_fn;
@@ -197,7 +202,8 @@ struct generator_publisher : public publisher_impl<T> {
     std::unique_ptr<State> _state;
     bool _active{true};
     bool _in_drain{false};
-    long _outstanding{0};
+    std::atomic<long> _requested{0};
+    std::atomic<long> _delivered{0};
 
     explicit sub(Generator &&gen, subscriber<T> &sink)
         : _gen(std::move(gen)), _sink(sink), _state(_gen._create_fn()) {}
@@ -205,7 +211,7 @@ struct generator_publisher : public publisher_impl<T> {
     void request(int n) override {
       BOOST_ASSERT_MSG(_active, "generator is finished");
 
-      _outstanding += n;
+      _requested += n;
       drain();
     }
 
@@ -216,8 +222,8 @@ struct generator_publisher : public publisher_impl<T> {
       }
 
       _in_drain = true;
-      while (_active && _outstanding > 0) {
-        _gen._gen_fn(_state.get(), _outstanding, *this);
+      while (_active && _requested != _delivered) {
+        _gen._gen_fn(_state.get(), (_requested - _delivered), *this);
       }
       _in_drain = false;
 
@@ -234,7 +240,8 @@ struct generator_publisher : public publisher_impl<T> {
     }
 
     void on_next(T &&t) override {
-      _outstanding--;
+      BOOST_ASSERT(_delivered < _requested);
+      _delivered++;
       _sink.on_next(std::move(t));
     }
     void on_error(std::error_condition ec) override {
@@ -388,21 +395,26 @@ struct flat_map_op {
 
     void on_error(std::error_condition ec) override {
       LOG_S(5) << "flat_map_op(" << this << ")::on_error";
+      BOOST_ASSERT(_source);
       _active = false;
       _sink.on_error(ec);
       _source = nullptr;
-      delete this;
+      if (!_in_drain) {
+        delete this;
+      }
     }
 
     void on_complete() override {
       LOG_S(5) << "flat_map_op(" << this << ")::on_complete _fwd_sub=" << _fwd_sub
                << " _in_drain=" << _in_drain;
+      BOOST_ASSERT(_source);
       _source_complete = true;
       _source = nullptr;
 
       if (!_fwd_sub) {
-        _active = false;
         _sink.on_complete();
+        _active = false;
+
         if (!_in_drain) {
           delete this;
         }
@@ -412,13 +424,33 @@ struct flat_map_op {
     }
 
     void request(int n) override {
-      BOOST_ASSERT(_active);
       LOG_S(5) << "flat_map_op(" << this << ")::request " << n;
+      BOOST_ASSERT(_active);
+      BOOST_ASSERT(_source || _fwd_sub);
       _requested += n;
       if (_fwd_sub) {
         _fwd_sub->request(n);
       } else {
         drain();
+      }
+    }
+
+    void cancel() override {
+      LOG_S(5) << "flat_map_op(" << this << ")::cancel";
+      BOOST_ASSERT(_active);
+      BOOST_ASSERT(_source || _fwd_sub);
+      if (_source) {
+        _source->cancel();
+        _source = nullptr;
+      }
+      if (_fwd_sub) {
+        _fwd_sub->cancel();
+        _fwd_sub = nullptr;
+      }
+
+      _active = false;
+      if (!_in_drain) {
+        delete this;
       }
     }
 
@@ -437,7 +469,8 @@ struct flat_map_op {
         }
 
         if (_source_complete) {
-          on_complete();
+          _sink.on_complete();
+          _active = false;
           break;
         }
 
@@ -455,12 +488,6 @@ struct flat_map_op {
       if (!_active) {
         delete this;
       }
-    }
-
-    void cancel() override {
-      _source->cancel();
-      if (_fwd_sub) _fwd_sub->cancel();
-      delete this;
     }
 
     void current_result_complete() {
@@ -571,6 +598,71 @@ struct take_while_op {
   };
 
   Predicate _p;
+};
+
+struct take_op {
+  explicit take_op(int count) : _n(count) {}
+
+  template <typename S>
+  struct instance : subscriber<S>, subscription {
+    using value_t = S;
+    instance(take_op &&op, subscriber<value_t> &sink) : _n(op._n), _sink(sink) {}
+
+    static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
+      return publisher<value_t>(
+          new op_publisher<S, S, take_op>(std::move(source), std::move(op)));
+    }
+
+    void on_next(S &&s) override {
+      _sink.on_next(std::move(s));
+      _received++;
+
+      if (_received == _n) {
+        _source_sub->cancel();
+        _source_sub = nullptr;
+        on_complete();
+      }
+    };
+
+    void on_error(std::error_condition ec) override {
+      _sink.on_error(ec);
+      delete this;
+    };
+
+    void on_complete() override {
+      LOG_S(5) << "take_op(" << this << ") on_complete _requested=" << _requested
+               << " _received=" << _received;
+      _sink.on_complete();
+      delete this;
+    };
+
+    void on_subscribe(subscription &s) override {
+      _source_sub = &s;
+      _sink.on_subscribe(*this);
+    };
+
+    void request(int n) override {
+      long actual = std::min((long)n, _n - _requested);
+      if (actual > 0) {
+        _requested += actual;
+        _source_sub->request(actual);
+      }
+    }
+
+    void cancel() override {
+      _source_sub->cancel();
+      delete this;
+    }
+
+    const int _n;
+    std::atomic<long> _received{0};
+    std::atomic<long> _requested{0};
+    subscriber<value_t> &_sink;
+    subscription *_source_sub;
+  };
+
+ private:
+  int _n;
 };
 
 template <typename S, typename T>
@@ -685,9 +777,10 @@ publisher<T> publishers::error(std::error_condition ec) {
 }
 
 template <typename T>
-publisher<T> generators<T>::async(std::function<void(observer<T> &observer)> init_fn,
-                                  std::function<void()> cancel_fn) {
-  return publisher<T>(new impl::async_publisher_impl<T>(init_fn, cancel_fn));
+template <typename State>
+publisher<T> generators<T>::async(std::function<State *(observer<T> &observer)> init_fn,
+                                  std::function<void(State *)> cancel_fn) {
+  return publisher<T>(new impl::async_publisher_impl<T, State>(init_fn, cancel_fn));
 }
 
 template <typename T>
@@ -727,10 +820,7 @@ auto take_while(Predicate &&p) {
   return impl::take_while_op<Predicate>{std::move(p)};
 }
 
-inline auto take(int count) {
-  int counter = 0;
-  return take_while([counter, count](const auto &) mutable { return counter++ < count; });
-}
+inline auto take(int count) { return impl::take_op(count); }
 
 inline auto head() { return take(1); }
 

@@ -177,11 +177,14 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
     std::atomic<bool> _active{true};
   };
 
-  auto src = new async_source();
-  auto p =
-      streams::generators<int>::async(
-          [src](streams::observer<int> &o) { src->start(&o); }, [src]() { src->stop(); })
-      >> streams::take(3);
+  auto p = streams::generators<int>::async<async_source>(
+               [](streams::observer<int> &o) {
+                 auto src = new async_source();
+                 src->start(&o);
+                 return src;
+               },
+               [](async_source *src) { src->stop(); })
+           >> streams::take(3);
 
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }
