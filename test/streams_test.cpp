@@ -1,4 +1,6 @@
 #define BOOST_TEST_MODULE StreamsTest
+#define BOOST_TEST_NO_MAIN
+#define BOOST_TEST_ALTERNATIVE_INIT_API
 #include <boost/test/included/unit_test.hpp>
 
 #include <chrono>
@@ -8,12 +10,14 @@
 #include <thread>
 #include <vector>
 
+#include "asio_streams.h"
+#include "logging_implementation.h"
 #include "streams.h"
 #include "worker.h"
 
 namespace {
 template <typename T>
-std::vector<std::string> events(streams::publisher<T> &&p) {
+std::vector<std::string> events(streams::publisher<T> &&p, boost::asio::io_service *io = nullptr) {
   std::vector<std::string> events;
   bool complete{false}, error{false};
   p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); },
@@ -28,6 +32,9 @@ std::vector<std::string> events(streams::publisher<T> &&p) {
 
   auto start = std::chrono::high_resolution_clock::now();
   while (!complete && !error) {
+    if (io) {
+      io->run();
+    }
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
     if (elapsed >= std::chrono::seconds(1)) {
       BOOST_TEST_ERROR("timeout waiting for stream");
@@ -68,6 +75,7 @@ BOOST_AUTO_TEST_CASE(map) {
 }
 
 BOOST_AUTO_TEST_CASE(flat_map) {
+  LOG_SCOPE_FUNCTION(ERROR);
   auto idx = streams::publishers::range(1, 4);
   auto p = std::move(idx)
            >> streams::flat_map([](int i) { return streams::publishers::range(0, i); });
@@ -175,4 +183,21 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
       >> streams::take(3);
 
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(delay_finally) {
+    boost::asio::io_service io_service;
+    bool terminated = false;
+    auto p = streams::publishers::of({1, 2, 3, 4, 5})
+                 >> streams::lift(
+                        streams::asio::interval<int>(io_service, std::chrono::milliseconds(5)))
+                 >> streams::do_finally([&terminated]() { terminated = true; });
+    BOOST_TEST(!terminated);
+    BOOST_TEST(events(std::move(p), &io_service) == strings({"1", "2", "3", "4", "5", "."}));
+    BOOST_TEST(terminated);
+}
+
+int main(int argc, char* argv[]) {
+  init_logging(argc, argv);
+  return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }

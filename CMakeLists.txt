@@ -81,7 +81,9 @@ target_link_libraries(rtmvideo_publisher_cli
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl)
+        CONAN_PKG::Gsl
+        CONAN_PKG::Loguru
+        )
 
 add_executable(test_bot
     test/test_bot.cpp)

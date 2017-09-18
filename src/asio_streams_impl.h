@@ -2,6 +2,7 @@
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include "error.h"
+#include "logging.h"
 
 namespace streams {
 namespace asio {
@@ -38,67 +39,111 @@ struct delay_op {
     }
 
     instance(delay_op &&op, subscriber<T> &sink)
-        : _fn(std::move(op._fn)), _sink(sink), _io(op._io) {}
+        : _fn(std::move(op._fn)), _sink(sink), _io(op._io) {
+      LOG_S(5) << "delay_op::instance";
+    }
+
+    ~instance() {
+      _timer.reset();
+      LOG_S(5) << "delay_op::~instance";
+    }
 
     void on_next(T &&t) override {
-      _buffer.push_back(std::move(t));
-      _timer->expires_from_now(to_boost(_fn(t)));
-      _timer->async_wait(std::bind(&instance::on_timer, this, std::placeholders::_1));
+      BOOST_ASSERT(_active);
+      auto delay = _fn(t);
+      LOG_S(5) << "delay_op::on_next delay=" << delay.count();
+
+      if (delay.count()) {
+        _buffer.push_back(std::move(t));
+        _timer->expires_from_now(to_boost(delay));
+        _timer->async_wait(std::bind(&instance::on_timer, this, std::placeholders::_1));
+      } else {
+        _sink.on_next(std::move(t));
+      }
     }
 
     void on_complete() override {
-      _sink.on_complete();
-      delete this;
+      BOOST_ASSERT(_active);
+      LOG_S(5) << "delay_op::on_complete _buffer.size()=" << _buffer.size();
+      if (_buffer.empty()) {
+        _sink.on_complete();
+        delete this;
+      } else {
+        _active = false;
+      }
     }
 
     void on_error(std::error_condition ec) override {
-      _sink.on_error(ec);
-      delete this;
+      BOOST_ASSERT(_active);
+      LOG_S(5) << "delay_op::on_error _buffer.size()=" << _buffer.size();
+      if (_buffer.empty()) {
+        _sink.on_error(ec);
+        delete this;
+      } else {
+        _active = false;
+        _error = ec;
+      }
     }
 
     void on_subscribe(subscription &src) override {
       _src = &src;
-      _sink.on_subscribe(*this);
       _timer.reset(new boost::asio::deadline_timer(_io));
-      _src->request(1);
+      _sink.on_subscribe(*this);
     }
 
     void cancel() override {
+      LOG_S(5) << "delay_op::cancel _buffer.size()=" << _buffer.size();
+      BOOST_ASSERT(_active);
       _src->cancel();
-      delete this;
+      if (_buffer.empty()) {
+        delete this;
+      } else {
+        _active = false;
+      }
     }
 
-    void request(int n) override { _outstanding += n; }
-
-    void on_timer(const boost::system::error_code &ec) {
-      if (ec) {
-        _sink.on_error(rtm::video::video_error::AsioError);
-        delete this;
+    void request(int n) override {
+      if (!_active) {
+        // we are still draining, ignore request.
         return;
       }
+      LOG_S(5) << "request n=" << n;
+      _src->request(n);
+    }
 
-      if (!_outstanding) {
-        std::cerr << "sink can't keep up with timer, skipping frame\n";
-        return;
+    void on_timer(const boost::system::error_code &ec) {
+      LOG_S(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
+
+      if (ec) {
+        LOG_S(ERROR) << "ASIO ERROR: " << ec.message();
       }
 
       BOOST_ASSERT(!_buffer.empty());
       _sink.on_next(std::move(_buffer.front()));
       _buffer.pop_front();
-      _outstanding--;
-      BOOST_ASSERT(_outstanding > 0);
 
-      _src->request(1);
+      if (!_active && _buffer.empty()) {
+        if (_error) {
+          LOG_S(5) << "delay_op not active, on_error";
+          _sink.on_error(_error);
+        } else {
+          LOG_S(5) << "delay_op not active, on_complete";
+          _sink.on_complete();
+        }
+        delete this;
+      }
     }
 
     Fn _fn;
     subscriber<T> &_sink;
     boost::asio::io_service &_io;
 
-    std::atomic<long> _outstanding{0};
     subscription *_src;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
     std::deque<T> _buffer;
+    std::atomic<long> _queued{0};
+    std::atomic<bool> _active{true};
+    std::error_condition _error{};
   };
 
   boost::asio::io_service &_io;
