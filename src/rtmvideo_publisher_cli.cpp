@@ -89,11 +89,16 @@ int main(int argc, char *argv[]) {
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
-  std::shared_ptr<rtm::publisher> rtm_client = rtm::new_client(
+  std::shared_ptr<rtm::client> rtm_client = rtm::new_client(
       vm["endpoint"].as<std::string>(), vm["port"].as<std::string>(),
       vm["appkey"].as<std::string>(), io_service, ssl_context, 1, error_handler);
+  rtm_client->start();
 
-  source->subscribe(rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>()));
+  streams::publisher<rtm::video::encoded_packet> source_fin =
+      std::move(source) >> streams::do_finally([&rtm_client]() { rtm_client->stop(); });
+
+  source_fin->subscribe(
+      rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>()));
 
   io_service.run();
 }

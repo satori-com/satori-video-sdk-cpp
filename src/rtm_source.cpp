@@ -1,4 +1,5 @@
 #include "librtmvideo/data.h"
+#include "logging.h"
 #include "rtmclient.h"
 #include "streams.h"
 #include "video_streams.h"
@@ -13,14 +14,8 @@ struct rtm_source_impl : public subscription_callbacks {
         _frames_channel(channel_name),
         _metadata_channel(channel_name + metadata_channel_suffix) {}
 
-  ~rtm_source_impl() {
-    if (_sink != nullptr) {
-      _subscriber->unsubscribe(_metadata_subscription);
-      _subscriber->unsubscribe(_frames_subscription);
-    }
-  }
-
   void start(streams::observer<network_packet> &s) {
+    BOOST_VERIFY(_sink == nullptr);
     _sink = &s;
 
     subscription_options metadata_options;
@@ -30,13 +25,22 @@ struct rtm_source_impl : public subscription_callbacks {
     _subscriber->subscribe_channel(_frames_channel, _frames_subscription, *this);
   }
 
+  void stop() {
+    BOOST_VERIFY(_sink != nullptr);
+    _subscriber->unsubscribe(_metadata_subscription);
+    _subscriber->unsubscribe(_frames_subscription);
+    _sink = nullptr;
+  }
+
   void on_data(const subscription &sub, rapidjson::Value &&value) override {
     if (&sub == &_metadata_subscription) {
+      LOG_S(2) << "got metadata";
       on_metadata(value);
     } else if (&sub == &_frames_subscription) {
+      LOG_S(2) << "got frame";
       on_frame_data(value);
     } else {
-      BOOST_ASSERT_MSG(false, "Unknown subscription");
+      BOOST_VERIFY_MSG(false, "Unknown subscription");
     }
   }
 
@@ -87,7 +91,7 @@ streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> c
         impl->start(o);
       },
       // TODO: maybe better to implement rtmclient::stop() and call it?
-      [&impl]() { delete impl; });
+      [&impl]() { impl->stop(); });
 };
 
 }  // namespace video

@@ -24,7 +24,9 @@ enum class client_error : unsigned char {
   NotConnected = 2,
   ResponseParsingError = 3,
   InvalidResponse = 4,
-  SubscriptionError = 5
+  SubscriptionError = 5,
+  SubscribeError = 6,
+  UnsubscribeError = 7
 };
 
 std::error_condition make_error_condition(client_error e);
@@ -108,7 +110,11 @@ struct subscriber {
   virtual bool is_up(const subscription &sub) = 0;
 };
 
-class client : public publisher, public subscriber {};
+class client : public publisher, public subscriber {
+ public:
+  virtual void start() = 0;
+  virtual void stop() = 0;
+};
 
 std::unique_ptr<client> new_client(const std::string &endpoint, const std::string &port,
                                    const std::string &appkey,
@@ -159,6 +165,10 @@ class resilient_client : public client {
   }
 
   bool is_up(const subscription &sub) override { return _client->is_up(sub); }
+
+  void start() override { _client->start(); }
+
+  void stop() override { _client->stop(); }
 
  private:
   struct subscription_info {

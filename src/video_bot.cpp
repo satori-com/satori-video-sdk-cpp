@@ -198,9 +198,8 @@ class bot_instance : public bot_context, public streams::subscriber<owned_image_
       }
 
       if (!_bot_id.empty()) {
-        cbor_map_add(data,
-                     {.key = cbor_move(cbor_build_string("from")),
-                      .value = cbor_move(cbor_build_string(_bot_id.c_str()))});
+        cbor_map_add(data, {.key = cbor_move(cbor_build_string("from")),
+                            .value = cbor_move(cbor_build_string(_bot_id.c_str()))});
       }
 
       transmit(msg.kind, msg.data);
@@ -499,6 +498,7 @@ int bot_environment::main_online(variables_map cmd_args) {
       [&endpoint, &port, &appkey, &io_service, &ssl_context, this]() {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1, *this);
       });
+  _client->start();
   _bot_online_instance->subscribe_to_control_channel(*_client);
   _source = rtm_source(_client, channel)
             >> buffered_worker("vbot.network_buffer", network_frames_max_buffer_size)
@@ -507,7 +507,8 @@ int bot_environment::main_online(variables_map cmd_args) {
             >> streams::lift(decode_image_frames(_bot_descriptor->image_width,
                                                  _bot_descriptor->image_height,
                                                  _bot_descriptor->pixel_format))
-            >> buffered_worker("vbot.image_buffer", encoded_frames_max_buffer_size);
+            >> buffered_worker("vbot.image_buffer", encoded_frames_max_buffer_size)
+            >> streams::do_finally([this]() { _client->stop(); });
   _source->subscribe(*_bot_instance);
 
   tele::publisher tele_publisher(*_client, io_service);
