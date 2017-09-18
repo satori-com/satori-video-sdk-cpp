@@ -43,14 +43,17 @@ struct buffered_worker_op {
       _worker_thread = std::make_unique<std::thread>(&instance::worker_thread_loop, this);
       _dropped_items = tele::counter_new(op._name.c_str(), "dropped");
       _delivered_items = tele::counter_new(op._name.c_str(), "delivered");
+      LOG_S(5) << "buffered_worker_op(" << this << ")::buffered_worker_op";
     }
 
     ~instance() {
+      LOG_S(5) << "buffered_worker_op(" << this << ")::~buffered_worker_op";
       tele::counter_delete(_dropped_items);
       tele::counter_delete(_delivered_items);
     }
 
     void on_next(T &&t) override {
+      LOG_S(5) << "buffered_worker_op(" << this << ")::on_next";
       if (!_channel.try_send(next{std::move(t)})) {
         tele::counter_inc(_dropped_items);
       }
@@ -58,17 +61,15 @@ struct buffered_worker_op {
     };
 
     void on_error(std::error_condition ec) override {
+      LOG_S(5) << "buffered_worker_op(" << this << ")::on_error";
       _channel.send(error{ec});
-      _worker_thread->join();
-      _worker_thread.reset();
-      delete this;
+      _source_sub = nullptr;
     };
 
     void on_complete() override {
+      LOG_S(5) << "buffered_worker_op(" << this << ")::on_complete";
       _channel.send(complete{});
-      _worker_thread->join();
-      _worker_thread.reset();
-      delete this;
+      _source_sub = nullptr;
     };
 
     void on_subscribe(subscription &s) override {
@@ -80,27 +81,43 @@ struct buffered_worker_op {
     void request(int n) override { _outstanding += n; }
 
     void cancel() override {
-      _source_sub->cancel();
+      LOG_S(5) << "buffered_worker_op(" << this << ")::cancel";
+      if (_source_sub) {
+        _source_sub->cancel();
+      }
       _is_active = false;
     }
 
    private:
     void worker_thread_loop() noexcept {
       while (_is_active) {
+        LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop waiting";
         msg m = _channel.recv();
+        LOG_S(6) << "buffered_worker_op(" << this
+                 << ")::worker_thread_loop got msg _is_active=" << _is_active;
+        if (!_is_active) {
+          // we are no longer active after waiting for an item.
+          break;
+        }
 
         if (boost::get<subscribe>(&m)) {
+          LOG_S(6) << "buffered_worker_op(" << this
+                   << ")::worker_thread_loop on_subscribe";
           _sink.on_subscribe(*this);
         } else if (next *n = boost::get<next>(&m)) {
           BOOST_ASSERT(_outstanding > 0);
+          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
           _sink.on_next(std::move(n->t));
+          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
           _outstanding--;
           tele::counter_inc(_delivered_items);
         } else if (boost::get<complete>(&m)) {
+          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop complete";
           _sink.on_complete();
           // break the loop
           _is_active = false;
         } else if (error *e = boost::get<error>(&m)) {
+          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop error";
           _sink.on_error(e->ec);
           // break the loop
           _is_active = false;
@@ -108,6 +125,9 @@ struct buffered_worker_op {
           BOOST_ASSERT_MSG(false, "unexpected message");
         }
       }
+      LOG_S(5) << "buffered_worker_op(" << this << ")::worker_thread_loop exit";
+      _worker_thread->detach();
+      delete this;
     }
 
     bool _is_active{true};

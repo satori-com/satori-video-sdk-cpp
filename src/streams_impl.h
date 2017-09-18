@@ -208,6 +208,8 @@ struct generator_publisher : public publisher_impl<T> {
     explicit sub(Generator &&gen, subscriber<T> &sink)
         : _gen(std::move(gen)), _sink(sink), _state(_gen._create_fn()) {}
 
+    ~sub() { LOG_S(5) << "generator(" << this << ")::~generator"; }
+
     void request(int n) override {
       BOOST_ASSERT_MSG(_active, "generator is finished");
 
@@ -233,6 +235,7 @@ struct generator_publisher : public publisher_impl<T> {
     }
 
     void cancel() override {
+      LOG_S(5) << "generator(" << this << ")::cancel";
       _active = false;
       if (!_in_drain) {
         delete this;
@@ -245,6 +248,8 @@ struct generator_publisher : public publisher_impl<T> {
       _sink.on_next(std::move(t));
     }
     void on_error(std::error_condition ec) override {
+      LOG_S(5) << "generator(" << this << ")::on_error";
+      BOOST_ASSERT(_active);
       _sink.on_error(ec);
       _active = false;
       if (!_in_drain) {
@@ -253,6 +258,8 @@ struct generator_publisher : public publisher_impl<T> {
     }
 
     void on_complete() override {
+      if (!_active) return;
+      LOG_S(5) << "generator(" << this << ")::on_complete";
       _sink.on_complete();
       _active = false;
       if (!_in_drain) {
@@ -385,12 +392,11 @@ struct flat_map_op {
 
     void on_next(S &&t) override {
       LOG_S(5) << "flat_map_op(" << this << ")::on_next _requested=" << _requested
-               << " _received=" << _received;
+               << " _received=" << _received << " _in_drain=" << _in_drain;
       BOOST_ASSERT(!_fwd_sub);
       _requested_next = false;
       _fwd_sub = new fwd_sub(_sink, this);
       _fn(std::move(t))->subscribe(*_fwd_sub);
-      drain();
     }
 
     void on_error(std::error_condition ec) override {
@@ -436,7 +442,7 @@ struct flat_map_op {
     }
 
     void cancel() override {
-      LOG_S(5) << "flat_map_op(" << this << ")::cancel";
+      LOG_S(5) << "flat_map_op(" << this << ")::cancel _in_drain=" << _in_drain;
       BOOST_ASSERT(_active);
       BOOST_ASSERT(_source || _fwd_sub);
       if (_source) {
@@ -618,6 +624,7 @@ struct take_op {
       _received++;
 
       if (_received == _n) {
+        LOG_S(5) << "take_op(" << this << ") got enough";
         _source_sub->cancel();
         _source_sub = nullptr;
         on_complete();

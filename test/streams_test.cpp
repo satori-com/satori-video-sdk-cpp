@@ -153,6 +153,7 @@ BOOST_AUTO_TEST_CASE(buffered_worker) {
 }
 
 BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
+  LOG_SCOPE_FUNCTION(ERROR);
   auto p = streams::publishers::range(1, 5) >> rtm::video::buffered_worker("test", 10)
            >> streams::take(3);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
