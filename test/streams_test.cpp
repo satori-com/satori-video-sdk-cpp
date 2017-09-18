@@ -108,6 +108,7 @@ BOOST_AUTO_TEST_CASE(merge) {
 }
 
 BOOST_AUTO_TEST_CASE(on_finally_empty) {
+  LOG_SCOPE_FUNCTION(ERROR);
   bool terminated = false;
   auto p = streams::publishers::empty<int>()
            >> streams::do_finally([&terminated]() { terminated = true; });
