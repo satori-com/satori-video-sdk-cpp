@@ -116,15 +116,27 @@ struct async_publisher_impl : public publisher_impl<T> {
 };
 
 template <typename T>
-struct empty_publisher : public publisher_impl<T> {
-  void subscribe(subscriber<T> &s) override { s.on_complete(); }
+struct empty_publisher : public publisher_impl<T>, subscription {
+  void subscribe(subscriber<T> &s) override {
+    s.on_subscribe(*this);
+    s.on_complete();
+  }
+
+  void request(int n) override {}
+  void cancel() override{};
 };
 
 template <typename T>
-struct error_publisher : public publisher_impl<T> {
+struct error_publisher : public publisher_impl<T>, subscription {
   explicit error_publisher(std::error_condition ec) : _ec(ec) {}
 
-  void subscribe(subscriber<T> &s) override { s.on_error(_ec); }
+  void subscribe(subscriber<T> &s) override {
+    s.on_subscribe(*this);
+    s.on_error(_ec);
+  }
+
+  void request(int n) override {}
+  void cancel() override{};
 
   const std::error_condition _ec;
 };
@@ -356,9 +368,7 @@ struct flat_map_op {
     instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink)
         : _fn(std::move(op._fn)), _sink(sink) {}
 
-    ~instance() {
-      LOG_S(5) << "~flat_map_op::" << this;
-    }
+    ~instance() { LOG_S(5) << "flat_map_op(" << this << ")::~flat_map_op"; }
 
     void on_subscribe(subscription &s) override {
       BOOST_ASSERT(!_source);
@@ -367,7 +377,8 @@ struct flat_map_op {
     }
 
     void on_next(S &&t) override {
-      LOG_S(5) << "flat_map_op::" << this << " on_next _requested=" << _requested << " _received=" << _received;
+      LOG_S(5) << "flat_map_op(" << this << ")::on_next _requested=" << _requested
+               << " _received=" << _received;
       BOOST_ASSERT(!_fwd_sub);
       _requested_next = false;
       _fwd_sub = new fwd_sub(_sink, this);
@@ -376,7 +387,7 @@ struct flat_map_op {
     }
 
     void on_error(std::error_condition ec) override {
-      LOG_S(5) << "flat_map_op::" << this << " on_error";
+      LOG_S(5) << "flat_map_op(" << this << ")::on_error";
       _active = false;
       _sink.on_error(ec);
       _source = nullptr;
@@ -384,7 +395,8 @@ struct flat_map_op {
     }
 
     void on_complete() override {
-      LOG_S(5) << "flat_map_op::" << this << " on_complete _fwd_sub=" << _fwd_sub << " _in_drain=" << _in_drain;
+      LOG_S(5) << "flat_map_op(" << this << ")::on_complete _fwd_sub=" << _fwd_sub
+               << " _in_drain=" << _in_drain;
       _source_complete = true;
       _source = nullptr;
 
@@ -401,12 +413,13 @@ struct flat_map_op {
 
     void request(int n) override {
       BOOST_ASSERT(_active);
-      LOG_S(5) << "flat_map_op::" << this << " request " << n;
+      LOG_S(5) << "flat_map_op(" << this << ")::request " << n;
       _requested += n;
       if (_fwd_sub) {
         _fwd_sub->request(n);
+      } else {
+        drain();
       }
-      drain();
     }
 
     void drain() {
@@ -415,8 +428,9 @@ struct flat_map_op {
       }
 
       _in_drain = true;
-      LOG_S(5) << "flat_map_op::" << this << " >drain _requested=" << _requested << " _received=" << _received;
-      while (_active && !_fwd_sub) {
+      LOG_S(5) << "flat_map_op(" << this << ")::drain >_requested=" << _requested
+               << " _received=" << _received << " _source_complete=" << _source_complete;
+      while (_active && !_fwd_sub && _requested != _received) {
         if (_requested_next) {
           // next publisher hasn't arrived yet.
           break;
@@ -427,14 +441,14 @@ struct flat_map_op {
           break;
         }
 
-        LOG_S(5) << "flat_map_op::" << this << " >requested_next from " << _source;
+        LOG_S(5) << "flat_map_op(" << this << ")::drain >requested_next from " << _source;
         _requested_next = true;
         _source->request(1);
-        LOG_S(5) << "flat_map_op::" << this << " <requested_next";
+        LOG_S(5) << "flat_map_op(" << this << ")::drain <requested_next";
       }
 
       _in_drain = false;
-      LOG_S(5) << "flat_map_op::" << this << " <drain _active=" << _active
+      LOG_S(5) << "flat_map_op(" << this << ")::drain <_active=" << _active
                << " _requested=" << _requested << " _received = " << _received
                << " _requested_next=" << _requested_next << " _fwd_sub=" << _fwd_sub;
 
@@ -450,8 +464,9 @@ struct flat_map_op {
     }
 
     void current_result_complete() {
-      LOG_S(5) << "flat_map_op::" << this << " current_result_complete _requested=" << _requested << " _received=" << _received
-               << " in_drain=" << _in_drain;
+      LOG_S(5) << "flat_map_op(" << this
+               << ")::current_result_complete _requested=" << _requested
+               << " _received=" << _received << " in_drain=" << _in_drain;
       _fwd_sub = nullptr;
       drain();
     }
@@ -471,7 +486,7 @@ struct flat_map_op {
       }
 
       void on_next(T &&t) override {
-        LOG_S(5) << "flat_map_op::" << _instance << " fwd_sub::on_next";
+        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_next";
         _instance->_received++;
         _sink.on_next(std::move(t));
       }
@@ -482,13 +497,13 @@ struct flat_map_op {
       }
 
       void on_complete() override {
-        LOG_S(5) << "flat_map_op::" << _instance << " fw_src on_complete";
+        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_complete";
         _instance->current_result_complete();
         delete this;
       }
 
       void request(int n) override {
-        LOG_S(5) << "flat_map_op::" << _instance << " fwd_src request " << n;
+        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::request " << n;
         _source->request(n);
       }
 
@@ -591,9 +606,19 @@ struct do_finally_op {
     instance(do_finally_op<Fn> &&op, subscriber<T> &sink)
         : _fn(std::move(op._fn)), _sink(sink) {}
 
-    void on_next(T &&s) override { _sink.on_next(std::move(s)); };
+    void on_subscribe(subscription &s) override {
+      BOOST_ASSERT(!_source_sub);
+      _source_sub = &s;
+      _sink.on_subscribe(*this);
+    }
+
+    void on_next(T &&s) override {
+      BOOST_ASSERT(_source_sub);
+      _sink.on_next(std::move(s));
+    };
 
     void on_error(std::error_condition ec) override {
+      BOOST_ASSERT(_source_sub);
       _source_sub = nullptr;
       _sink.on_error(ec);
       _fn();
@@ -601,20 +626,23 @@ struct do_finally_op {
     };
 
     void on_complete() override {
+      BOOST_ASSERT(_source_sub);
+      LOG_S(5) << "do_finally(" << this << ")::on_complete";
       _source_sub = nullptr;
       _sink.on_complete();
       _fn();
       delete this;
     };
 
-    void on_subscribe(subscription &s) override {
-      _source_sub = &s;
-      _sink.on_subscribe(*this);
-    };
-
-    void request(int n) override { _source_sub->request(n); }
+    void request(int n) override {
+      BOOST_ASSERT(_source_sub);
+      LOG_S(5) << "do_finally(" << this << ")::request " << n;
+      _source_sub->request(n);
+    }
 
     void cancel() override {
+      BOOST_ASSERT(_source_sub);
+      LOG_S(5) << "do_finally(" << this << ")::cancel";
       _source_sub->cancel();
       _source_sub = nullptr;
       _fn();
@@ -623,7 +651,7 @@ struct do_finally_op {
 
     Fn _fn;
     subscriber<value_t> &_sink;
-    subscription *_source_sub;
+    subscription *_source_sub{nullptr};
   };
 
   Fn _fn;
