@@ -850,13 +850,6 @@ inline auto take(int count) { return impl::take_op(count); }
 
 inline auto head() { return take(1); }
 
-/*
-template <typename S, typename T>
-auto lift(op<S, T> fn) {
-  return impl::lift_op<S, T>(fn);
-};
-*/
-
 template <typename Fn>
 auto do_finally(Fn &&fn) {
   return impl::do_finally_op<Fn>{std::move(fn)};
