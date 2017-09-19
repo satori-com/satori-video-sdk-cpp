@@ -543,7 +543,7 @@ int bot_environment::main(int argc, char* argv[]) {
     _debug_file.reset(new std::ofstream(debug_file.c_str()));
     _debug_sink = new file_cbor_observer(*_debug_file);
   } else if (_rtm_client) {
-    _analysis_sink =
+    _debug_sink =
         &streams::rtm::cbor_sink(_rtm_client, channel + debug_channel_suffix);
   } else {
     _debug_sink = new file_cbor_observer(std::cerr);
