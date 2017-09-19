@@ -143,7 +143,7 @@ streams::op<int, int> square() {
 };
 
 BOOST_AUTO_TEST_CASE(lift_square) {
-  auto p = streams::publishers::range(2, 5) >> streams::lift(square());
+  auto p = streams::publishers::range(2, 5) >> square();
   BOOST_TEST(events(std::move(p)) == strings({"4", "9", "16", "."}));
 }
 
@@ -194,9 +194,8 @@ BOOST_AUTO_TEST_CASE(delay_finally) {
     boost::asio::io_service io_service;
     bool terminated = false;
     auto p = streams::publishers::of({1, 2, 3, 4, 5})
-                 >> streams::lift(
-                        streams::asio::interval<int>(io_service, std::chrono::milliseconds(5)))
-                 >> streams::do_finally([&terminated]() { terminated = true; });
+             >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
+             >> streams::do_finally([&terminated]() { terminated = true; });
     BOOST_TEST(!terminated);
     BOOST_TEST(events(std::move(p), &io_service) == strings({"1", "2", "3", "4", "5", "."}));
     BOOST_TEST(terminated);
@@ -231,8 +230,7 @@ BOOST_AUTO_TEST_CASE(collector_asio) {
   boost::asio::io_service io_service;
   bool terminated = false;
   auto p = streams::publishers::range(1, 300000000)
-           >> streams::lift(
-                  streams::asio::interval<int>(io_service, std::chrono::milliseconds(5)))
+           >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
            >> streams::take_while([](auto i) { return i < 10; })
            >> streams::do_finally([&terminated]() { terminated = true; });
   collector_sink<int> *s = new ::collector_sink<int>();

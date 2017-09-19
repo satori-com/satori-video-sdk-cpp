@@ -23,7 +23,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
 
   int frames_count{0};
 
-  auto encoded_stream = std::move(frames) >> streams::lift(encode_vp9(1));
+  auto encoded_stream = std::move(frames) >> encode_vp9(1);
   encoded_stream->process(
       [&frames_count](encoded_packet &&f) { frames_count++; }, []() {},
       [](const std::error_condition ec) { BOOST_FAIL(ec.message()); });

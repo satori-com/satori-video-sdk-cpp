@@ -759,6 +759,23 @@ struct do_finally_op {
   Fn _fn;
 };
 
+// piping through a specially implemented operator.
+template <typename T, typename Op>
+struct pipe_impl {
+  static auto apply(publisher<T> &&src, Op &&op) {
+    using instance_t = typename Op::template instance<T>;
+    return instance_t::apply(std::move(src), std::move(op));
+  }
+};
+
+// piping through streams::op<T, U>
+template <typename T, typename U>
+struct pipe_impl<T, op<T, U>> {
+  static auto apply(publisher<T> &&src, op<T, U> &&op) {
+    return std::move(src) >> impl::lift_op<T, U>(std::move(op));
+  }
+};
+
 }  // namespace impl
 
 template <typename T>
@@ -811,8 +828,7 @@ publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
 
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op) {
-  using instance_t = typename Op::template instance<T>;
-  return instance_t::apply(std::move(src), std::move(op));
+  return impl::pipe_impl<T, Op>::apply(std::move(src), std::move(op));
 };
 
 template <typename Fn>
@@ -834,10 +850,12 @@ inline auto take(int count) { return impl::take_op(count); }
 
 inline auto head() { return take(1); }
 
+/*
 template <typename S, typename T>
 auto lift(op<S, T> fn) {
   return impl::lift_op<S, T>(fn);
 };
+*/
 
 template <typename Fn>
 auto do_finally(Fn &&fn) {

@@ -159,8 +159,8 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
   if (!batch) {
     // todo: fps
     int fps = 25;
-    result = std::move(result) >> streams::lift(streams::asio::interval<encoded_packet>(
-                                      io, std::chrono::milliseconds(1000 / fps)));
+    result = std::move(result) >> streams::asio::interval<encoded_packet>(
+                                      io, std::chrono::milliseconds(1000 / fps));
   }
 
   return result;

@@ -51,7 +51,7 @@ void run_flow_decoder_test(test_definition &&td) {
   if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
 
   streams::publisher<owned_image_packet> image_stream =
-      test_stream(td) >> lift(decode_image_frames(-1, -1, image_pixel_format::RGB0));
+      test_stream(td) >> decode_image_frames(-1, -1, image_pixel_format::RGB0);
 
   int last_frame_width;
   int last_frame_height;

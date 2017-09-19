@@ -48,7 +48,11 @@ struct publisher_impl {
 template <typename T>
 using publisher = std::unique_ptr<publisher_impl<T>>;
 
+template <typename S, typename T>
+using op = std::function<publisher<T>(publisher<S> &&)>;
+
 // process stream with an operator and return the result.
+// Operator can be stream::op or one of the operators defined below.
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op);
 
@@ -132,17 +136,12 @@ auto flat_map(Fn &&fn);
 template <typename Fn>
 auto do_finally(Fn &&fn);
 
-template <typename S, typename T>
-using op = std::function<publisher<T>(publisher<S> &&)>;
-
-// lift publisher -> publisher function to an operator.
-template <typename S, typename T>
-auto lift(op<S, T> fn);
-
+/*
 template <typename S, typename T>
 auto lift(publisher<T> (*fn)(publisher<S> &&)) {
   return lift(static_cast<op<S, T>>(fn));
 };
+*/
 
 }  // namespace streams
 

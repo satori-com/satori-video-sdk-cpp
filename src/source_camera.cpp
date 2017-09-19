@@ -260,8 +260,8 @@ streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
                 streams::observer<encoded_packet> &sink) {
                return impl->generate(count, sink);
              })
-         >> streams::lift(streams::asio::interval<encoded_packet>(
-                io, std::chrono::milliseconds(1000 / 25)));
+         >> streams::asio::interval<encoded_packet>(io,
+                                                    std::chrono::milliseconds(1000 / 25));
 };
 
 }  // namespace video

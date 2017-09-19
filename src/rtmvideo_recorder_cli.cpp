@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
         rtm::video::rtm_source(rtm_client, vm["channel"].as<std::string>())
         >> rtm::video::buffered_worker("recorder.network_buffer",
                                        network_frames_max_buffer_size)
-        >> streams::lift(rtm::video::decode_network_stream())
+        >> rtm::video::decode_network_stream()
         >> rtm::video::buffered_worker("recorder.encoded_buffer",
                                        incoming_encoded_frames_max_buffer_size);
   } else {
@@ -127,13 +127,13 @@ int main(int argc, char* argv[]) {
   }
 
   streams::publisher<rtm::video::encoded_packet> outgoing_packets_source =
-      std::move(incoming_packets_source) >> streams::lift(rtm::video::decode_image_frames(
-                                                640, 480, image_pixel_format::RGB0))
+      std::move(incoming_packets_source)
+      >> rtm::video::decode_image_frames(640, 480, image_pixel_format::RGB0)
       >> streams::take_while(
              [&ih](const rtm::video::owned_image_packet&) { return ih.running.load(); })
       >> rtm::video::buffered_worker("recorder.image_buffer",
                                      image_frames_max_buffer_size)
-      >> streams::lift(rtm::video::encode_vp9(25))
+      >> rtm::video::encode_vp9(25)
       >> rtm::video::buffered_worker("recorder.vp9_encoded_buffer",
                                      outgoing_encoded_frames_max_buffer_size)
       >> streams::do_finally([rtm_client, &io_service]() {

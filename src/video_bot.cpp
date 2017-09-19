@@ -501,7 +501,7 @@ int bot_environment::main(int argc, char* argv[]) {
     encoded_src =
         rtm_source(_rtm_client, channel)
         >> buffered_worker("vbot.network_buffer", network_frames_max_buffer_size)
-        >> streams::lift(decode_network_stream());
+        >> decode_network_stream();
   } else {
     if (cmd_args.count("video_file")) {
       const auto& video_file = cmd_args["video_file"].as<std::string>();
@@ -509,7 +509,7 @@ int bot_environment::main(int argc, char* argv[]) {
     } else if (cmd_args.count("replay_file")) {
       const auto& replay_file = cmd_args["replay_file"].as<std::string>();
       encoded_src = network_replay_source(io_service, replay_file, batch)
-                    >> streams::lift(decode_network_stream());
+                    >> decode_network_stream();
     }
   }
 
@@ -517,11 +517,11 @@ int bot_environment::main(int argc, char* argv[]) {
       decode_image_frames(_bot_descriptor->image_width, _bot_descriptor->image_height,
                           _bot_descriptor->pixel_format);
   if (batch) {
-    _source = std::move(encoded_src) >> streams::lift(decode_op);
+    _source = std::move(encoded_src) >> std::move(decode_op);
   } else {
     _source = std::move(encoded_src)
               >> buffered_worker("vbot.encoded_buffer", encoded_frames_max_buffer_size)
-              >> streams::lift(decode_op)
+              >> std::move(decode_op)
               >> buffered_worker("vbot.image_buffer", image_frames_max_buffer_size);
   }
 
