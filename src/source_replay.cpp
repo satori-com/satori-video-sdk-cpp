@@ -20,11 +20,13 @@ namespace rtm {
 namespace video {
 
 struct read_json_impl {
-  explicit read_json_impl(const std::string &filename) : _input(filename) {}
+  explicit read_json_impl(const std::string &filename)
+      : _filename(filename), _input(filename) {}
 
   void generate(int count, streams::observer<rapidjson::Document> &observer) {
     if (!_input.good()) {
-      std::make_error_condition(std::errc::no_such_file_or_directory);
+      LOG_S(ERROR) << "replay file not found: " << _filename;
+      observer.on_error(std::make_error_condition(std::errc::no_such_file_or_directory));
       return;
     }
 
@@ -44,6 +46,7 @@ struct read_json_impl {
     }
   }
 
+  const std::string _filename;
   std::ifstream _input;
 };
 
