@@ -41,7 +41,9 @@ struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
   void on_next(cbor_item_t *&&item) override {
     _client->publish(_channel, item, nullptr);
     cbor_decref(&item);
-    _src->request(1);
+    if (_src) {
+      _src->request(1);
+    }
   }
 
   void on_error(std::error_condition ec) override {
@@ -58,7 +60,7 @@ struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
 
   const std::shared_ptr<::rtm::publisher> _client;
   const std::string _channel;
-  streams::subscription *_src;
+  streams::subscription *_src{nullptr};
 };
 
 streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<::rtm::publisher> client,
