@@ -17,7 +17,16 @@ network_packet parse_network_frame(rapidjson::Value &&msg) {
   int64_t i1 = t[0].GetInt64();
   int64_t i2 = t[1].GetInt64();
 
-  double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
+  std::chrono::system_clock::time_point timestamp;
+  if (msg.HasMember("t")) {
+    std::chrono::duration<double, std::nano> double_duration(msg["t"].GetDouble());
+    std::chrono::system_clock::duration normal_duration =
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
+    timestamp = std::chrono::system_clock::time_point{normal_duration};
+  } else {
+    LOG_S(WARNING) << "network frame packet doesn't have timestamp";
+    timestamp = std::chrono::system_clock::now();
+  }
 
   uint32_t chunk = 1, chunks = 1;
   if (msg.HasMember("c")) {
@@ -27,7 +36,7 @@ network_packet parse_network_frame(rapidjson::Value &&msg) {
 
   return network_frame{.base64_data = msg["d"].GetString(),
                        .id = {i1, i2},
-                       .t = std::chrono::system_clock::from_time_t(ntp_timestamp),
+                       .t = timestamp,
                        .chunk = chunk,
                        .chunks = chunks};
 }

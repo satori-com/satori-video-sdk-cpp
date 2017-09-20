@@ -67,7 +67,9 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
                }
 
                if (nf->chunk == nf->chunks) {
-                 encoded_frame frame{.data = decode64(s->aggregated_data), .id = s->id};
+                 encoded_frame frame{.data = decode64(s->aggregated_data),
+                                     .id = s->id,
+                                     .timestamp = nf->t};
                  s->reset();
                  return streams::publishers::of({encoded_packet{frame}});
                }
@@ -142,8 +144,11 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
       auto width = (uint16_t)decoder_image_width(decoder);
       auto height = (uint16_t)decoder_image_height(decoder);
 
-      owned_image_frame frame{
-          .id = f.id, .pixel_format = _pixel_format, .width = width, .height = height};
+      owned_image_frame frame{.id = f.id,
+                              .pixel_format = _pixel_format,
+                              .width = width,
+                              .height = height,
+                              .timestamp = f.timestamp};
 
       for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
         const uint32_t plane_stride = decoder_image_line_size(decoder, i);

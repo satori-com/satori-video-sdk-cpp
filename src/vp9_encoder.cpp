@@ -88,7 +88,8 @@ struct vp9_encoder {
 
       const std::string data{packet.data, packet.data + packet.size};
       av_packet_unref(&packet);
-      packets.push_back(encoded_frame{.data = data, .id = f.id});
+      packets.push_back(
+          encoded_frame{.data = data, .id = f.id, .timestamp = f.timestamp});
     }
 
     _counter++;

@@ -96,23 +96,25 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
       if (ret < 0) {
         throw std::runtime_error{"failed to write header: " + avutils::error_msg(ret)};
       }
-
-      _first_frame_ts = std::chrono::system_clock::now();
     }
   }
 
   void on_encoded_frame(const encoded_frame &f) {
     if (_video_stream_index < 0) return;
 
-    const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    if (!_first_frame_ts) {
+      _first_frame_ts = f.timestamp;
+    }
+
     AVPacket packet;
     av_init_packet(&packet);
     packet.data = (uint8_t *)f.data.data();
     packet.size = f.data.size();
-    packet.pts =
-        1
-        + std::chrono::duration_cast<std::chrono::milliseconds>(now - _first_frame_ts)
-              .count();
+    packet.pts = 1
+                 + std::chrono::duration_cast<std::chrono::milliseconds>(
+                       f.timestamp - *_first_frame_ts)
+                       .count();
+    LOG_S(2) << "pts = " << packet.pts;
     packet.stream_index = _video_stream_index;
     int ret = av_write_frame(_format_context.get(), &packet);
     if (ret < 0) {
@@ -126,7 +128,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
   const AVCodecID _encoder_id{AV_CODEC_ID_VP9};
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
   int _video_stream_index{-1};
-  std::chrono::system_clock::time_point _first_frame_ts;
+  boost::optional<std::chrono::system_clock::time_point> _first_frame_ts;
 };
 
 streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename) {
