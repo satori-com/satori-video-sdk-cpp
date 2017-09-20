@@ -40,9 +40,9 @@ add_library(rtmvideo
     src/rtm_source.cpp
     src/rtm_streams.cpp
     src/rtmclient.cpp
-    src/source_camera.cpp
-    src/source_file.cpp
-    src/source_replay.cpp
+    src/camera_source.cpp
+    src/file_source.cpp
+    src/replay_source.cpp
     src/streams.cpp
     src/tele.cpp
     src/video_bot.cpp
