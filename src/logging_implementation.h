@@ -14,4 +14,6 @@ inline void init_logging(int &argc, char* argv[]) {
     loguru::g_stderr_verbosity = loguru::Verbosity_1;
   }
   loguru::init(argc, argv);
+  LOG_S(INFO) << "logging initialized in " << (RELEASE_MODE ? "release" : "debug")
+              << " mode";
 }

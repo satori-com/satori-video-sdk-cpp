@@ -31,6 +31,8 @@ add_subdirectory(decoder)
 add_library(rtmvideo
     src/avutils.cpp
     src/base64.cpp
+    src/bot_environment.cpp
+    src/bot_instance.cpp
     src/camera_source.cpp
     src/cbor_json.cpp
     src/cbor_tools.cpp

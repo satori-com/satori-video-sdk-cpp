@@ -4,6 +4,7 @@
 #include <boost/optional.hpp>
 #include <boost/program_options.hpp>
 #include <gsl/gsl>
+#include <list>
 #include <memory>
 
 #include "librtmvideo/data.h"
