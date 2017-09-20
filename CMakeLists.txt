@@ -31,18 +31,19 @@ add_subdirectory(decoder)
 add_library(rtmvideo
     src/avutils.cpp
     src/base64.cpp
+    src/camera_source.cpp
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
     src/error.cpp
+    src/file_source.cpp
     src/mkv_sink.cpp
+    src/replay_source.cpp
     src/rtm_sink.cpp
     src/rtm_source.cpp
     src/rtm_streams.cpp
     src/rtmclient.cpp
-    src/camera_source.cpp
-    src/file_source.cpp
-    src/replay_source.cpp
+    src/signal_breaker.cpp
     src/streams.cpp
     src/tele.cpp
     src/video_bot.cpp

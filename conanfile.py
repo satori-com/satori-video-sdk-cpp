@@ -14,7 +14,7 @@ class SatorivideoConan(ConanFile):
                "Ffmpeg/3.3.3_03@satorivideo/master", \
                "Loguru/1.5.1@satorivideo/master"
     license = "proprietary"
-    version = '0.2.0'
+    version = '0.2.1'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \

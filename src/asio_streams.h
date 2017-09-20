@@ -18,6 +18,11 @@ inline auto delay(boost::asio::io_service &io, Fn &&fn);
 template <typename T>
 streams::op<T, T> interval(boost::asio::io_service &io, std::chrono::milliseconds period);
 
+// Breaks the stream after specified time.
+template <typename T>
+streams::op<T, T> timer_breaker(boost::asio::io_service &io,
+                                std::chrono::milliseconds time);
+
 }  // namespace asio
 }  // namespace streams
 

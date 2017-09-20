@@ -18,6 +18,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include "asio_streams.h"
 #include "base64.h"
 #include "bot_environment.h"
 #include "cbor_json.h"
@@ -30,6 +31,7 @@ extern "C" {
 #include "logging_implementation.h"
 #include "rtm_streams.h"
 #include "rtmclient.h"
+#include "signal_breaker.h"
 #include "stopwatch.h"
 #include "tele_impl.h"
 #include "video_streams.h"
@@ -124,8 +126,9 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
   void start(streams::publisher<owned_image_packet>& video_stream,
              streams::publisher<cbor_item_t*>& control_stream) {
     _control_sub.reset(new control_sub(this));
-    video_stream->subscribe(*this);
     control_stream->subscribe(*_control_sub);
+    // this will drain the stream in batch mode, should be last.
+    video_stream->subscribe(*this);
   }
 
   void stop() {
@@ -143,12 +146,12 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
   }
 
   void on_complete() override {
-    LOG_S(INFO) << "processing complete\n";
+    LOG_S(INFO) << "processing complete";
     _sub = nullptr;
   }
 
   void on_error(std::error_condition ec) override {
-    LOG_S(ERROR) << ec.message() << "\n";
+    LOG_S(ERROR) << ec.message();
     _sub = nullptr;
     exit(2);
   }
@@ -226,7 +229,7 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
     }
 
     if (!cbor_isa_map(msg)) {
-      LOG_S(ERROR) << "unsupported kind of message\n";
+      LOG_S(ERROR) << "unsupported kind of message";
       return;
     }
 
@@ -468,12 +471,6 @@ int bot_environment::main(int argc, char* argv[]) {
   boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{asio::ssl::context::sslv23};
 
-  boost::asio::signal_set signals(io_service);
-  signals.add(SIGINT);
-  signals.add(SIGTERM);
-  signals.add(SIGQUIT);
-  signals.async_wait([&io_service, this](const boost::system::error_code& error,
-                                         int signal) { stop(io_service); });
 
   if (cmd_args.count("endpoint")) {
     const std::string endpoint = cmd_args["endpoint"].as<std::string>();
@@ -557,19 +554,28 @@ int bot_environment::main(int argc, char* argv[]) {
     _control_source = streams::publishers::empty<cbor_item_t*>();
   }
 
-  boost::asio::deadline_timer timer(io_service);
   if (cmd_args.count("time_limit")) {
-    timer.expires_from_now(boost::posix_time::seconds(cmd_args["time_limit"].as<long>()));
-    timer.async_wait(
-        [&io_service, this](const boost::system::error_code& ec) { stop(io_service); });
+    _source = std::move(_source)
+              >> streams::asio::timer_breaker<owned_image_packet>(
+                     io_service, std::chrono::seconds(cmd_args["time_limit"].as<long>()));
   }
 
   if (cmd_args.count("frames_limit")) {
     _source = std::move(_source) >> streams::take(cmd_args["frames_limit"].as<long>());
   }
 
+  bool finished{false};
+
   _source = std::move(_source)
-            >> streams::do_finally([&io_service, this]() { stop(io_service); });
+            >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
+            >> streams::do_finally([this, &finished]() {
+                finished = true;
+                _bot_instance->stop();
+                _tele_publisher.reset();
+                if (_rtm_client) {
+                  _rtm_client->stop();
+                }
+              });
 
   _bot_instance->start(_source, _control_source);
 
@@ -577,19 +583,15 @@ int bot_environment::main(int argc, char* argv[]) {
     LOG_S(INFO) << "entering asio loop";
     auto n = io_service.run();
     LOG_S(INFO) << "asio loop exited, executed " << n << " handlers";
+
+    while (!finished) {
+      // batch mode has no threads
+      LOG_S(INFO) << "waiting for all threads to finish...";
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
   }
 
   return 0;
-}
-
-void bot_environment::stop(boost::asio::io_service& io) {
-  _bot_instance->stop();
-  _tele_publisher.reset();
-  if (_rtm_client) {
-    _rtm_client->stop();
-  }
-
-  exit(0);
 }
 
 }  // namespace video
@@ -599,10 +601,6 @@ void rtm_video_bot_message(bot_context& ctx, const bot_message_kind kind,
                            cbor_item_t* message, const frame_id& id) {
   BOOST_ASSERT_MSG(cbor_map_is_indefinite(message), "Message must be indefinite map");
   static_cast<rtm::video::bot_instance&>(ctx).queue_message(kind, message, id);
-}
-
-void rtm_video_bot_get_metadata(image_metadata& data, const bot_context& ctx) {
-  static_cast<const rtm::video::bot_instance&>(ctx).get_metadata(data);
 }
 
 void rtm_video_bot_register(const bot_descriptor& bot) {

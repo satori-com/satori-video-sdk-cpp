@@ -104,10 +104,12 @@ struct file_source_impl {
       if (ret < 0) {
         if (ret == AVERROR_EOF) {
           if (_loop) {
+            LOG_S(4) << "restarting " << _filename;
             av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
                           AVSEEK_FLAG_BACKWARD);
             continue;
           } else {
+            LOG_S(4) << "eof in " << _filename;
             observer.on_complete();
             return;
           }
@@ -120,6 +122,7 @@ struct file_source_impl {
       auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
 
       if (_pkt.stream_index == _stream_idx) {
+        LOG_S(4) << "packet from file " << _filename;
         encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}};
         observer.on_next(frame);
         packets++;

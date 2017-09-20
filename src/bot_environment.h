@@ -40,7 +40,6 @@ class bot_environment : private error_callbacks {
 
  private:
   void parse_config(boost::optional<std::string> config_file);
-  void stop(boost::asio::io_service& io);
 
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;

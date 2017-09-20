@@ -195,5 +195,28 @@ streams::op<T, T> interval(boost::asio::io_service &io,
   };
 };
 
+template <typename T>
+streams::op<T, T> timer_breaker(boost::asio::io_service &io,
+                                std::chrono::milliseconds time) {
+  return [&io, time](publisher<T> &&src) {
+    boost::asio::deadline_timer *timer = new boost::asio::deadline_timer(io);
+    std::atomic<bool> *flag = new std::atomic<bool>{true};
+
+    timer->expires_from_now(impl::to_boost(time));
+    timer->async_wait(
+        [flag](const boost::system::error_code &ec) { flag->store(false); });
+
+    return std::move(src) >> take_while([flag, timer](const T &) {
+             bool result = flag->load();
+             if (!result) {
+               LOG_S(INFO) << "time limit expired, breaking the stream";
+               delete timer;
+               delete flag;
+             }
+             return result;
+           });
+  };
+};
+
 }  // namespace asio
 }  // namespace streams
