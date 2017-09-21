@@ -3,10 +3,7 @@
 
 #include "base64.h"
 #include "error.h"
-#include "librtmvideo/decoder.h"
-#include "librtmvideo/tele.h"
 #include "logging.h"
-#include "stopwatch.h"
 #include "video_streams.h"
 
 extern "C" {
@@ -16,25 +13,6 @@ extern "C" {
 
 namespace rtm {
 namespace video {
-
-void initialize_source_library() {
-  static bool is_initialized = false;
-
-  if (!is_initialized) {
-    avdevice_register_all();
-    avcodec_register_all();
-    av_register_all();
-    is_initialized = true;
-  }
-}
-
-namespace {
-auto frames_received = tele::counter_new("decoder", "frames_received");
-auto messages_received = tele::counter_new("decoder", "messages_received");
-auto messages_dropped = tele::counter_new("decoder", "messages_dropped");
-auto bytes_received = tele::counter_new("decoder", "bytes_received");
-auto decoding_times_millis = tele::distribution_new("decoder", "decoding_times_millis");
-}  // namespace
 
 streams::op<network_packet, encoded_packet> decode_network_stream() {
   struct state {
@@ -81,112 +59,6 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
              BOOST_UNREACHABLE_RETURN();
            })
            >> streams::do_finally([s]() { delete s; });
-  };
-}
-streams::op<encoded_packet, owned_image_packet> decode_image_frames(
-    int bounding_width, int bounding_height, image_pixel_format pixel_format) {
-  struct state {
-    state(int bounding_width, int bounding_height, image_pixel_format pixel_format)
-        : _bounding_width(bounding_width),
-          _bounding_height(bounding_height),
-          _pixel_format(pixel_format) {}
-
-    // returns 0 on success.
-    streams::publisher<owned_image_packet> on_metadata(const encoded_metadata &m) {
-      LOG_S(1) << "received stream metadata";
-      if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
-        return streams::publishers::empty<owned_image_packet>();
-      }
-
-      _metadata = m;
-
-      _decoder.reset(
-          decoder_new_keep_proportions(_bounding_width, _bounding_height, _pixel_format),
-          [](decoder *d) {
-            LOG_S(1) << "deleting decoder";
-            decoder_delete(d);
-          });
-      BOOST_VERIFY(_decoder);
-
-      int err = decoder_set_metadata(_decoder.get(), _metadata.codec_name.c_str(),
-                                     (const uint8_t *)_metadata.codec_data.data(),
-                                     _metadata.codec_data.size());
-      if (err)
-        return streams::publishers::error<owned_image_packet>(
-            video_error::StreamInitializationError);
-      LOG_S(INFO) << _metadata.codec_name << " video decoder  initialized";
-      return streams::publishers::empty<owned_image_packet>();
-    }
-
-    streams::publisher<owned_image_packet> on_image_frame(const encoded_frame &f) {
-      tele::counter_inc(messages_received);
-      tele::counter_inc(bytes_received, f.data.size());
-
-      if (!_decoder) {
-        tele::counter_inc(messages_dropped);
-        return streams::publishers::empty<owned_image_packet>();
-      }
-
-      decoder *decoder = _decoder.get();
-      {
-        stopwatch<> s;
-        decoder_process_binary_message(decoder, (const uint8_t *)f.data.data(),
-                                       f.data.size());
-        tele::distribution_add(decoding_times_millis, s.millis());
-      }
-
-      if (!decoder_frame_ready(decoder)) {
-        return streams::publishers::empty<owned_image_packet>();
-      }
-
-      tele::counter_inc(frames_received);
-
-      auto width = (uint16_t)decoder_image_width(decoder);
-      auto height = (uint16_t)decoder_image_height(decoder);
-
-      owned_image_frame frame{.id = f.id,
-                              .pixel_format = _pixel_format,
-                              .width = width,
-                              .height = height,
-                              .timestamp = f.timestamp};
-
-      for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
-        const uint32_t plane_stride = decoder_image_line_size(decoder, i);
-        const uint8_t *plane_data = decoder_image_data(decoder, i);
-        frame.plane_strides[i] = plane_stride;
-        if (plane_stride > 0) {
-          frame.plane_data[i].assign(plane_data, plane_data + (plane_stride * height));
-        }
-      }
-
-      return streams::publishers::of({owned_image_packet{frame}});
-    }
-
-   private:
-    const int _bounding_width;
-    const int _bounding_height;
-    const image_pixel_format _pixel_format;
-    std::shared_ptr<decoder> _decoder;
-    encoded_metadata _metadata;
-  };
-
-  return [bounding_width, bounding_height,
-          pixel_format](streams::publisher<encoded_packet> &&src) {
-    state *s = new state(bounding_width, bounding_height, pixel_format);
-    streams::publisher<owned_image_packet> result =
-        std::move(src) >> streams::flat_map([s](encoded_packet &&packet) {
-          if (const encoded_metadata *m = boost::get<encoded_metadata>(&packet)) {
-            return s->on_metadata(*m);
-          } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
-            return s->on_image_frame(*f);
-          } else {
-            BOOST_ASSERT_MSG(false, "Bad variant");
-            return streams::publishers::empty<owned_image_packet>();
-          }
-        })
-        >> streams::do_finally([s]() { delete s; });
-
-    return result;
   };
 }
 

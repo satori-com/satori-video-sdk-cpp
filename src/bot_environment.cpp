@@ -9,10 +9,10 @@
 #include <fstream>
 
 #include "asio_streams.h"
+#include "avutils.h"
 #include "bot_instance.h"
 #include "cbor_json.h"
 #include "librtmvideo/cbor_tools.h"
-#include "librtmvideo/decoder.h"
 #include "logging_implementation.h"
 #include "rtm_streams.h"
 #include "signal_breaker.h"
@@ -222,8 +222,7 @@ int bot_environment::main(int argc, char* argv[]) {
   auto cmd_args = parse_command_line(argc, argv);
   init_logging(argc, argv);
 
-  decoder_init_library();
-  rtm::video::initialize_source_library();
+  avutils::init();
 
   const std::string id = cmd_args["id"].as<std::string>();
   _bot_instance.reset(new bot_instance(id, *_bot_descriptor, *this));

@@ -207,7 +207,7 @@ class secure_client : public client {
     // upgrade to ws.
     _ws.handshake(_host, "/v2?appkey=" + _appkey, ec);
     if (ec) fail("upgrading to websocket protocol", ec);
-    LOG_S(INFO) << "Websocket open";
+    LOG_S(1) << "Websocket open";
 
     _client_state = client_state::Running;
     ask_for_read();
@@ -366,9 +366,9 @@ class secure_client : public client {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG_S(INFO) << "got subscribe confirmation for subscription " << sub_id
-                      << " in status " << std::to_string((int)sub.status) << ": "
-                      << to_string(d);
+          LOG_S(1) << "got subscribe confirmation for subscription " << sub_id
+                   << " in status " << std::to_string((int)sub.status) << ": "
+                   << to_string(d);
           BOOST_VERIFY(sub.status == subscription_status::PendingSubscribe);
           sub.pending_request_id = UINT64_MAX;
           sub.status = subscription_status::Current;
@@ -460,7 +460,7 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    asio::io_service &io_service,
                                    asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks) {
-  std::cout << "Creating RTM client for " << endpoint << ":" << port << "\n";
+  LOG_S(1) << "Creating RTM client for " << endpoint << ":" << port << "\n";
   std::unique_ptr<secure_client> client(
       new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);

@@ -11,8 +11,6 @@
 namespace rtm {
 namespace video {
 
-void initialize_source_library();
-
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                std::string filename, bool loop,
                                                bool batch);

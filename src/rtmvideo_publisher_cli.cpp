@@ -1,5 +1,7 @@
 #include <boost/program_options.hpp>
 #include <iostream>
+
+#include "avutils.h"
 #include "asio_streams.h"
 #include "rtmclient.h"
 #include "video_streams.h"
@@ -70,7 +72,7 @@ int main(int argc, char *argv[]) {
 
   boost::asio::io_service io_service;
 
-  rtm::video::initialize_source_library();
+  rtm::video::avutils::init();
   streams::publisher<rtm::video::encoded_packet> source;
 
   if (source_type == "camera") {

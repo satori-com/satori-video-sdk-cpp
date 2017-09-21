@@ -20,9 +20,9 @@ if(UNIX AND NOT APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 endif()
 
-#if (APPLE)
-#    set(CMAKE_CXX_FLAGS "-fsanitize=address ${CMAKE_CXX_FLAGS}")
-#endif()
+if (DEFINED CMAKE_CXX_SANITIZER)
+    set(CMAKE_CXX_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_CXX_FLAGS}")
+endif()
 
 set(CMAKE_CXX_FLAGS "-ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
 
@@ -37,6 +37,7 @@ add_library(rtmvideo
     src/cbor_json.cpp
     src/cbor_tools.cpp
     src/data.cpp
+    src/decode_image_frames.cpp
     src/error.cpp
     src/file_source.cpp
     src/mkv_sink.cpp
