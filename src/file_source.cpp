@@ -1,6 +1,5 @@
 #include <cstring>
 #include <gsl/gsl>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -32,14 +31,15 @@ struct file_source_impl {
 
     LOG_S(1) << "Opening file " << _filename;
     if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr, nullptr)) < 0) {
-      LOG_S(ERROR) << "Could not open file: " << _filename << " " << avutils::error_msg(ret);
+      LOG_S(ERROR) << "Could not open file: " << _filename << " "
+                   << avutils::error_msg(ret);
       return ret;
     }
     LOG_S(1) << "File " << _filename << " is open";
 
     LOG_S(1) << "Looking for stream info...";
     if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-      std::cerr << "*** Could not find stream information:" << avutils::error_msg(ret);
+      LOG_S(ERROR) << "Could not find stream information:" << avutils::error_msg(ret);
       return ret;
     }
     LOG_S(1) << "Stream info found";

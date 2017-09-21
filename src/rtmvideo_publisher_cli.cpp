@@ -1,104 +1,69 @@
+#include <boost/assert.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
 
-#include "avutils.h"
 #include "asio_streams.h"
+#include "cli_streams.h"
+#include "logging_implementation.h"
 #include "rtmclient.h"
 #include "video_streams.h"
 
 namespace {
 
 struct rtm_error_handler : public rtm::error_callbacks {
-  void on_error(std::error_condition ec) override {
-    std::cerr << "ERROR: " << ec.message() << "\n";
-  }
+  void on_error(std::error_condition ec) override { LOG_S(ERROR) << ec.message(); }
 };
 
 }  // namespace
 
 // TODO: handle SIGINT, SIGKILL, etc
 int main(int argc, char *argv[]) {
-  std::string source_type;
-
   namespace po = boost::program_options;
-  po::options_description generic_options("Generic options");
-  generic_options.add_options()("help", "produce help message")(
-      "source-type", po::value<std::string>(&source_type), "Source type: [file|camera]");
 
-  po::options_description rtm_options("RTM connection options");
-  rtm_options.add_options()("endpoint", po::value<std::string>(), "RTM endpoint")(
-      "appkey", po::value<std::string>(), "RTM appkey")(
-      "channel", po::value<std::string>(), "RTM channel")(
-      "port", po::value<std::string>()->default_value("443"), "RTM port");
+  po::options_description generic("Generic options");
+  generic.add_options()("help", "produce help message");
+  generic.add_options()(",v", po::value<std::string>(),
+                        "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  po::options_description file_options("File options");
-  file_options.add_options()("file", po::value<std::string>(), "Source file")(
-      "loop", "Is file looped");
+  rtm::video::cli_streams::configuration cli_cfg;
+  cli_cfg.enable_file_input = true;
+  cli_cfg.enable_camera_input = true;
+  cli_cfg.enable_rtm_output = true;
 
-  po::options_description camera_options("Camera options");
-  camera_options.add_options()(
-      "dimensions", po::value<std::string>()->default_value("320x240"), "Dimensions");
-
-  po::options_description cmdline_options;
-  cmdline_options.add(generic_options)
-      .add(rtm_options)
-      .add(file_options)
-      .add(camera_options);
+  po::options_description cli_options = cli_cfg.to_boost();
+  cli_options.add(generic);
 
   po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, cmdline_options), vm);
+  po::store(po::parse_command_line(argc, argv, cli_options), vm);
   po::notify(vm);
 
-  if (vm.count("help") || argc == 1) {
-    std::cout << cmdline_options << "\n";
-    return 1;
+  if (argc == 1 || vm.count("help")) {
+    std::cerr << cli_options << "\n";
+    exit(1);
   }
-  if (!vm.count("source-type") || (source_type != "camera" && source_type != "file")) {
-    std::cerr << "*** --source-type type either was not specified or has invalid value\n";
-    return -1;
-  }
-  if (!vm.count("endpoint")) {
-    std::cerr << "*** --endpoint was not specified\n";
-    return -1;
-  }
-  if (!vm.count("appkey")) {
-    std::cerr << "*** --appkey was not specified\n";
-    return -1;
-  }
-  if (!vm.count("channel")) {
-    std::cerr << "*** --channel was not specified\n";
-    return -1;
-  }
+
+  if (!cli_cfg.validate(vm)) return -1;
+
+  init_logging(argc, argv);
 
   boost::asio::io_service io_service;
-  streams::publisher<rtm::video::encoded_packet> source;
-
-  if (source_type == "camera") {
-    source = rtm::video::camera_source(io_service, vm["dimensions"].as<std::string>());
-  } else if (source_type == "file") {
-    if (!vm.count("file")) {
-      std::cerr << "*** File was not specified\n";
-      return -1;
-    }
-    source = rtm::video::file_source(io_service, vm["file"].as<std::string>(),
-                                     vm.count("loop"), true);
-  } else {
-    std::cerr << "*** Unsupported input type " << source_type << "\n";
-    return -1;
-  }
-
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
-  std::shared_ptr<rtm::client> rtm_client = rtm::new_client(
-      vm["endpoint"].as<std::string>(), vm["port"].as<std::string>(),
-      vm["appkey"].as<std::string>(), io_service, ssl_context, 1, error_handler);
+
+  std::shared_ptr<rtm::client> rtm_client =
+      cli_cfg.rtm_client(vm, io_service, ssl_context, error_handler);
+
+  std::string rtm_channel = cli_cfg.rtm_channel(vm);
+
+  streams::publisher<rtm::video::encoded_packet> source =
+      cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel, false);
+
   rtm_client->start();
 
-  streams::publisher<rtm::video::encoded_packet> source_fin =
+  source =
       std::move(source) >> streams::do_finally([&rtm_client]() { rtm_client->stop(); });
 
-  source_fin->subscribe(
-      rtm::video::rtm_sink(rtm_client, vm["channel"].as<std::string>()));
+  source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, rtm_channel));
 
   io_service.run();
 }

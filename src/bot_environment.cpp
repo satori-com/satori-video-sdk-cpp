@@ -12,6 +12,7 @@
 #include "avutils.h"
 #include "bot_instance.h"
 #include "cbor_json.h"
+#include "cli_streams.h"
 #include "librtmvideo/cbor_tools.h"
 #include "logging_implementation.h"
 #include "rtm_streams.h"
@@ -26,7 +27,8 @@ constexpr size_t network_frames_max_buffer_size = 1024;
 constexpr size_t encoded_frames_max_buffer_size = 32;
 constexpr size_t image_frames_max_buffer_size = 2;
 
-variables_map parse_command_line(int argc, char* argv[]) {
+variables_map parse_command_line(int argc, char* argv[],
+                                 const cli_streams::configuration& cli_cfg) {
   namespace po = boost::program_options;
 
   po::options_description generic("Generic options");
@@ -34,90 +36,39 @@ variables_map parse_command_line(int argc, char* argv[]) {
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  po::options_description bot_config("Bot configuration options");
-  bot_config.add_options()("id", po::value<std::string>()->default_value(""), "bot id")(
-      "config", po::value<std::string>(), "bot config file");
+  po::options_description bot_configuration_options("Bot configuration options");
+  bot_configuration_options.add_options()(
+      "id", po::value<std::string>()->default_value(""), "bot id");
+  bot_configuration_options.add_options()("config", po::value<std::string>(),
+                                          "bot config file");
 
-  po::options_description online("Satori video source");
-  online.add_options()("endpoint", po::value<std::string>(), "app endpoint")(
-      "appkey", po::value<std::string>(), "app key")(
-      "port", po::value<std::string>(), "port")("channel", po::value<std::string>(),
-                                                "channel");
-
-  po::options_description file_sources("File sources");
-  file_sources.add_options()("video_file", po::value<std::string>(), "input mp4")(
-      "replay_file", po::value<std::string>(), "input txt");
-
-  po::options_description execution("Execution options");
-  execution.add_options()(
-      "batch", po::bool_switch()->default_value(false),
-      "turns on batch analysis mode, where analysis of a single video frame might take "
-      "longer than frame duration (file source only).")(
+  po::options_description bot_execution_options("Bot execution options");
+  bot_execution_options.add_options()(
       "analysis_file", po::value<std::string>(),
-      "saves analysis messages to a file instead of sending to a channel")(
+      "saves analysis messages to a file instead of sending to a channel");
+  bot_execution_options.add_options()(
       "debug_file", po::value<std::string>(),
-      "saves debug messages to a file instead of sending to a channel")(
+      "saves debug messages to a file instead of sending to a channel");
+  bot_execution_options.add_options()(
       "time_limit", po::value<long>(),
-      "(seconds) if specified, bot will exit after given time elapsed")(
+      "(seconds) if specified, bot will exit after given time elapsed");
+  bot_execution_options.add_options()(
       "frames_limit", po::value<long>(),
       "(number) if specified, bot will exit after processing given number of frames");
 
-  po::options_description desc;
-  desc.add(bot_config).add(online).add(file_sources).add(execution).add(generic);
+  po::options_description cli_options = cli_cfg.to_boost();
+  cli_options.add(bot_configuration_options).add(bot_execution_options).add(generic);
 
   po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::store(po::parse_command_line(argc, argv, cli_options), vm);
   po::notify(vm);
 
-  if (vm.count("help") || argc == 1) {
-    std::cerr << desc << "\n";
+  if (argc == 1 || vm.count("help")) {
+    std::cerr << cli_options << "\n";
     exit(1);
   }
 
-  bool satori_video_source = (vm.count("endpoint") || vm.count("appkey")
-                              || vm.count("channel") || vm.count("port"));
-
-  bool file_source = (vm.count("video_file") || vm.count("replay_file"));
-
-  if (satori_video_source && file_source) {
-    std::cerr << "Only one video source has should be specified"
-              << "\n";
-    exit(1);
-  }
-
-  if (satori_video_source) {
-    if (!vm.count("endpoint")) {
-      std::cerr << "Missing --endpoint argument"
-                << "\n";
-      exit(1);
-    }
-
-    if (!vm.count("appkey")) {
-      std::cerr << "Missing --appkey argument"
-                << "\n";
-      exit(1);
-    }
-
-    if (!vm.count("channel")) {
-      std::cerr << "Missing --channel argument"
-                << "\n";
-      exit(1);
-    }
-
-    if (!vm.count("port")) {
-      std::cerr << "Missing --port argument"
-                << "\n";
-      exit(1);
-    }
-  }
-
-  if (file_source) {
-    if (vm.count("video_file") && vm.count("replay_file")) {
-      std::cerr << "--video_file and --replay_file are mutually exclusive"
-                << "\n";
-      exit(1);
-    }
-  }
+  if (!cli_cfg.validate(vm)) exit(1);
 
   return vm;
 }
@@ -219,7 +170,12 @@ void bot_environment::send_messages(std::list<bot_message>&& messages) {
 }
 
 int bot_environment::main(int argc, char* argv[]) {
-  auto cmd_args = parse_command_line(argc, argv);
+  cli_streams::configuration cli_cfg;
+  cli_cfg.enable_rtm_input = true;
+  cli_cfg.enable_file_input = true;
+  cli_cfg.enable_file_batch_mode = true;
+
+  auto cmd_args = parse_command_line(argc, argv, cli_cfg);
   init_logging(argc, argv);
 
   const std::string id = cmd_args["id"].as<std::string>();
@@ -231,53 +187,25 @@ int bot_environment::main(int argc, char* argv[]) {
   boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
-  if (cmd_args.count("endpoint")) {
-    const std::string endpoint = cmd_args["endpoint"].as<std::string>();
-    const std::string appkey = cmd_args["appkey"].as<std::string>();
-    const std::string port = cmd_args["port"].as<std::string>();
-
-    _rtm_client = std::make_shared<resilient_client>([&endpoint, &port, &appkey,
-                                                      &io_service, &ssl_context, this]() {
-      return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1, *this);
-    });
-    _rtm_client->start();
-  }
-
+  _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, ssl_context, *this);
   if (_rtm_client) {
+    _rtm_client->start();
     _tele_publisher.reset(new tele::publisher(*_rtm_client, io_service));
   }
 
-  streams::publisher<encoded_packet> encoded_src;
+  const std::string channel = cli_cfg.rtm_channel(cmd_args);
 
-  const bool batch = cmd_args["batch"].as<bool>();
-  const std::string channel =
-      cmd_args.count("channel") ? cmd_args["channel"].as<std::string>() : "";
+  streams::publisher<encoded_packet> encoded_src =
+      cli_cfg.encoded_publisher(cmd_args, io_service, _rtm_client, channel, true);
 
-  if (_rtm_client) {
-    encoded_src =
-        rtm_source(_rtm_client, channel)
-        >> buffered_worker("vbot.network_buffer", network_frames_max_buffer_size)
-        >> decode_network_stream();
-  } else {
-    if (cmd_args.count("video_file")) {
-      const auto& video_file = cmd_args["video_file"].as<std::string>();
-      encoded_src = file_source(io_service, video_file, false, batch);
-    } else if (cmd_args.count("replay_file")) {
-      const auto& replay_file = cmd_args["replay_file"].as<std::string>();
-      encoded_src = network_replay_source(io_service, replay_file, batch)
-                    >> decode_network_stream();
-    }
-  }
-
+  bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
   auto decode_op =
       decode_image_frames(_bot_descriptor->image_width, _bot_descriptor->image_height,
                           _bot_descriptor->pixel_format);
-  if (batch) {
-    _source = std::move(encoded_src) >> std::move(decode_op);
-  } else {
-    _source = std::move(encoded_src)
-              >> buffered_worker("vbot.encoded_buffer", encoded_frames_max_buffer_size)
-              >> std::move(decode_op)
+
+  _source = std::move(encoded_src) >> std::move(decode_op);
+  if (!batch_mode) {
+    _source = std::move(_source)
               >> buffered_worker("vbot.image_buffer", image_frames_max_buffer_size);
   }
 
@@ -337,7 +265,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   _bot_instance->start(_source, _control_source);
 
-  if (!batch) {
+  if (!batch_mode) {
     LOG_S(INFO) << "entering asio loop";
     auto n = io_service.run();
     LOG_S(INFO) << "asio loop exited, executed " << n << " handlers";
