@@ -181,6 +181,7 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
             return s->on_image_frame(*f);
           } else {
             BOOST_ASSERT_MSG(false, "Bad variant");
+            return streams::publishers::empty<owned_image_packet>();
           }
         })
         >> streams::do_finally([s]() { delete s; });

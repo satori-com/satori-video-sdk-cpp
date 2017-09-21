@@ -303,12 +303,14 @@ class secure_client : public client {
     BOOST_VERIFY_MSG(false, "didn't find subscription");
   }
 
-  const channel_position &position(const subscription &sub) override {
+  channel_position position(const subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    return {0, 0};
   }
 
   bool is_up(const subscription &sub) override {
     BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    return false;
   }
 
  private:

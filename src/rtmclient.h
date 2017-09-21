@@ -38,8 +38,8 @@ struct error_callbacks {
 };
 
 struct channel_position {
-  uint32_t gen;
-  uint64_t pos;
+  uint32_t gen{0};
+  uint64_t pos{0};
 
   std::string str() const { return std::to_string(gen) + ":" + std::to_string(pos); }
 
@@ -105,7 +105,7 @@ struct subscriber {
 
   virtual void unsubscribe(const subscription &sub) = 0;
 
-  virtual const channel_position &position(const subscription &sub) = 0;
+  virtual channel_position position(const subscription &sub) = 0;
 
   virtual bool is_up(const subscription &sub) = 0;
 };
@@ -159,7 +159,7 @@ class resilient_client : public client {
                    [&sub](const subscription_info &si) { return &sub == si.sub; });
   }
 
-  const channel_position &position(const subscription &sub) override {
+  channel_position position(const subscription &sub) override {
     std::lock_guard<std::mutex> guard(_client_mutex);
     return _client->position(sub);
   }
