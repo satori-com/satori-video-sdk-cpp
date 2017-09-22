@@ -2,6 +2,7 @@
 #include <boost/test/included/unit_test.hpp>
 
 #include <fstream>
+#include "avutils.h"
 #include "base64.h"
 #include "librtmvideo/data.h"
 #include "video_streams.h"
@@ -44,7 +45,7 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
 
 void run_flow_decoder_test(test_definition &&td) {
   std::cout << "*** running test for codec '" << td.codec_name << "'\n";
-  initialize_source_library();
+  avutils::init();
 
   std::ifstream frame_file(td.frames_filename);
 

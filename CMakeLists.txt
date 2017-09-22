@@ -144,6 +144,7 @@ function(add_rtmvideo_test TEST_NAME TEST_FILE)
             rtmvideo
             CONAN_PKG::Boost
             CONAN_PKG::Loguru
+            CONAN_PKG::Gsl
         )
     add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME} )
 endfunction()
