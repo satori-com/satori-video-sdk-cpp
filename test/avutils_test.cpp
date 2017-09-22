@@ -115,5 +115,6 @@ BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
 
 int main(int argc, char *argv[]) {
   init_logging(argc, argv);
+  rtm::video::avutils::init();
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }
