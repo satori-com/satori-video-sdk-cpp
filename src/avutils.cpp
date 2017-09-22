@@ -21,6 +21,44 @@ std::string to_av_codec_name(const std::string &codec_name) {
   return codec_name;
 }
 
+void dump_iformats() {
+  AVInputFormat *f{nullptr};
+  while (true) {
+    f = av_iformat_next(f);
+    if (!f) break;
+    LOG_S(1) << "available iformat: " << f->name;
+  }
+}
+
+void dump_oformats() {
+  AVOutputFormat *f{nullptr};
+  while (true) {
+    f = av_oformat_next(f);
+    if (!f) break;
+    LOG_S(1) << "available oformat: " << f->name;
+  }
+}
+
+void dump_codecs() {
+  AVCodec *c{nullptr};
+  while (true) {
+    c = av_codec_next(c);
+    if (!c) break;
+    LOG_S(1) << "available codec: " << c->name
+             << " is_encoder=" << av_codec_is_encoder(c)
+             << " is_decoder=" << av_codec_is_decoder(c);
+  }
+}
+
+void dump_bsfs() {
+  void *ptr{nullptr};
+  while (true) {
+    const AVBitStreamFilter *f = av_bsf_next(&ptr);
+    if (!f) break;
+    LOG_S(1) << "available bsf: " << f->name;
+  }
+}
+
 }  // namespace
 
 void init() {
@@ -32,14 +70,10 @@ void init() {
     av_register_all();
     initialized = true;
 
-    AVCodec *c{nullptr};
-    do {
-      c = av_codec_next(c);
-      if (!c) break;
-      LOG_S(1) << "available codec: " << c->name
-               << " is_encoder=" << av_codec_is_encoder(c)
-               << " is_decoder=" << av_codec_is_decoder(c);
-    } while (1);
+    dump_codecs();
+    dump_iformats();
+    dump_oformats();
+    dump_bsfs();
   }
 }
 

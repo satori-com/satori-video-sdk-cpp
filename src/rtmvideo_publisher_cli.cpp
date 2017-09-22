@@ -71,8 +71,6 @@ int main(int argc, char *argv[]) {
   }
 
   boost::asio::io_service io_service;
-
-  rtm::video::avutils::init();
   streams::publisher<rtm::video::encoded_packet> source;
 
   if (source_type == "camera") {

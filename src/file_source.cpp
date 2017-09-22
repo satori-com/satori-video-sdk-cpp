@@ -32,8 +32,7 @@ struct file_source_impl {
 
     LOG_S(1) << "Opening file " << _filename;
     if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr, nullptr)) < 0) {
-      std::cerr << "*** Could not open file: " << _filename << ", "
-                << avutils::error_msg(ret);
+      LOG_S(ERROR) << "Could not open file: " << _filename << " " << avutils::error_msg(ret);
       return ret;
     }
     LOG_S(1) << "File " << _filename << " is open";
@@ -152,6 +151,7 @@ struct file_source_impl {
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                std::string filename, bool loop,
                                                bool batch) {
+  avutils::init();
   streams::publisher<encoded_packet> result =
       streams::generators<encoded_packet>::stateful(
           [filename, loop]() { return new file_source_impl(filename, loop); },

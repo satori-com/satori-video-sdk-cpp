@@ -45,8 +45,6 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
 
 void run_flow_decoder_test(test_definition &&td) {
   std::cout << "*** running test for codec '" << td.codec_name << "'\n";
-  avutils::init();
-
   std::ifstream frame_file(td.frames_filename);
 
   if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");

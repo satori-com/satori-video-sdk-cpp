@@ -20,7 +20,6 @@ BOOST_AUTO_TEST_CASE(av_pixel_format) {
 }
 
 BOOST_AUTO_TEST_CASE(encoder_context) {
-  rtm::video::avutils::init();
   const AVCodecID encoder_id = AV_CODEC_ID_VP9;
   const AVCodec *encoder = avcodec_find_encoder(encoder_id);
   BOOST_TEST(encoder != nullptr);

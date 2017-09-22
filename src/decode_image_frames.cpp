@@ -164,6 +164,8 @@ struct image_decoder_impl {
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     int bounding_width, int bounding_height, image_pixel_format pixel_format) {
+  avutils::init();
+
   return [bounding_width, bounding_height,
           pixel_format](streams::publisher<encoded_packet> &&src) {
     image_decoder_impl *impl =

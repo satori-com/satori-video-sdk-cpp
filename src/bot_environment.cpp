@@ -222,8 +222,6 @@ int bot_environment::main(int argc, char* argv[]) {
   auto cmd_args = parse_command_line(argc, argv);
   init_logging(argc, argv);
 
-  avutils::init();
-
   const std::string id = cmd_args["id"].as<std::string>();
   _bot_instance.reset(new bot_instance(id, *_bot_descriptor, *this));
   parse_config(cmd_args.count("config")
