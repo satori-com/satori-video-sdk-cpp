@@ -152,9 +152,8 @@ cbor_item_t* configure_command(cbor_item_t* config) {
 }  // namespace
 
 void bot_environment::parse_config(boost::optional<std::string> config_file) {
-  if (!_bot_descriptor->ctrl_callback) {
-    if (config_file.is_initialized())
-      std::cerr << "Config specified but there is no control method set\n";
+  if (!_bot_descriptor->ctrl_callback && config_file.is_initialized()) {
+    std::cerr << "Config specified but there is no control method set\n";
     exit(1);
   }
 
