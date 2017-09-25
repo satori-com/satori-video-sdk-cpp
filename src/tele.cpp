@@ -5,6 +5,7 @@
 #include <iostream>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tele {
@@ -50,8 +51,8 @@ struct counter : public cell<std::atomic_uint_fast64_t> {
   counter(const char *group, const char *name)
       : cell<std::atomic_uint_fast64_t>(group, name) {}
 
-  static std::vector<counter *> &counters() {
-    static std::vector<counter *> static_counters;
+  static std::unordered_map<std::string, counter *> &counters() {
+    static std::unordered_map<std::string, counter *> static_counters;
     return static_counters;
   }
 
@@ -65,15 +66,12 @@ struct counter : public cell<std::atomic_uint_fast64_t> {
 
 EXPORT counter *counter_new(const char *group, const char *name) noexcept {
   auto c = new counter(group, name);
-  counter::counters().push_back(c);
+  counter::counters()[c->full_name()] = c;
   return c;
 }
 
 EXPORT void counter_delete(counter *c) noexcept {
-  auto &ctrs = counter::counters();
-  auto it = std::find(ctrs.begin(), ctrs.end(), c);
-  BOOST_ASSERT(it != ctrs.end());
-  ctrs.erase(it);
+  counter::counters().erase(c->full_name());
   delete c;
 }
 
@@ -81,12 +79,19 @@ EXPORT void counter_inc(counter *counter, uint64_t delta) noexcept {
   counter->inc(delta);
 }
 
+EXPORT uint64_t counter_get(const char *full_name) noexcept {
+  const auto &counters = counter::counters();
+  auto it = counters.find(full_name);
+  BOOST_VERIFY_MSG(it != counters.end(), "counter not found");
+  return it->second->value();
+}
+
 struct gauge : public cell<std::atomic_int_fast64_t> {
   gauge(const char *group, const char *name)
       : cell<std::atomic_int_fast64_t>(group, name) {}
 
-  static std::vector<gauge *> &gauges() {
-    static std::vector<gauge *> static_gauges;
+  static std::unordered_map<std::string, gauge *> &gauges() {
+    static std::unordered_map<std::string, gauge *> static_gauges;
     return static_gauges;
   }
 
@@ -100,11 +105,23 @@ struct gauge : public cell<std::atomic_int_fast64_t> {
 
 EXPORT gauge *gauge_new(const char *group, const char *name) noexcept {
   auto g = new gauge(group, name);
-  gauge::gauges().push_back(g);
+  gauge::gauges()[g->full_name()] = g;
   return g;
 }
 
+EXPORT void gauge_delete(gauge *g) noexcept {
+  gauge::gauges().erase(g->full_name());
+  delete g;
+}
+
 EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept { gauge->set(value); }
+
+EXPORT int64_t gauge_get(const char *full_name) noexcept {
+  const auto &gauges = gauge::gauges();
+  auto it = gauges.find(full_name);
+  BOOST_VERIFY_MSG(it != gauges.end(), "gauge not found");
+  return it->second->value();
+}
 
 struct distribution : public cell<std::vector<int64_t>> {
   static constexpr size_t max_distribution_size = 100;
@@ -112,8 +129,8 @@ struct distribution : public cell<std::vector<int64_t>> {
   distribution(const char *group, const char *name)
       : cell<std::vector<int64_t>>(group, name) {}
 
-  static std::vector<distribution *> &distributions() {
-    static std::vector<distribution *> static_distributions;
+  static std::unordered_map<std::string, distribution *> &distributions() {
+    static std::unordered_map<std::string, distribution *> static_distributions;
     return static_distributions;
   }
 
@@ -148,7 +165,7 @@ struct distribution : public cell<std::vector<int64_t>> {
 
 EXPORT distribution *distribution_new(const char *group, const char *name) noexcept {
   auto d = new distribution(group, name);
-  distribution::distributions().push_back(d);
+  distribution::distributions()[d->full_name()] = d;
   return d;
 }
 
@@ -157,10 +174,10 @@ EXPORT void distribution_add(distribution *distribution, int64_t value) noexcept
 }
 
 template <typename Cell>
-cbor_item_t *tele_sereialize_cells(std::vector<Cell *> &cells) {
+cbor_item_t *tele_sereialize_cells(std::unordered_map<std::string, Cell *> &cells) {
   cbor_item_t *cells_map = cbor_new_definite_map(cells.size());
-  for (int i = 0; i < cells.size(); ++i) {
-    Cell *cell = cells[i];
+  for (const auto &kv : cells) {
+    Cell *cell = kv.second;
     cbor_map_add(cells_map,
                  {.key = cbor_move(cbor_build_string(cell->full_name().c_str())),
                   .value = cbor_move(cell->to_cbor())});
@@ -168,9 +185,10 @@ cbor_item_t *tele_sereialize_cells(std::vector<Cell *> &cells) {
   return cells_map;
 }
 
-cbor_item_t *tele_serialize(std::vector<counter *> &counters,
-                            std::vector<gauge *> &gauges,
-                            std::vector<distribution *> &distributions) {
+cbor_item_t *tele_serialize(
+    std::unordered_map<std::string, counter *> &counters,
+    std::unordered_map<std::string, gauge *> &gauges,
+    std::unordered_map<std::string, distribution *> &distributions) {
   cbor_item_t *root = cbor_new_indefinite_map();
   cbor_map_add(root,
                {.key = cbor_move(cbor_build_string("id")),
@@ -187,8 +205,8 @@ cbor_item_t *tele_serialize(std::vector<counter *> &counters,
   cbor_map_add(root,
                {.key = cbor_move(cbor_build_string("distributions")),
                 .value = cbor_move(tele_sereialize_cells(distributions))});
-  for (auto distribution : distributions) {
-    distribution->clear();
+  for (auto kv : distributions) {
+    kv.second->clear();
   }
 
   return root;
