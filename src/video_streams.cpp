@@ -30,9 +30,10 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     state *s = new state();
     return std::move(src) >> streams::flat_map([s](const network_packet &data) {
              if (const network_metadata *nm = boost::get<network_metadata>(&data)) {
-               const std::string codec_data = decode64(nm->base64_data);
-               return streams::publishers::of({encoded_packet(encoded_metadata{
-                   .codec_name = nm->codec_name, .codec_data = codec_data})});
+               encoded_metadata em;
+               em.codec_name = nm->codec_name;
+               em.codec_data = decode64(nm->base64_data);
+               return streams::publishers::of({encoded_packet{em}});
              } else if (const network_frame *nf = boost::get<network_frame>(&data)) {
                if (s->chunk != nf->chunk) {
                  s->reset();
@@ -45,9 +46,10 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
                }
 
                if (nf->chunk == nf->chunks) {
-                 encoded_frame frame{.data = decode64(s->aggregated_data),
-                                     .id = s->id,
-                                     .timestamp = nf->t};
+                 encoded_frame frame;
+                 frame.data = decode64(s->aggregated_data);
+                 frame.id = s->id;
+                 frame.timestamp = nf->t;
                  s->reset();
                  return streams::publishers::of({encoded_packet{frame}});
                }

@@ -123,7 +123,9 @@ std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID encoder_id) {
   encoder_context->codec_id = encoder_id;
   encoder_context->pix_fmt = encoder->pix_fmts[0];
   encoder_context->gop_size = 12;  // I-frame at most every gop_size frames
-  encoder_context->time_base = {.num = 1, .den = 1000};  // 1 millisecond
+  // Setting timebase to 1 millisecond
+  encoder_context->time_base.num = 1;
+  encoder_context->time_base.den = 1000;
   encoder_context->bit_rate = 10000000;
 
   return std::shared_ptr<AVCodecContext>(encoder_context, [](AVCodecContext *ctx) {

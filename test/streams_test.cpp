@@ -140,7 +140,7 @@ streams::op<int, int> square() {
   return [](streams::publisher<int> &&src) {
     return std::move(src) >> streams::map([](int i) { return i * i; });
   };
-};
+}
 
 BOOST_AUTO_TEST_CASE(lift_square) {
   auto p = streams::publishers::range(2, 5) >> square();

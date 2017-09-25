@@ -193,7 +193,7 @@ streams::op<T, T> interval(boost::asio::io_service &io,
              })
            >> streams::do_finally([s]() { delete s; });
   };
-};
+}
 
 template <typename T>
 streams::op<T, T> timer_breaker(boost::asio::io_service &io,
@@ -216,7 +216,7 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
              return result;
            });
   };
-};
+}
 
 }  // namespace asio
 }  // namespace streams

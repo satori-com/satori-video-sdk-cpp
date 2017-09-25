@@ -10,9 +10,8 @@ void process_image(bot_context &context, const image_frame &frame) {
             << context.frame_metadata->height << "\n";
 
   cbor_item_t *msg = cbor_new_indefinite_map();
-  cbor_map_add(msg,
-               {.key = cbor_move(cbor_build_string("msg")), .value = cbor_move(
-                   cbor_build_string("hello"))});
+  cbor_map_add(
+      msg, {cbor_move(cbor_build_string("msg")), cbor_move(cbor_build_string("hello"))});
   rtm_video_bot_message(context, bot_message_kind::ANALYSIS, msg);
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) { return nullptr; }

@@ -28,22 +28,25 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
   std::string base64_metadata;
   metadata_file >> base64_metadata;
 
-  encoded_packet metadata(encoded_metadata{
-      .codec_name = td.codec_name, .codec_data = rtm::video::decode64(base64_metadata)});
+  encoded_packet metadata(
+      encoded_metadata{td.codec_name, rtm::video::decode64(base64_metadata)});
 
   streams::publisher<encoded_packet> frames =
       streams::read_lines(td.frames_filename) >> streams::map([](std::string &&line) {
         static int next_id = 0;
         int id = ++next_id;
-        return encoded_packet{
-            encoded_frame{.data = rtm::video::decode64(line), .id = {id, id}}};
+
+        encoded_frame f;
+        f.data = rtm::video::decode64(line);
+        f.id = frame_id{id, id};
+        return encoded_packet{f};
       });
 
   return streams::publishers::merge(streams::publishers::of({metadata}),
                                     std::move(frames));
 }
 
-void run_flow_decoder_test(test_definition &&td) {
+void run_flow_decoder_test(const test_definition &td) {
   std::cout << "*** running test for codec '" << td.codec_name << "'\n";
   std::ifstream frame_file(td.frames_filename);
 
@@ -58,7 +61,7 @@ void run_flow_decoder_test(test_definition &&td) {
 
   image_stream->process(
       [&last_frame_width, &last_frame_height,
-       &frames_count](owned_image_packet &&packet) {
+       &frames_count](owned_image_packet &&packet) mutable {
         if (const owned_image_metadata *m = boost::get<owned_image_metadata>(&packet)) {
           // just count
         } else if (const owned_image_frame *f = boost::get<owned_image_frame>(&packet)) {
@@ -80,45 +83,53 @@ void run_flow_decoder_test(test_definition &&td) {
 }  // namespace
 
 BOOST_AUTO_TEST_CASE(vp9) {
-  run_flow_decoder_test({
-      .metadata_filename = "",
-      .frames_filename = "test_data/vp9_320x180.frame",
-      .codec_name = "vp9",
-      .expected_width = 320,
-      .expected_height = 180,
-      .expected_frames_count = 1,
-  });
+  test_definition test;
+
+  test.metadata_filename = "";
+  test.frames_filename = "test_data/vp9_320x180.frame";
+  test.codec_name = "vp9";
+  test.expected_width = 320;
+  test.expected_height = 180;
+  test.expected_frames_count = 1;
+
+  run_flow_decoder_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(h264) {
-  run_flow_decoder_test({
-      .metadata_filename = "test_data/h264_320x180.metadata",
-      .frames_filename = "test_data/h264_320x180.frame",
-      .codec_name = "h264",
-      .expected_width = 320,
-      .expected_height = 180,
-      .expected_frames_count = 1,
-  });
+  test_definition test;
+
+  test.metadata_filename = "test_data/h264_320x180.metadata";
+  test.frames_filename = "test_data/h264_320x180.frame";
+  test.codec_name = "h264";
+  test.expected_width = 320;
+  test.expected_height = 180;
+  test.expected_frames_count = 1;
+
+  run_flow_decoder_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(jpeg) {
-  run_flow_decoder_test({
-      .metadata_filename = "",
-      .frames_filename = "test_data/jpeg_320x180.frame",
-      .codec_name = "mjpeg",
-      .expected_width = 320,
-      .expected_height = 180,
-      .expected_frames_count = 1,
-  });
+  test_definition test;
+
+  test.metadata_filename = "";
+  test.frames_filename = "test_data/jpeg_320x180.frame";
+  test.codec_name = "mjpeg";
+  test.expected_width = 320;
+  test.expected_height = 180;
+  test.expected_frames_count = 1;
+
+  run_flow_decoder_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(mjpeg) {
-  run_flow_decoder_test({
-      .metadata_filename = "",
-      .frames_filename = "test_data/mjpeg_320x180.frame",
-      .codec_name = "mjpeg",
-      .expected_width = 320,
-      .expected_height = 180,
-      .expected_frames_count = 1,
-  });
+  test_definition test;
+
+  test.metadata_filename = "";
+  test.frames_filename = "test_data/mjpeg_320x180.frame";
+  test.codec_name = "mjpeg";
+  test.expected_width = 320;
+  test.expected_height = 180;
+  test.expected_frames_count = 1;
+
+  run_flow_decoder_test(test);
 }

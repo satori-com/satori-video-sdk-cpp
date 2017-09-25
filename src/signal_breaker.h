@@ -16,6 +16,6 @@ op<T, T> signal_breaker(std::initializer_list<int> signals) {
     std::atomic<bool> &flag = impl::init_signal_breaker(signals);
     return std::move(src) >> take_while([&flag](const T & /*t*/) { return flag.load(); });
   };
-};
+}
 
 }  // namespace streams

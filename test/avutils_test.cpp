@@ -101,16 +101,17 @@ BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
   image.pixel_format = image_pixel_format::RGB0;
   image.width = width;
   image.height = height;
-  uint8_t data[width * height * 3];
-  for (size_t i = 0; i < sizeof(data); i++) {
+  size_t data_size = width * height * 3;
+  std::unique_ptr<uint8_t[]> data = std::make_unique<uint8_t[]>(data_size);
+  for (size_t i = 0; i < data_size; i++) {
     data[i] = (i * i) % 256;
   }
-  image.plane_data[0].assign(data, data + sizeof(data));
+  image.plane_data[0].assign(data.get(), data.get() + data_size);
   image.plane_strides[0] = width * 3;
 
   rtm::video::avutils::copy_image_to_av_frame(image, frame);
 
-  BOOST_TEST(!memcmp(data, frame->data[0], sizeof(data)));
+  BOOST_TEST(!memcmp(data.get(), frame->data[0], data_size));
 }
 
 BOOST_AUTO_TEST_CASE(parse_image_size) {

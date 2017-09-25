@@ -175,7 +175,7 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
   }
 
   return result;
-};
+}
 
 }  // namespace video
 }  // namespace rtm

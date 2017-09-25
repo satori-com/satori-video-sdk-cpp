@@ -109,8 +109,9 @@ void bot_instance::process_image_frame(const owned_image_frame& frame) {
     std::copy(frame.plane_strides, frame.plane_strides + MAX_IMAGE_PLANES,
               _image_metadata.plane_strides);
   }
-  image_frame bframe{.id = frame.id};
 
+  image_frame bframe;
+  bframe.id = frame.id;
   for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
     if (frame.plane_data[i].empty()) {
       bframe.plane_data[i] = nullptr;
@@ -159,7 +160,8 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
   }
 
   cbor_decref(&msg);
-  send_messages({.i1 = -1, .i2 = -1});
+
+  send_messages(frame_id{-1, -1});
 }
 
 void bot_instance::send_messages(const frame_id& id) {

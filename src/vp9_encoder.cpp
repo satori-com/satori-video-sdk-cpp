@@ -51,12 +51,13 @@ struct vp9_encoder {
           video_error::StreamInitializationError);
     }
 
-    return streams::publishers::of({encoded_packet{encoded_metadata{
-        .codec_name = "vp9",
-        .codec_data =
-            std::string{_encoder_context->extradata,
-                        _encoder_context->extradata + _encoder_context->extradata_size},
-        .image_size = image_size{.width = f.width, .height = f.height}}}});
+    encoded_metadata m;
+    m.codec_name = "vp9";
+    m.codec_data.assign(_encoder_context->extradata,
+                        _encoder_context->extradata + _encoder_context->extradata_size);
+    m.image_size = image_size{f.width, f.height};
+
+    return streams::publishers::of({encoded_packet{m}});
   }
 
   streams::publisher<encoded_packet> on_image_frame(const owned_image_frame &f) {
@@ -86,10 +87,13 @@ struct vp9_encoder {
             video_error::FrameGenerationError);
       }
 
-      const std::string data{packet.data, packet.data + packet.size};
+      encoded_frame frame;
+      frame.data.assign(packet.data, packet.data + packet.size);
+      frame.id = f.id;
+      frame.timestamp = f.timestamp;
+      packets.push_back(std::move(frame));
+
       av_packet_unref(&packet);
-      packets.push_back(
-          encoded_frame{.data = data, .id = f.id, .timestamp = f.timestamp});
     }
 
     _counter++;
@@ -111,7 +115,7 @@ struct vp9_encoder {
   std::shared_ptr<AVFrame> _frame{nullptr};
   std::shared_ptr<SwsContext> _sws_context{nullptr};
   int64_t _counter{0};
-};
+};  // namespace video
 
 streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames) {
   return [lag_in_frames](streams::publisher<owned_image_packet> &&src) {
@@ -129,7 +133,7 @@ streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames
                delete encoder;
              });
   };
-};
+}
 
 }  // namespace video
 }  // namespace rtm

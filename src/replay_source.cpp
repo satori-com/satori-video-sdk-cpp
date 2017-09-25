@@ -66,8 +66,10 @@ streams::publisher<network_packet> read_metadata(const std::string &metadata_fil
            const std::string base64_data =
                document.HasMember("codecData") ? document["codecData"].GetString() : "";
 
-           return network_packet{
-               network_metadata{.codec_name = name, .base64_data = base64_data}};
+           network_metadata m;
+           m.codec_name = name;
+           m.base64_data = base64_data;
+           return network_packet{m};
          });
 }
 
@@ -95,32 +97,34 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
              })
            >> streams::do_finally([last_time]() { delete last_time; });
   }
-  auto frames =
-      std::move(docs) >> streams::flat_map([](rapidjson::Document &&doc) {
-        std::vector<network_packet> packets;
-        for (const auto &msg : doc["messages"].GetArray()) {
-          const std::string base64_data = msg["d"].GetString();
-          const auto t = msg["i"].GetArray();
-          const int64_t i1 = t[0].GetInt64();
-          const int64_t i2 = t[1].GetInt64();
+  auto frames = std::move(docs) >> streams::flat_map([](rapidjson::Document &&doc) {
+                  std::vector<network_packet> packets;
+                  for (const auto &msg : doc["messages"].GetArray()) {
+                    const std::string base64_data = msg["d"].GetString();
+                    const auto t = msg["i"].GetArray();
+                    const int64_t i1 = t[0].GetInt64();
+                    const int64_t i2 = t[1].GetInt64();
 
-          const double ntp_timestamp = msg.HasMember("t") ? msg["t"].GetDouble() : 0;
+                    const double ntp_timestamp =
+                        msg.HasMember("t") ? msg["t"].GetDouble() : 0;
 
-          uint32_t chunk = 1, chunks = 1;
-          if (msg.HasMember("c")) {
-            chunk = msg["c"].GetUint();
-            chunks = msg["l"].GetUint();
-          }
+                    uint32_t chunk = 1, chunks = 1;
+                    if (msg.HasMember("c")) {
+                      chunk = msg["c"].GetUint();
+                      chunks = msg["l"].GetUint();
+                    }
 
-          packets.push_back(
-              network_frame{.base64_data = base64_data,
-                            .id = {.i1 = i1, .i2 = i2},
-                            .t = std::chrono::system_clock::from_time_t(ntp_timestamp),
-                            .chunk = chunk,
-                            .chunks = chunks});
-        }
-        return streams::publishers::of(std::move(packets));
-      });
+                    network_frame f;
+                    f.base64_data = base64_data;
+                    f.id = frame_id{i1, i2};
+                    f.t = std::chrono::system_clock::from_time_t(ntp_timestamp);
+                    f.chunk = chunk;
+                    f.chunks = chunks;
+
+                    packets.push_back(std::move(f));
+                  }
+                  return streams::publishers::of(std::move(packets));
+                });
 
   return streams::publishers::merge(std::move(metadata), std::move(frames));
 }

@@ -262,7 +262,7 @@ streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
              })
          >> streams::asio::interval<encoded_packet>(io,
                                                     std::chrono::milliseconds(1000 / 25));
-};
+}
 
 }  // namespace video
 }  // namespace rtm

@@ -51,7 +51,7 @@ void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
   };
 
   subscribe(*(new sub{std::move(on_next), std::move(on_complete), std::move(on_error)}));
-};
+}
 
 namespace impl {
 
@@ -833,17 +833,17 @@ publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op) {
   return impl::pipe_impl<T, Op>::apply(std::move(src), std::move(op));
-};
+}
 
 template <typename Fn>
 auto flat_map(Fn &&fn) {
   return impl::flat_map_op<Fn>{std::move(fn)};
-};
+}
 
 template <typename Fn>
 auto map(Fn &&fn) {
   return impl::map_op<Fn>{std::move(fn)};
-};
+}
 
 template <typename Predicate>
 auto take_while(Predicate &&p) {

@@ -249,13 +249,9 @@ class secure_client : public client {
                          const subscription_options *options) override {
     BOOST_VERIFY_MSG(_client_state == client_state::Running,
                      "Secure RTM client is not running");
-    _subscriptions.emplace(
-        std::make_pair(channel, subscription_impl{
-                                    .sub = sub,
-                                    .callbacks = callbacks,
-                                    .status = subscription_status::PendingSubscribe,
-                                    .pending_request_id = ++_request_id,
-                                }));
+    _subscriptions.emplace(std::make_pair(
+        channel, subscription_impl{sub, callbacks, subscription_status::PendingSubscribe,
+                                   ++_request_id}));
 
     rapidjson::Document document;
     subscribe_request req{_request_id, channel};

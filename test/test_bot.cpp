@@ -10,9 +10,8 @@ struct State {
 };
 cbor_item_t *build_message(const std::string &text) {
   cbor_item_t *message = cbor_new_indefinite_map();
-  cbor_map_add(message,
-               {.key = cbor_move(cbor_build_string("message")),
-                .value = cbor_move(cbor_build_string(text.c_str()))});
+  cbor_map_add(message, {cbor_move(cbor_build_string("message")),
+                         cbor_move(cbor_build_string(text.c_str()))});
   return cbor_move(message);
 }
 void process_image(bot_context &context, const image_frame &frame) {

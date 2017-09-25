@@ -9,7 +9,7 @@ network_packet parse_network_metadata(rapidjson::Value &&msg) {
   const std::string base64_data =
       msg.HasMember("codecData") ? msg["codecData"].GetString() : "";
 
-  return network_metadata{.codec_name = name, .base64_data = base64_data};
+  return network_metadata{name, base64_data};
 }
 
 network_packet parse_network_frame(rapidjson::Value &&msg) {
@@ -34,11 +34,13 @@ network_packet parse_network_frame(rapidjson::Value &&msg) {
     chunks = msg["l"].GetInt();
   }
 
-  return network_frame{.base64_data = msg["d"].GetString(),
-                       .id = {i1, i2},
-                       .t = timestamp,
-                       .chunk = chunk,
-                       .chunks = chunks};
+  network_frame frame;
+  frame.base64_data = msg["d"].GetString();
+  frame.id = {i1, i2};
+  frame.t = timestamp;
+  frame.chunk = chunk;
+  frame.chunks = chunks;
+  return frame;
 }
 
 streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
@@ -56,7 +58,7 @@ streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> c
       >> streams::map(&parse_network_frame);
 
   return streams::publishers::merge(std::move(metadata), std::move(frames));
-};
+}
 
 }  // namespace video
 }  // namespace rtm

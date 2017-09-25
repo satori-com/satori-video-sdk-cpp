@@ -93,12 +93,13 @@ struct image_decoder_impl {
                 _image->data, _image->linesize);
 
       frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
-      owned_image_frame frame{.id = id,
-                              .pixel_format = _pixel_format,
-                              .width = static_cast<uint16_t>(_image_width),
-                              .height = static_cast<uint16_t>(_image_height),
-                              .timestamp = std::chrono::system_clock::time_point{
-                                  std::chrono::milliseconds(_frame->pts)}};
+      owned_image_frame frame;
+      frame.id = id;
+      frame.pixel_format = _pixel_format;
+      frame.width = static_cast<uint16_t>(_image_width);
+      frame.height = static_cast<uint16_t>(_image_height);
+      frame.timestamp =
+          std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
       for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
         const uint32_t plane_stride = static_cast<uint32_t>(_image->linesize[i]);

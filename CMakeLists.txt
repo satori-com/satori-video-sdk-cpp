@@ -24,7 +24,7 @@ if (DEFINED CMAKE_CXX_SANITIZER)
     set(CMAKE_CXX_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_CXX_FLAGS}")
 endif()
 
-set(CMAKE_CXX_FLAGS "-ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
 
 add_subdirectory(decoder)
 
