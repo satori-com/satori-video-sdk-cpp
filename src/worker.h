@@ -43,6 +43,7 @@ struct buffered_worker_op {
       _worker_thread = std::make_unique<std::thread>(&instance::worker_thread_loop, this);
       _dropped_items = tele::counter_new(op._name.c_str(), "dropped");
       _delivered_items = tele::counter_new(op._name.c_str(), "delivered");
+      _buffer_size = tele::gauge_new(op._name.c_str(), "size");
       LOG_S(5) << "buffered_worker_op(" << this << ")::buffered_worker_op";
     }
 
@@ -50,6 +51,7 @@ struct buffered_worker_op {
       LOG_S(5) << "buffered_worker_op(" << this << ")::~buffered_worker_op";
       tele::counter_delete(_dropped_items);
       tele::counter_delete(_delivered_items);
+      tele::gauge_delete(_buffer_size);
     }
 
     void on_next(T &&t) override {
@@ -57,6 +59,7 @@ struct buffered_worker_op {
       if (!_channel.try_send(next{std::move(t)})) {
         tele::counter_inc(_dropped_items);
       }
+      tele::gauge_set(_buffer_size, _channel.size());
       _source_sub->request(1);
     };
 
@@ -137,6 +140,8 @@ struct buffered_worker_op {
 
     tele::counter *_dropped_items;
     tele::counter *_delivered_items;
+    tele::gauge *_buffer_size;
+
     streams::subscription *_source_sub;
     std::atomic<long> _outstanding{0};
   };

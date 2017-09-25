@@ -69,7 +69,7 @@ struct image_decoder_impl {
       if (err) {
         switch (err) {
           case AVERROR(EAGAIN):
-            LOG_S(2) << "eagain";
+            LOG_S(4) << "eagain";
             return streams::publishers::empty<owned_image_packet>();
           default:
             LOG_S(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);

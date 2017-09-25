@@ -149,6 +149,29 @@ cbor_item_t* configure_command(cbor_item_t* config) {
   return cmd;
 }
 
+void log_important_counters() {
+  LOG_S(INFO) << "  vbot.network_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.network_buffer.delivered")
+              << "  vbot.network_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.network_buffer.dropped")
+              << "  vbot.network_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("vbot.network_buffer.size");
+
+  LOG_S(INFO) << "  vbot.encoded_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.encoded_buffer.delivered")
+              << "  vbot.encoded_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.encoded_buffer.dropped")
+              << "  vbot.encoded_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("vbot.encoded_buffer.size");
+
+  LOG_S(INFO) << "    vbot.image_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.image_buffer.delivered")
+              << "    vbot.image_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("vbot.image_buffer.dropped")
+              << "    vbot.image_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("vbot.image_buffer.size");
+}
+
 }  // namespace
 
 void bot_environment::parse_config(boost::optional<std::string> config_file) {
@@ -323,9 +346,19 @@ int bot_environment::main(int argc, char* argv[]) {
   }
 
   bool finished{false};
+  int frames_count = 0;
 
   _source = std::move(_source)
             >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
+            >> streams::map([frames_count](owned_image_packet&& pkt) mutable {
+                frames_count++;
+                constexpr int period = 100;
+                if (!(frames_count % period)) {
+                  LOG_S(INFO) << "Processed " << period << " frames";
+                  log_important_counters();
+                }
+                return pkt;
+              })
             >> streams::do_finally([this, &finished]() {
                 finished = true;
                 _bot_instance->stop();

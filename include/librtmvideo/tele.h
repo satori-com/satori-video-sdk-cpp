@@ -23,9 +23,13 @@ EXPORT void counter_delete(counter *) noexcept;
 // Increments counter value.
 EXPORT void counter_inc(counter *counter, uint64_t delta = 1) noexcept;
 
+EXPORT uint64_t counter_get(const char *full_name) noexcept;
+
 EXPORT struct gauge;
 EXPORT gauge *gauge_new(const char *group, const char *name) noexcept;
+EXPORT void gauge_delete(gauge *) noexcept;
 EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept;
+EXPORT int64_t gauge_get(const char *full_name) noexcept;
 
 EXPORT struct distribution;
 EXPORT distribution *distribution_new(const char *group, const char *name) noexcept;
