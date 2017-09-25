@@ -151,9 +151,8 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
     BOOST_ASSERT(cbor_isa_map(response));
     cbor_item_t* request_id = cbor::map_get(msg, "request_id");
     if (request_id != nullptr) {
-      cbor_map_add(response,
-                   (struct cbor_pair){.key = cbor_move(cbor_build_string("request_id")),
-                                      .value = cbor_move(cbor_copy(request_id))});
+      cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
+                              cbor_move(cbor_copy(request_id))});
     }
 
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
@@ -174,13 +173,12 @@ void bot_instance::send_messages(const frame_id& id) {
       cbor_item_t* is = cbor_new_definite_array(2);
       cbor_array_set(is, 0, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei1))));
       cbor_array_set(is, 1, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei2))));
-      cbor_map_add(data,
-                   {.key = cbor_move(cbor_build_string("i")), .value = cbor_move(is)});
+      cbor_map_add(data, {cbor_move(cbor_build_string("i")), cbor_move(is)});
     }
 
     if (!_bot_id.empty()) {
-      cbor_map_add(data, {.key = cbor_move(cbor_build_string("from")),
-                          .value = cbor_move(cbor_build_string(_bot_id.c_str()))});
+      cbor_map_add(data, {cbor_move(cbor_build_string("from")),
+                          cbor_move(cbor_build_string(_bot_id.c_str()))});
     }
   }
   _env.send_messages(std::move(_message_buffer));

@@ -21,8 +21,7 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
     cbor_item_t* message = cbor_new_definite_map(d.MemberCount());
     for (auto& m : d.GetObject()) {
       cbor_map_add(message,
-                   (struct cbor_pair){.key = cbor_move(json_to_cbor(m.name)),
-                                      .value = cbor_move(json_to_cbor(m.value))});
+                   {cbor_move(json_to_cbor(m.name)), cbor_move(json_to_cbor(m.value))});
     }
     return message;
   }

@@ -94,9 +94,9 @@ struct file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
 
 cbor_item_t* configure_command(cbor_item_t* config) {
   cbor_item_t* cmd = cbor_new_definite_map(2);
-  cbor_map_add(cmd, {.key = cbor_move(cbor_build_string("action")),
-                     .value = cbor_move(cbor_build_string("configure"))});
-  cbor_map_add(cmd, {.key = cbor_move(cbor_build_string("body")), .value = config});
+  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
+                     cbor_move(cbor_build_string("configure"))});
+  cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
   return cmd;
 }
 

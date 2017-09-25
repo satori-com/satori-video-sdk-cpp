@@ -21,5 +21,6 @@ bool map_has_str_value(cbor_item_t *map, const std::string name, const std::stri
 cbor_item_t *map_get(cbor_item_t *map, const std::string name,
                      cbor_item_t *default_value = nullptr);
 
+// Prints human readable representation of CBOR value
 void dump(std::ostream &out, const cbor_item_t *item);
 }  // namespace cbor

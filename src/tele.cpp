@@ -186,9 +186,8 @@ cbor_item_t *tele_sereialize_cells(std::unordered_map<std::string, Cell *> &cell
   cbor_item_t *cells_map = cbor_new_definite_map(cells.size());
   for (const auto &kv : cells) {
     Cell *cell = kv.second;
-    cbor_map_add(cells_map,
-                 {.key = cbor_move(cbor_build_string(cell->full_name().c_str())),
-                  .value = cbor_move(cell->to_cbor())});
+    cbor_map_add(cells_map, {cbor_move(cbor_build_string(cell->full_name().c_str())),
+                             cbor_move(cell->to_cbor())});
   }
   return cells_map;
 }
@@ -198,21 +197,17 @@ cbor_item_t *tele_serialize(
     std::unordered_map<std::string, gauge *> &gauges,
     std::unordered_map<std::string, distribution *> &distributions) {
   cbor_item_t *root = cbor_new_indefinite_map();
-  cbor_map_add(root,
-               {.key = cbor_move(cbor_build_string("id")),
-                .value = cbor_move(cbor_build_string(get_node_id().c_str()))});
+  cbor_map_add(root, {cbor_move(cbor_build_string("id")),
+                      cbor_move(cbor_build_string(get_node_id().c_str()))});
 
-  cbor_map_add(root,
-               {.key = cbor_move(cbor_build_string("counters")),
-                .value = cbor_move(tele_sereialize_cells(counters))});
+  cbor_map_add(root, {cbor_move(cbor_build_string("counters")),
+                      cbor_move(tele_sereialize_cells(counters))});
 
-  cbor_map_add(root,
-               {.key = cbor_move(cbor_build_string("gauges")),
-                .value = cbor_move(tele_sereialize_cells(gauges))});
+  cbor_map_add(root, {cbor_move(cbor_build_string("gauges")),
+                      cbor_move(tele_sereialize_cells(gauges))});
 
-  cbor_map_add(root,
-               {.key = cbor_move(cbor_build_string("distributions")),
-                .value = cbor_move(tele_sereialize_cells(distributions))});
+  cbor_map_add(root, {cbor_move(cbor_build_string("distributions")),
+                      cbor_move(tele_sereialize_cells(distributions))});
   for (auto kv : distributions) {
     kv.second->clear();
   }
