@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "logging.h"
+
 namespace tele {
 
 namespace {
@@ -82,7 +84,10 @@ EXPORT void counter_inc(counter *counter, uint64_t delta) noexcept {
 EXPORT uint64_t counter_get(const char *full_name) noexcept {
   const auto &counters = counter::counters();
   auto it = counters.find(full_name);
-  BOOST_VERIFY_MSG(it != counters.end(), "counter not found");
+  if (it == counters.end()) {
+    LOG_S(ERROR) << "counter " << full_name << " not found";
+    return 0;
+  }
   return it->second->value();
 }
 
@@ -119,7 +124,10 @@ EXPORT void gauge_set(gauge *gauge, int64_t value) noexcept { gauge->set(value);
 EXPORT int64_t gauge_get(const char *full_name) noexcept {
   const auto &gauges = gauge::gauges();
   auto it = gauges.find(full_name);
-  BOOST_VERIFY_MSG(it != gauges.end(), "gauge not found");
+  if (it == gauges.end()) {
+    LOG_S(ERROR) << "gauge " << full_name << " not found";
+    return 0;
+  }
   return it->second->value();
 }
 
