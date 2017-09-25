@@ -101,26 +101,26 @@ cbor_item_t* configure_command(cbor_item_t* config) {
 }
 
 void log_important_counters() {
-  LOG_S(INFO) << "  vbot.network_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.network_buffer.delivered")
-              << "  vbot.network_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.network_buffer.dropped")
-              << "  vbot.network_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("vbot.network_buffer.size");
+  LOG_S(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.network_buffer.delivered")
+              << "  input.network_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.network_buffer.dropped")
+              << "  input.network_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.network_buffer.size");
 
-  LOG_S(INFO) << "  vbot.encoded_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.encoded_buffer.delivered")
-              << "  vbot.encoded_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.encoded_buffer.dropped")
-              << "  vbot.encoded_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("vbot.encoded_buffer.size");
+  LOG_S(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.encoded_buffer.delivered")
+              << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.encoded_buffer.dropped")
+              << "  input.encoded_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.encoded_buffer.size");
 
-  LOG_S(INFO) << "    vbot.image_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.image_buffer.delivered")
-              << "    vbot.image_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("vbot.image_buffer.dropped")
-              << "    vbot.image_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("vbot.image_buffer.size");
+  LOG_S(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.image_buffer.delivered")
+              << "    input.image_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.image_buffer.dropped")
+              << "    input.image_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.image_buffer.size");
 }
 
 }  // namespace
@@ -229,7 +229,7 @@ int bot_environment::main(int argc, char* argv[]) {
   _source = std::move(encoded_src) >> std::move(decode_op);
   if (!batch_mode) {
     _source = std::move(_source)
-              >> buffered_worker("vbot.image_buffer", image_frames_max_buffer_size);
+              >> buffered_worker("input.image_buffer", image_frames_max_buffer_size);
   }
 
   if (cmd_args.count("analysis_file")) {

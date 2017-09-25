@@ -103,6 +103,7 @@ bool validate_file_input_args(const po::variables_map &vm) {
 }  // namespace
 
 constexpr size_t network_buffer_size = 1024;
+constexpr size_t encoded_buffer_size = 10;
 
 po::options_description configuration::to_boost() const {
   po::options_description options;
@@ -193,9 +194,10 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
 
     if (network_buffer)
       source = std::move(source)
-               >> buffered_worker("network.network_buffer", network_buffer_size);
+               >> buffered_worker("input.network_buffer", network_buffer_size);
 
-    return std::move(source) >> rtm::video::decode_network_stream();
+    return std::move(source) >> rtm::video::decode_network_stream()
+           >> buffered_worker("input.encoded_buffer", encoded_buffer_size);
   } else if (has_input_file_args) {
     const bool batch = vm["batch"].as<bool>();
 
@@ -212,7 +214,8 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     if (batch) {
       return std::move(source);
     } else {
-      return std::move(source) >> buffered_worker("input.encoded_buffer", 1042);
+      return std::move(source)
+             >> buffered_worker("input.encoded_buffer", encoded_buffer_size);
     }
   } else if (has_input_camera_args) {
     return rtm::video::camera_source(io_service,
