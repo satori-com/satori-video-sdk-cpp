@@ -460,7 +460,7 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    asio::io_service &io_service,
                                    asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks) {
-  LOG_S(1) << "Creating RTM client for " << endpoint << ":" << port << "\n";
+  LOG_S(1) << "Creating RTM client for " << endpoint << ":" << port;
   std::unique_ptr<secure_client> client(
       new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);
