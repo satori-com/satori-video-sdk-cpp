@@ -103,10 +103,14 @@ struct async_publisher_impl : public publisher_impl<T> {
     }
 
     void on_error(std::error_condition err) override {
-      BOOST_ASSERT_MSG(false, "not implemented");
+      _sink.on_error(err);
+      delete this;
     }
 
-    void on_complete() override { BOOST_ASSERT_MSG(false, "not implemented"); }
+    void on_complete() override {
+      _sink.on_complete();
+      delete this;
+    }
   };
 
   virtual void subscribe(subscriber<T> &s) {
