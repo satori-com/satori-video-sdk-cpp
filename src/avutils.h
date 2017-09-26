@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/optional.hpp>
 #include <functional>
 #include <gsl/gsl>
 #include <memory>
@@ -75,6 +76,7 @@ struct allocated_image {
 std::shared_ptr<allocated_image> allocate_image(int width, int height,
                                                 image_pixel_format pixel_format);
 
+boost::optional<image_size> parse_image_size(const std::string &str);
 }  // namespace avutils
 }  // namespace video
 }  // namespace rtm

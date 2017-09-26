@@ -60,11 +60,15 @@ using bot_img_callback_t = void (*)(bot_context &context, const image_frame &fra
 // if specified>}}
 using bot_ctrl_callback_t = cbor_item_t *(*)(bot_context &context, cbor_item_t *message);
 
+// Used to tell bot framework not to downscale original video stream
+constexpr int16_t ORIGINAL_IMAGE_WIDTH = -1;
+constexpr int16_t ORIGINAL_IMAGE_HEIGHT = -1;
+
 struct bot_descriptor {
   // If received image's dimensions are greater than specified values,
   // then it will be automatically downscaled to provided values
-  uint16_t image_width;
-  uint16_t image_height;
+  int16_t image_width{ORIGINAL_IMAGE_WIDTH};
+  int16_t image_height{ORIGINAL_IMAGE_HEIGHT};
 
   // Pixel format, like RGB0, BGR, etc.
   image_pixel_format pixel_format;

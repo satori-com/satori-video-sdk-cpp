@@ -4,6 +4,7 @@
 extern "C" {
 #include <libavdevice/avdevice.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/parseutils.h>
 #include <libavutil/pixdesc.h>
 }
 
@@ -44,8 +45,7 @@ void dump_codecs() {
   while (true) {
     c = av_codec_next(c);
     if (!c) break;
-    LOG_S(1) << "available codec: " << c->name
-             << " is_encoder=" << av_codec_is_encoder(c)
+    LOG_S(1) << "available codec: " << c->name << " is_encoder=" << av_codec_is_encoder(c)
              << " is_decoder=" << av_codec_is_decoder(c);
   }
 }
@@ -331,6 +331,18 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
     av_freep(&img->data[0]);
     delete img;
   });
+}
+
+boost::optional<image_size> parse_image_size(const std::string &str) {
+  int width;
+  int height;
+  int ret = av_parse_video_size(&width, &height, str.c_str());
+  if (ret < 0) {
+    LOG_S(ERROR) << "couldn't parse image size from " << str << ", " << error_msg(ret);
+    return {};
+  }
+
+  return image_size{(uint16_t)width, (uint16_t)height};
 }
 
 }  // namespace avutils
