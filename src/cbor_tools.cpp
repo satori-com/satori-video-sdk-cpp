@@ -41,7 +41,7 @@ int map_get_int(cbor_item_t *map, const std::string name, const int default_valu
   return cbor_get_int(value);
 }
 
-void dump(std::ostream &out, const cbor_item_t *item) {
+void dump_as_json(std::ostream &out, const cbor_item_t *item) {
   switch (cbor_typeof(item)) {
     case CBOR_TYPE_NEGINT:
       out << '-' << cbor_get_int(item);
@@ -66,7 +66,7 @@ void dump(std::ostream &out, const cbor_item_t *item) {
       out << '[';
       for (size_t i = 0; i < cbor_array_size(item); i++) {
         if (i > 0) out << ',';
-        dump(out, cbor_array_handle(item)[i]);
+        dump_as_json(out, cbor_array_handle(item)[i]);
       }
       out << ']';
       break;
@@ -74,9 +74,9 @@ void dump(std::ostream &out, const cbor_item_t *item) {
       out << '{';
       for (size_t i = 0; i < cbor_map_size(item); i++) {
         if (i > 0) out << ',';
-        dump(out, cbor_map_handle(item)[i].key);
+        dump_as_json(out, cbor_map_handle(item)[i].key);
         out << ':';
-        dump(out, cbor_map_handle(item)[i].value);
+        dump_as_json(out, cbor_map_handle(item)[i].value);
       }
       out << '}';
       break;
