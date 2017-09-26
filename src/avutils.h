@@ -34,6 +34,8 @@ std::shared_ptr<AVCodecContext> encoder_context(AVCodecID codec_id);
 std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
                                                 gsl::cstring_span<> extra_data);
 
+std::shared_ptr<AVCodecContext> decoder_context(const AVCodec *decoder);
+
 // Creates FFmpeg's AVFrame and allocates necessary fields.
 std::shared_ptr<AVFrame> av_frame(int width, int height, int align,
                                   AVPixelFormat pixel_format);
@@ -60,9 +62,14 @@ void sws_scale(std::shared_ptr<SwsContext> sws_context,
                std::shared_ptr<AVFrame> dst_frame);
 
 // Creates FFmpeg's format context to write data to files
-std::shared_ptr<AVFormatContext> format_context(
+std::shared_ptr<AVFormatContext> output_format_context(
     const std::string &format, const std::string &filename,
     std::function<void(AVFormatContext *)> file_cleaner);
+
+std::shared_ptr<AVFormatContext> open_input_format_context(
+    const std::string &url, AVInputFormat *forced_format = nullptr,
+    AVDictionary *options = nullptr);
+int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out);
 
 // Copies image frame data to AVFrame
 void copy_image_to_av_frame(const owned_image_frame &image,

@@ -33,6 +33,7 @@ cli_streams::configuration cli_configuration() {
   result.enable_file_input = true;
   result.enable_camera_input = true;
   result.enable_generic_input_options = true;
+  result.enable_url_input = true;
 
   return result;
 }
@@ -155,7 +156,7 @@ streams::op<owned_image_packet, std::shared_ptr<SDL_Surface>> image_to_surface()
                                          f->height, 24, f->width * 3, 0x00ff0000,
                                          0x0000ff00, 0x000000ff, 0x00000000),
                 [](SDL_Surface *ptr) {
-                  LOG(INFO) << "Destroying surface";
+                  LOG(5) << "Destroying surface";
                   SDL_FreeSurface(ptr);
                 });
 
@@ -188,7 +189,7 @@ surface_to_texture(std::shared_ptr<SDL_Renderer> renderer) {
             std::shared_ptr<SDL_Texture> texture(
                 SDL_CreateTextureFromSurface(renderer.get(), surface.get()),
                 [](SDL_Texture *ptr) {
-                  LOG(INFO) << "Destroying texture";
+                  LOG(5) << "Destroying texture";
                   SDL_DestroyTexture(ptr);
                 });
 

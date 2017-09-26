@@ -8,6 +8,7 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
+#include <librtmvideo/base.h>
 #include "avutils.h"
 #include "logging.h"
 
@@ -65,9 +66,14 @@ void init() {
   static bool initialized = false;
   if (!initialized) {
     LOG(INFO) << "initializing av library";
+    if (DEBUG_MODE) {
+      av_log_set_level(AV_LOG_VERBOSE);
+    }
+
     avdevice_register_all();
     avcodec_register_all();
     av_register_all();
+    avformat_network_init();
     initialized = true;
 
     dump_codecs();
@@ -144,17 +150,7 @@ std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
     return nullptr;
   }
 
-  LOG(1) << "allocating context for decoder '" << av_codec_name << "'";
-  std::shared_ptr<AVCodecContext> context(
-      avcodec_alloc_context3(decoder), [](AVCodecContext *ctx) {
-        LOG(1) << "deleting context for decoder '" << ctx->codec->name << "'";
-        avcodec_close(ctx);
-        avcodec_free_context(&ctx);
-      });
-  if (context == nullptr) {
-    LOG(ERROR) << "failed to allocate context for decoder '" << av_codec_name << "'";
-    return nullptr;
-  }
+  auto context = decoder_context(decoder);
 
   AVCodecParameters *params = avcodec_parameters_alloc();
   if (params == nullptr) {
@@ -183,6 +179,19 @@ std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
   return context;
 }
 
+std::shared_ptr<AVCodecContext> decoder_context(const AVCodec *decoder) {
+  LOG(1) << "allocating context for decoder '" << decoder->name << "'";
+  std::shared_ptr<AVCodecContext> context(
+      avcodec_alloc_context3(decoder), [](AVCodecContext *ctx) {
+        LOG(1) << "deleting context for decoder '" << ctx->codec->name << "'";
+        avcodec_close(ctx);
+        avcodec_free_context(&ctx);
+      });
+  if (context == nullptr) {
+    LOG(ERROR) << "failed to allocate context for decoder '" << decoder->name << "'";
+  }
+  return context;
+}
 std::shared_ptr<AVFrame> av_frame() {
   LOG(1) << "allocating frame";
   std::shared_ptr<AVFrame> frame(av_frame_alloc(), [](AVFrame *f) {
@@ -281,7 +290,7 @@ void sws_scale(std::shared_ptr<SwsContext> sws_context,
             dst_frame->data, dst_frame->linesize);
 }
 
-std::shared_ptr<AVFormatContext> format_context(
+std::shared_ptr<AVFormatContext> output_format_context(
     const std::string &format, const std::string &filename,
     std::function<void(AVFormatContext *)> file_cleaner) {
   AVFormatContext *format_context;
@@ -301,6 +310,27 @@ std::shared_ptr<AVFormatContext> format_context(
         file_cleaner(ctx);
         avformat_free_context(ctx);  // releases streams too
       });
+}
+
+std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &url,
+                                                           AVInputFormat *forced_format,
+                                                           AVDictionary *options) {
+  AVFormatContext *format_context = avformat_alloc_context();
+  if (!format_context) {
+    LOG(ERROR) << "failed to allocate format context";
+    return nullptr;
+  }
+
+  LOG(1) << "opening url " << url;
+  int ret = avformat_open_input(&format_context, url.c_str(), forced_format, &options);
+  if (ret < 0) {
+    // format_context is freed on open error.
+    LOG(ERROR) << "failed to open " << url << ": " << error_msg(ret);
+    return nullptr;
+  }
+  LOG(1) << "opened url " << url;
+  return std::shared_ptr<AVFormatContext>(
+      format_context, [](AVFormatContext *ctx) { avformat_free_context(ctx); });
 }
 
 void copy_image_to_av_frame(const owned_image_frame &image,
@@ -345,6 +375,21 @@ boost::optional<image_size> parse_image_size(const std::string &str) {
   }
 
   return image_size{(uint16_t)width, (uint16_t)height};
+}
+
+int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out) {
+  int ret = avformat_find_stream_info(context, nullptr);
+  if (ret < 0) {
+    LOG(ERROR) << "could not find stream information:" << avutils::error_msg(ret);
+    return ret;
+  }
+
+  ret = av_find_best_stream(context, AVMEDIA_TYPE_VIDEO, -1, -1, decoder_out, 0);
+  if (ret < 0) {
+    LOG(ERROR) << "could not find video stream:" << avutils::error_msg(ret);
+    return ret;
+  }
+  return ret;
 }
 
 }  // namespace avutils

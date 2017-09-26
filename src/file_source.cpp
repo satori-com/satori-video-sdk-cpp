@@ -23,7 +23,6 @@ struct file_source_impl {
 
   ~file_source_impl() {
     if (_dec_ctx) avcodec_free_context(&_dec_ctx);
-    if (_fmt_ctx) avformat_close_input(&_fmt_ctx);
   }
 
   int init() {
@@ -37,23 +36,10 @@ struct file_source_impl {
     }
     LOG(1) << "File " << _filename << " is open";
 
-    LOG(1) << "Looking for stream info...";
-    if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-      LOG(ERROR) << "Could not find stream information:" << avutils::error_msg(ret);
+    _stream_idx = avutils::find_best_video_stream(_fmt_ctx, &_dec);
+    if (_stream_idx < 0) {
       return ret;
     }
-    LOG(1) << "Stream info found";
-
-    LOG(1) << "Number of streams " << _fmt_ctx->nb_streams;
-
-    LOG(1) << "Looking for best stream...";
-    if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec, 0)) < 0) {
-      LOG(ERROR) << "Could not find video stream:" << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Best stream found";
-
-    _stream_idx = ret;
     _stream = _fmt_ctx->streams[_stream_idx];
 
     LOG(1) << "Allocating codec context...";

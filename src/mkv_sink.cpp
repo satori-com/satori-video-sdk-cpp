@@ -16,8 +16,8 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
       : _filename(filename), _format_options(format_options) {
     avutils::init();
 
-    _format_context =
-        avutils::format_context("matroska", _filename, [filename](AVFormatContext *ctx) {
+    _format_context = avutils::output_format_context(
+        "matroska", _filename, [filename](AVFormatContext *ctx) {
           if (ctx->pb != nullptr) {
             LOG(INFO) << "Writing trailer section into file " << filename;
             av_write_trailer(ctx);

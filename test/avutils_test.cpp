@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(sws) {
 }
 
 BOOST_AUTO_TEST_CASE(format_context) {
-  std::shared_ptr<AVFormatContext> ctx = rtm::video::avutils::format_context(
+  std::shared_ptr<AVFormatContext> ctx = rtm::video::avutils::output_format_context(
       "matroska", "test.mkv", [](AVFormatContext *) {});
 
   BOOST_CHECK_EQUAL("test.mkv", ctx->filename);

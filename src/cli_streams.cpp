@@ -59,6 +59,12 @@ po::options_description generic_input_options() {
   return options;
 }
 
+po::options_description url_input_options() {
+  po::options_description url_options("URL options");
+  url_options.add_options()("input-url", po::value<std::string>(), "Input video URL");
+  return url_options;
+}
+
 po::options_description file_output_options() {
   po::options_description output_file_options("Output file options");
   output_file_options.add_options()("output-video-file", po::value<std::string>(),
@@ -85,6 +91,10 @@ bool check_file_input_args_provided(const po::variables_map &vm) {
 
 bool check_camera_input_args_provided(const po::variables_map &vm) {
   return vm.count("input-camera");
+}
+
+bool check_url_input_args_provided(const po::variables_map &vm) {
+  return vm.count("input-url");
 }
 
 bool check_file_output_args_provided(const po::variables_map &vm) {
@@ -131,6 +141,7 @@ po::options_description configuration::to_boost() const {
   if (enable_rtm_input) options.add(rtm_options());
   if (enable_file_input) options.add(file_input_options(enable_file_batch_mode));
   if (enable_camera_input) options.add(camera_input_options());
+  if (enable_url_input) options.add(url_input_options());
   if (enable_generic_input_options) options.add(generic_input_options());
 
   if (enable_rtm_output) options.add(rtm_options());
@@ -152,8 +163,9 @@ bool configuration::validate(const po::variables_map &vm) const {
     return false;
   }
 
-  if (enable_rtm_input || enable_file_input || enable_camera_input) {
-    if (!has_input_rtm_args && !has_input_file_args && !has_input_camera_args) {
+  if (enable_rtm_input || enable_file_input || enable_camera_input || enable_url_input) {
+    if (!has_input_rtm_args && !has_input_file_args && !has_input_camera_args
+        && !enable_url_input) {
       std::cerr << "Video source should be specified\n";
       return false;
     }
@@ -225,6 +237,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
       enable_file_input && check_file_input_args_provided(vm);
   const bool has_input_camera_args =
       enable_camera_input && check_camera_input_args_provided(vm);
+  const bool has_input_url_args = enable_url_input && check_url_input_args_provided(vm);
 
   if (has_input_rtm_args) {
     streams::publisher<network_packet> source = rtm::video::rtm_source(client, channel);
@@ -257,8 +270,11 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
   } else if (has_input_camera_args) {
     return rtm::video::camera_source(io_service,
                                      vm["camera-dimensions"].as<std::string>());
+  } else if (has_input_url_args) {
+    std::string url = vm["input-url"].as<std::string>();
+    return rtm::video::url_source(url);
   } else {
-    ABORT();
+    ABORT() << "should not happen";
   }
 }
 

@@ -51,6 +51,7 @@ add_library(rtmvideo
     src/streams/streams.cpp
     src/streams/stream_error.cpp
     src/tele.cpp
+    src/url_source.cpp
     src/video_bot.cpp
     src/video_streams.cpp
     src/vp9_encoder.cpp

@@ -108,7 +108,7 @@ struct buffered_worker_op {
           _sink.on_subscribe(*this);
         } else if (next *n = boost::get<next>(&m)) {
           CHECK_GT(_outstanding, 0) << "too many messages in " << _name;
-          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
+          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
           _sink.on_next(std::move(n->t));
           LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
           _outstanding--;

@@ -52,6 +52,7 @@ struct configuration {
   bool enable_rtm_output{false};
   bool enable_file_output{false};
   bool enable_file_batch_mode{false};
+  bool enable_url_input{false};
 };
 
 }  // namespace cli_streams

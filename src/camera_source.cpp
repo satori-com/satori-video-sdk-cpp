@@ -57,24 +57,10 @@ struct camera_source_impl {
     }
     std::cout << "*** Camera is open\n";
 
-    std::cout << "*** Looking for stream info...\n";
-    if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-      std::cerr << "*** Could not find stream information:" << avutils::error_msg(ret)
-                << "\n";
+    _stream_idx = avutils::find_best_video_stream(_fmt_ctx, &_dec);
+    if (_stream_idx < 0) {
       return ret;
     }
-    std::cout << "*** Stream info found\n";
-
-    std::cout << "*** Number of streams " << _fmt_ctx->nb_streams << "\n";
-
-    std::cout << "*** Looking for best stream...\n";
-    if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec, 0)) < 0) {
-      std::cerr << "*** Could not find video stream:" << avutils::error_msg(ret) << "\n";
-      return ret;
-    }
-    std::cout << "*** Best stream found\n";
-
-    _stream_idx = ret;
     _stream = _fmt_ctx->streams[_stream_idx];
 
     std::cout << "*** Allocating codec context...\n";
