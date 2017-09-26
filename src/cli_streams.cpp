@@ -131,6 +131,13 @@ bool configuration::validate(const po::variables_map &vm) const {
     return false;
   }
 
+  if (enable_rtm_input || enable_file_input || enable_camera_input) {
+    if (!has_input_rtm_args && !has_input_file_args && !has_input_camera_args) {
+      std::cerr << "Video source should be specified\n";
+      return false;
+    }
+  }
+
   if (has_input_rtm_args && !validate_rtm_args(vm)) return false;
   if (has_input_file_args && !validate_file_input_args(vm)) return false;
 
@@ -141,6 +148,13 @@ bool configuration::validate(const po::variables_map &vm) const {
   if (has_output_rtm_args && has_output_file_args) {
     std::cerr << "Only one video output should be specified\n";
     return false;
+  }
+
+  if (enable_rtm_output || enable_file_output) {
+    if (!has_output_rtm_args && !has_output_file_args) {
+      std::cerr << "Video output should be specified\n";
+      return false;
+    }
   }
 
   if (has_input_rtm_args && has_output_rtm_args) {
