@@ -58,6 +58,12 @@ struct image_decoder_impl {
       stopwatch<> s;
       _packet->data = (uint8_t *)f.data.data();
       _packet->size = static_cast<int>(f.data.size());
+      _packet->pos = f.id.i1;
+      _packet->duration = f.id.i2 - f.id.i1;
+      _packet->pts = _packet->dts = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        f.timestamp.time_since_epoch())
+                                        .count();
+
       int err = avcodec_send_packet(_context.get(), _packet.get());
       if (err) {
         LOG_S(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
@@ -86,11 +92,13 @@ struct image_decoder_impl {
       sws_scale(_sws_context.get(), _frame->data, _frame->linesize, 0, _frame->height,
                 _image->data, _image->linesize);
 
-      owned_image_frame frame{.id = f.id,
+      frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
+      owned_image_frame frame{.id = id,
                               .pixel_format = _pixel_format,
                               .width = static_cast<uint16_t>(_image_width),
                               .height = static_cast<uint16_t>(_image_height),
-                              .timestamp = f.timestamp};
+                              .timestamp = std::chrono::system_clock::time_point{
+                                  std::chrono::milliseconds(_frame->pts)}};
 
       for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
         const uint32_t plane_stride = static_cast<uint32_t>(_image->linesize[i]);

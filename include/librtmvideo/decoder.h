@@ -28,9 +28,6 @@ EXPORT int decoder_process_frame_message(decoder *d, uint64_t i1, uint64_t i2,
                                          const uint8_t *frame_data, size_t len,
                                          uint32_t chunk, uint32_t chunks);
 
-EXPORT int decoder_process_binary_message(decoder *d, const uint8_t *frame_data,
-                                          size_t len);
-
 EXPORT bool decoder_frame_ready(decoder *d);
 
 EXPORT int decoder_image_height(decoder *d);
@@ -43,3 +40,5 @@ EXPORT double decoder_stream_fps(decoder *d);
 EXPORT int decoder_image_line_size(decoder *d, uint8_t plane_index);
 EXPORT int decoder_image_size(decoder *d);
 EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index);
+EXPORT uint64_t decoder_image_id1(decoder *d);
+EXPORT uint64_t decoder_image_id2(decoder *d);

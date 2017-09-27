@@ -125,11 +125,11 @@ struct decoder {
     return 0;
   }
 
-  int process_frame_message(const uint8_t *data, size_t length, uint32_t chunk,
-                            uint32_t chunks) {
+  int process_frame_message(const uint8_t *data, uint64_t i1, uint64_t i2, size_t length,
+                            uint32_t chunk, uint32_t chunks) {
     if (!_initialized) return -1;
     _frame_ready = false;
-    if (chunks == 1) return process_frame(data, length);
+    if (chunks == 1) return process_frame(i1, i2, data, length);
 
     if (chunk == 1) {
       _chunk_buffer.clear();
@@ -137,25 +137,28 @@ struct decoder {
     _chunk_buffer.insert(_chunk_buffer.end(), data, data + length);
     if (chunk != chunks) return 0;
 
-    int err = process_frame(_chunk_buffer.data(), _chunk_buffer.size());
+    int err = process_frame(i1, i2, _chunk_buffer.data(), _chunk_buffer.size());
     _chunk_buffer.clear();
     return err;
   }
 
-  int process_frame(const uint8_t *data, size_t length) {
+  int process_frame(uint64_t i1, uint64_t i2, const uint8_t *data, size_t length) {
     std::string encoded{data, data + length};
     std::string decoded = rtm::video::decoder::base64_decode(encoded);
-    return process_binary_message((uint8_t *)decoded.data(), (int)decoded.size());
+    return process_binary_message(i1, i2, (uint8_t *)decoded.data(), (int)decoded.size());
   }
 
-  int process_binary_message(const uint8_t *data, size_t length) {
+  int process_binary_message(uint64_t i1, uint64_t i2, const uint8_t *data,
+                             size_t length) {
     std::string decoded{data, data + length};
-    return process_binary_message((uint8_t *)decoded.data(), (int)decoded.size());
+    return process_binary_message(i1, i2, (uint8_t *)decoded.data(), (int)decoded.size());
   }
 
-  int process_binary_message(uint8_t *data, size_t length) {
+  int process_binary_message(uint64_t i1, uint64_t i2, uint8_t *data, size_t length) {
     _packet->data = data;
     _packet->size = length;
+    _packet->pos = i1;
+    _packet->duration = i2 - i1;
     int err = avcodec_send_packet(_decoder_context, _packet);
     if (err) {
       char av_error[AV_ERROR_MAX_STRING_SIZE];
@@ -246,6 +249,9 @@ struct decoder {
 
   bool frame_ready() const { return _frame_ready; }
 
+  uint64_t image_id1() const { return _frame->pkt_pos; }
+  uint64_t image_id2() const { return _frame->pkt_pos + _frame->pkt_duration; }
+
  private:
   int _image_width{-1};
   int _image_height{-1};
@@ -302,12 +308,9 @@ EXPORT int decoder_process_frame_message(decoder *d, uint64_t i1, uint64_t i2,
                                          const uint8_t *frame_data, size_t len,
                                          uint32_t chunk, uint32_t chunks) {
   // todo check id sequence
-  return d->process_frame_message(frame_data, len, chunk, chunks);
+  return d->process_frame_message(frame_data, i1, i2, len, chunk, chunks);
 }
-EXPORT int decoder_process_binary_message(decoder *d, const uint8_t *frame_data,
-                                          size_t len) {
-  return d->process_binary_message(frame_data, len);
-}
+
 EXPORT bool decoder_frame_ready(decoder *d) { return d->frame_ready(); }
 
 EXPORT int decoder_image_height(decoder *d) { return d->image_height(); }
@@ -322,3 +325,7 @@ EXPORT const uint8_t *decoder_image_data(decoder *d, uint8_t plane_index) {
   return d->image_data(plane_index);
 }
 EXPORT double decoder_stream_fps(decoder *d) { return d->stream_fps(); }
+
+EXPORT uint64_t decoder_image_id1(decoder *d) { return d->image_id1(); }
+
+EXPORT uint64_t decoder_image_id2(decoder *d) { return d->image_id2(); }
