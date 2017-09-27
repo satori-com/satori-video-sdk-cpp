@@ -15,6 +15,10 @@ struct video_error_category : std::error_category {
         return "can't generate video frame";
       case video_error::AsioError:
         return "asio error";
+      case video_error::EndOfStreamError:
+        return "end of video stream";
+      case video_error::FrameNotReadyError:
+        return "from not ready";
     }
   }
 };

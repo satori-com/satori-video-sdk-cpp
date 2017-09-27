@@ -1,12 +1,13 @@
-#define BOOST_TEST_MODULE FlowDecoderTest
+#define BOOST_TEST_MODULE DecodeImageFrames
+#define BOOST_TEST_NO_MAIN
+#define BOOST_TEST_ALTERNATIVE_INIT_API
 #include <boost/test/included/unit_test.hpp>
-
-#include "logging_impl.h"
 
 #include <fstream>
 #include "avutils.h"
 #include "base64.h"
 #include "librtmvideo/data.h"
+#include "logging_impl.h"
 #include "video_streams.h"
 
 using namespace rtm::video;
@@ -48,7 +49,7 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
                                     std::move(frames));
 }
 
-void run_flow_decoder_test(const test_definition &td) {
+void run_decode_image_frames_test(const test_definition &td) {
   std::cout << "*** running test for codec '" << td.codec_name << "'\n";
   std::ifstream frame_file(td.frames_filename);
 
@@ -82,6 +83,8 @@ void run_flow_decoder_test(const test_definition &td) {
   std::cout << "*** test for codec '" << td.codec_name << "' succeeded\n";
 }
 
+inline frame_id id(int64_t i1, int64_t i2) { return frame_id{i1, i2}; }
+
 }  // namespace
 
 BOOST_AUTO_TEST_CASE(vp9) {
@@ -94,7 +97,7 @@ BOOST_AUTO_TEST_CASE(vp9) {
   test.expected_height = 180;
   test.expected_frames_count = 1;
 
-  run_flow_decoder_test(test);
+  run_decode_image_frames_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(h264) {
@@ -105,9 +108,9 @@ BOOST_AUTO_TEST_CASE(h264) {
   test.codec_name = "h264";
   test.expected_width = 320;
   test.expected_height = 180;
-  test.expected_frames_count = 1;
+  test.expected_frames_count = 6;
 
-  run_flow_decoder_test(test);
+  run_decode_image_frames_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(jpeg) {
@@ -120,7 +123,7 @@ BOOST_AUTO_TEST_CASE(jpeg) {
   test.expected_height = 180;
   test.expected_frames_count = 1;
 
-  run_flow_decoder_test(test);
+  run_decode_image_frames_test(test);
 }
 
 BOOST_AUTO_TEST_CASE(mjpeg) {
@@ -133,5 +136,36 @@ BOOST_AUTO_TEST_CASE(mjpeg) {
   test.expected_height = 180;
   test.expected_frames_count = 1;
 
-  run_flow_decoder_test(test);
+  run_decode_image_frames_test(test);
+}
+
+BOOST_AUTO_TEST_CASE(id_test) {
+  LOG_SCOPE_FUNCTION(INFO);
+
+  boost::asio::io_service io;
+
+  std::vector<frame_id> ids;
+  auto stream = file_source(io, "test_data/test.mp4", false, true)
+                >> decode_image_frames(-1, -1, image_pixel_format::RGB0);
+
+  stream->process(
+      [&ids](owned_image_packet &&pkt) {
+        if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {
+          ids.push_back(f->id);
+        }
+      },
+      []() {}, [](std::error_condition ec) { BOOST_TEST(false); });
+
+  BOOST_TEST(ids.size() == 6);
+  BOOST_TEST(ids[0] == id(0, 48));
+  BOOST_TEST(ids[1] == id(49, 28975));
+  BOOST_TEST(ids[2] == id(28976, 32918));
+  BOOST_TEST(ids[3] == id(38322, 44809));
+  BOOST_TEST(ids[4] == id(44810, 47582));
+  BOOST_TEST(ids[5] == id(32919, 38321));
+}
+
+int main(int argc, char *argv[]) {
+  init_logging(argc, argv);
+  return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }

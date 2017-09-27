@@ -2,11 +2,14 @@
 #include <librtmvideo/video_bot.h>
 #include <iostream>
 
+#define LOGURU_WITH_STREAMS 1
+#include <loguru/loguru.hpp>
+
 namespace empty_bot {
 
 void process_image(bot_context &context, const image_frame &frame) {
-  std::cout << "got frame " << context.frame_metadata->width << "x"
-            << context.frame_metadata->height << "\n";
+  LOG_S(INFO) << "got frame " << context.frame_metadata->width << "x"
+              << context.frame_metadata->height;
 
   cbor_item_t *msg = cbor_new_indefinite_map();
   cbor_map_add(

@@ -38,11 +38,11 @@ struct buffered_worker_op {
     }
 
     instance(buffered_worker_op &&op, streams::subscriber<T> &sink)
-        : _sink(sink), _channel(op._size) {
+        : _name(op._name), _sink(sink), _channel(op._size) {
       _worker_thread = std::make_unique<std::thread>(&instance::worker_thread_loop, this);
-      _dropped_items = tele::counter_new(op._name.c_str(), "dropped");
-      _delivered_items = tele::counter_new(op._name.c_str(), "delivered");
-      _buffer_size = tele::gauge_new(op._name.c_str(), "size");
+      _dropped_items = tele::counter_new(_name.c_str(), "dropped");
+      _delivered_items = tele::counter_new(_name.c_str(), "delivered");
+      _buffer_size = tele::gauge_new(_name.c_str(), "size");
       LOG(5) << "buffered_worker_op(" << this << ")::buffered_worker_op";
     }
 
@@ -106,8 +106,8 @@ struct buffered_worker_op {
           LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop on_subscribe";
           _sink.on_subscribe(*this);
         } else if (next *n = boost::get<next>(&m)) {
-          CHECK_GT(_outstanding, 0);
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
+          CHECK_GT(_outstanding, 0) << "too many messages in " << _name;
+          LOG_S(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
           _sink.on_next(std::move(n->t));
           LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
           _outstanding--;
@@ -131,6 +131,7 @@ struct buffered_worker_op {
       delete this;
     }
 
+    const std::string _name;
     std::atomic<bool> _is_active{true};
     streams::subscriber<T> &_sink;
     channel<msg> _channel;
