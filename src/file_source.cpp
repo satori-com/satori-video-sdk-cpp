@@ -99,6 +99,9 @@ struct file_source_impl {
         continue;
       }
 
+      av_init_packet(&_pkt);
+      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
+
       int ret = av_read_frame(_fmt_ctx, &_pkt);
       if (ret < 0) {
         if (ret == AVERROR_EOF) {
@@ -118,8 +121,6 @@ struct file_source_impl {
         }
       }
 
-      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
-
       if (_pkt.stream_index == _stream_idx) {
         LOG_S(4) << "packet from file " << _filename;
         encoded_frame frame;
@@ -128,6 +129,7 @@ struct file_source_impl {
         auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
         frame.timestamp =
             std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
+        frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
         observer.on_next(frame);
         _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
         packets++;

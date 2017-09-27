@@ -91,6 +91,7 @@ struct vp9_encoder {
       frame.data.assign(packet.data, packet.data + packet.size);
       frame.id = f.id;
       frame.timestamp = f.timestamp;
+      frame.key_frame = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
       packets.push_back(std::move(frame));
 
       av_packet_unref(&packet);

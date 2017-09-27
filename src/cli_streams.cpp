@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "cli_streams.h"
+#include "mkv_options.h"
 #include "video_streams.h"
 #include "worker.h"
 
@@ -50,6 +51,13 @@ po::options_description file_output_options() {
   po::options_description output_file_options("Output file options");
   output_file_options.add_options()("output-video-file", po::value<std::string>(),
                                     "Output video file");
+  output_file_options.add_options()(
+      "reserved-index-space", po::value<int>()->default_value(0),
+      "(bytes) Tells how much space to reserve at the beginning of "
+      "file for cues (indexes) to improve seeking. "
+      "Typically 50000 is enough for one hour of video. "
+      "For Matroska, if not specified (e.g. set to zero), "
+      "cues will be written at the end of the file.");
 
   return output_file_options;
 }
@@ -92,7 +100,7 @@ bool validate_rtm_args(const po::variables_map &vm) {
   return true;
 }
 
-bool validate_file_input_args(const po::variables_map &vm) {
+bool validate_input_file_args(const po::variables_map &vm) {
   if (vm.count("input-video-file") && vm.count("input-replay-file")) {
     std::cerr << "--input-video-file and --input-replay-file are mutually exclusive\n";
     return false;
@@ -139,7 +147,7 @@ bool configuration::validate(const po::variables_map &vm) const {
   }
 
   if (has_input_rtm_args && !validate_rtm_args(vm)) return false;
-  if (has_input_file_args && !validate_file_input_args(vm)) return false;
+  if (has_input_file_args && !validate_input_file_args(vm)) return false;
 
   const bool has_output_rtm_args = enable_rtm_output && check_rtm_args_provided(vm);
   const bool has_output_file_args =
@@ -252,7 +260,10 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
   if (has_output_rtm_args) {
     return rtm::video::rtm_sink(client, channel);
   } else if (has_output_file_args) {
-    return rtm::video::mkv_sink(vm["output-video-file"].as<std::string>());
+    mkv::format_options mkv_format_options;
+    mkv_format_options.reserved_index_space = vm["reserved-index-space"].as<int>();
+    return rtm::video::mkv_sink(vm["output-video-file"].as<std::string>(),
+                                mkv_format_options);
   } else {
     BOOST_VERIFY(false);
     exit(1);

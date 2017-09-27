@@ -3,6 +3,7 @@
 #include "avutils.h"
 #include "librtmvideo/data.h"
 #include "logging.h"
+#include "mkv_options.h"
 #include "streams.h"
 #include "video_streams.h"
 
@@ -11,7 +12,8 @@ namespace video {
 
 // TODO: use AVMEDIA_TYPE_DATA
 struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
-  mkv_sink_impl(const std::string &filename) : _filename(filename) {
+  mkv_sink_impl(const std::string &filename, const mkv::format_options &format_options)
+      : _filename(filename), _format_options(format_options) {
     avutils::init();
 
     _format_context =
@@ -24,7 +26,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
           }
         });
     if (_format_context == nullptr) {
-      throw std::runtime_error{"could not create " + _filename};
+      throw std::runtime_error{"could not allocate format context for " + _filename};
     }
   }
 
@@ -57,10 +59,13 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
   void on_encoded_metadata(const encoded_metadata &metadata) {
     BOOST_VERIFY(metadata.image_size);
 
-    if (_video_stream_index < 0) {
+    if (!_initialized) {
       LOG_S(INFO) << "Initializing matroska sink for file " << _filename;
       std::shared_ptr<AVCodecContext> encoder_context =
           avutils::encoder_context(_encoder_id);
+      if (encoder_context == nullptr) {
+        throw std::runtime_error{"could not allocate encoder context for " + _filename};
+      }
       if (_format_context->oformat->flags & AVFMT_GLOBALHEADER) {
         encoder_context->flags |= CODEC_FLAG_GLOBAL_HEADER;
       }
@@ -92,15 +97,21 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
       }
 
       LOG_S(INFO) << "Writing header section into file " << _filename;
-      ret = avformat_write_header(_format_context.get(), nullptr);
+      AVDictionary *format_options{nullptr};
+      av_dict_set(&format_options, "reserve_index_space",
+                  std::to_string(_format_options.reserved_index_space).c_str(), 0);
+      ret = avformat_write_header(_format_context.get(), &format_options);
+      av_dict_free(&format_options);
       if (ret < 0) {
         throw std::runtime_error{"failed to write header: " + avutils::error_msg(ret)};
       }
+
+      _initialized = true;
     }
   }
 
   void on_encoded_frame(const encoded_frame &f) {
-    if (_video_stream_index < 0) return;
+    if (!_initialized) return;
 
     if (!_first_frame_ts) {
       _first_frame_ts = f.timestamp;
@@ -110,13 +121,16 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
     av_init_packet(&packet);
     packet.data = (uint8_t *)f.data.data();
     packet.size = f.data.size();
-    packet.pts = 1
-                 + std::chrono::duration_cast<std::chrono::milliseconds>(
-                       f.timestamp - *_first_frame_ts)
-                       .count();
+    packet.pts = packet.dts = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  f.timestamp - *_first_frame_ts)
+                                  .count();
+    if (f.key_frame) {
+      LOG_S(INFO) << "got key frame";
+      packet.flags |= AV_PKT_FLAG_KEY;
+    }
     LOG_S(2) << "pts = " << packet.pts;
     packet.stream_index = _video_stream_index;
-    int ret = av_write_frame(_format_context.get(), &packet);
+    int ret = av_interleaved_write_frame(_format_context.get(), &packet);
     if (ret < 0) {
       throw std::runtime_error{"failed to write packet: " + avutils::error_msg(ret)};
     }
@@ -125,14 +139,17 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
 
   streams::subscription *_src;
   const std::string _filename;
+  const mkv::format_options _format_options;
   const AVCodecID _encoder_id{AV_CODEC_ID_VP9};
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
+  bool _initialized{false};
   int _video_stream_index{-1};
   boost::optional<std::chrono::system_clock::time_point> _first_frame_ts;
 };
 
-streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename) {
-  return *(new mkv_sink_impl(filename));
+streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
+                                              const mkv::format_options &format_options) {
+  return *(new mkv_sink_impl(filename, format_options));
 }
 
 }  // namespace video

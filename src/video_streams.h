@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "librtmvideo/data.h"
+#include "mkv_options.h"
 #include "rtmclient.h"
 #include "streams.h"
 
@@ -33,7 +34,8 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
 streams::subscriber<encoded_packet> &rtm_sink(std::shared_ptr<rtm::publisher> client,
                                               const std::string &rtm_channel);
 
-streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename);
+streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
+                                              const mkv::format_options &format_options);
 
 }  // namespace video
 }  // namespace rtm
