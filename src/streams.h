@@ -136,13 +136,6 @@ auto flat_map(Fn &&fn);
 template <typename Fn>
 auto do_finally(Fn &&fn);
 
-/*
-template <typename S, typename T>
-auto lift(publisher<T> (*fn)(publisher<S> &&)) {
-  return lift(static_cast<op<S, T>>(fn));
-};
-*/
-
 }  // namespace streams
 
 #include "streams_impl.h"
