@@ -60,11 +60,18 @@ variables_map parse_command_line(int argc, char* argv[],
   cli_options.add(bot_configuration_options).add(bot_execution_options).add(generic);
 
   po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, cli_options), vm);
-  po::notify(vm);
+
+  try {
+    po::store(po::parse_command_line(argc, argv, cli_options), vm);
+    po::notify(vm);
+  } catch (const std::exception& e) {
+    std::cerr << e.what() << std::endl;
+    std::cerr << cli_options << std::endl;
+    exit(1);
+  }
 
   if (argc == 1 || vm.count("help")) {
-    std::cerr << cli_options << "\n";
+    std::cerr << cli_options << std::endl;
     exit(1);
   }
 
