@@ -56,9 +56,8 @@ namespace {
 constexpr int READ_BUFFER_SIZE = 100000;
 
 static void fail(const std::string &ctx, boost::system::error_code ec) {
-  LOG_S(ERROR) << "\nERROR \"" << ctx << "\" " << ec.category().name() << ':'
+  ABORT_S() << ctx << " error \" " << ec.category().name() << ':'
                << ec.value() << " " << ec.message();
-  exit(1);
 }
 
 static rapidjson::Value cbor_to_json(const cbor_item_t *item,
