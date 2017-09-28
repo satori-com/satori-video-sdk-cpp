@@ -171,6 +171,7 @@ add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot
 add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
 add_rtmvideo_test(avutils_test test/avutils_test.cpp)
 add_rtmvideo_test(streams_test test/streams_test.cpp)
+add_rtmvideo_test(file_source_test test/file_source_test.cpp)
 add_rtmvideo_test(flow_decoder_test test/flow_decoder_test.cpp)
 add_rtmvideo_test(vp9_encoder_test test/vp9_encoder_test.cpp)
 add_rtmvideo_test(producer_consumer_queue_test test/producer_consumer_queue_test.cpp)

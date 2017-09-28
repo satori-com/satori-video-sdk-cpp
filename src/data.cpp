@@ -3,14 +3,13 @@
 #include "base64.h"
 #include "librtmvideo/data.h"
 
-namespace rtm {
-namespace video {
-
-bool operator==(const frame_id &lhs, const frame_id &rhs) {
-  return lhs.i1 == rhs.i1 && lhs.i2 == rhs.i2;
+std::ostream &operator<<(std::ostream &os, const frame_id &id) {
+  os << "[" << id.i1 << ", " << id.i2 << "]";
+  return os;
 }
 
-bool operator!=(const frame_id &lhs, const frame_id &rhs) { return !(lhs == rhs); }
+namespace rtm {
+namespace video {
 
 cbor_item_t *network_frame::to_cbor() const {
   cbor_item_t *root = cbor_new_definite_map(6);

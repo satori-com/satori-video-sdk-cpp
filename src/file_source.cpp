@@ -19,7 +19,7 @@ namespace video {
 
 struct file_source_impl {
   file_source_impl(const std::string &filename, const bool loop)
-      : _filename(filename), _loop(loop) {}
+      : _filename(filename), _loop(loop), _start(std::chrono::system_clock::now()) {}
 
   ~file_source_impl() {
     if (_dec_ctx) avcodec_free_context(&_dec_ctx);
@@ -122,8 +122,14 @@ struct file_source_impl {
 
       if (_pkt.stream_index == _stream_idx) {
         LOG_S(4) << "packet from file " << _filename;
-        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}};
+        encoded_frame frame;
+        frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
+        frame.id = {_last_pos, _pkt.pos};
+        auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
+        frame.timestamp =
+            std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
         observer.on_next(frame);
+        _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
         packets++;
       }
     }
@@ -139,12 +145,14 @@ struct file_source_impl {
   const std::string _filename;
   const bool _loop{false};
 
+  std::chrono::system_clock::time_point _start;
   AVFormatContext *_fmt_ctx{nullptr};
   int _stream_idx{-1};
   AVStream *_stream{nullptr};
   AVCodec *_dec{nullptr};  // TODO: check if possible to destroy it
   AVCodecContext *_dec_ctx{nullptr};
   AVPacket _pkt{0};
+  int64_t _last_pos{0};
   bool _metadata_sent{false};
 };
 

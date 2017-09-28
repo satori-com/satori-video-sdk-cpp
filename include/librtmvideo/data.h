@@ -4,19 +4,25 @@
 #include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <chrono>
+#include <ostream>
 #include <string>
 #include <vector>
 
 #include "rtmvideo.h"
 #include "video_bot.h"
 
+inline bool operator==(const frame_id &lhs, const frame_id &rhs) {
+  return lhs.i1 == rhs.i1 && lhs.i2 == rhs.i2;
+}
+
+inline bool operator!=(const frame_id &lhs, const frame_id &rhs) { return !(lhs == rhs); }
+
+std::ostream &operator<<(std::ostream &os, const frame_id &id);
+
 namespace rtm {
 namespace video {
 
 static constexpr size_t max_payload_size = 65000;
-
-bool operator==(const frame_id &lhs, const frame_id &rhs);
-bool operator!=(const frame_id &lhs, const frame_id &rhs);
 
 // network representation of codec parameters, e.g. in binary data
 // is converted into base64, because RTM supports only text/json data
