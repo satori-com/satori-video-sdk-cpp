@@ -223,7 +223,7 @@ class secure_client : public client {
 
   void publish(const std::string &channel, const cbor_item_t *message,
                publish_callbacks *callbacks) override {
-    CHECK(callbacks) << "Callbacks were not provided";
+    CHECK(!callbacks) << "not implemeneted";
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     rapidjson::Document document;
     constexpr const char *tmpl =
