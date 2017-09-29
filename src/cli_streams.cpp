@@ -245,8 +245,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     return rtm::video::camera_source(io_service,
                                      vm["camera-dimensions"].as<std::string>());
   } else {
-    BOOST_VERIFY(false);
-    exit(1);
+    ABORT();
   }
 }
 
@@ -265,8 +264,7 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
     return rtm::video::mkv_sink(vm["output-video-file"].as<std::string>(),
                                 mkv_format_options);
   } else {
-    BOOST_VERIFY(false);
-    exit(1);
+    ABORT();
   }
 }
 

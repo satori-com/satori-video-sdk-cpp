@@ -1,5 +1,8 @@
 #include "librtmvideo/cbor_tools.h"
+
 #include <string.h>
+
+#include "logging.h"
 
 namespace cbor {
 cbor_item_t *map_get(cbor_item_t *map, const std::string name,
@@ -51,11 +54,11 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
       break;
     case CBOR_TYPE_TAG:
     case CBOR_TYPE_BYTESTRING:
-      assert(false);
+      ABORT();
       break;
     case CBOR_TYPE_STRING:
       if (cbor_string_is_indefinite(item)) {
-        assert(false);
+        ABORT();
       } else {
         std::string a(reinterpret_cast<char *>(cbor_string_handle(item)),
                       static_cast<int>(cbor_string_length(item)));

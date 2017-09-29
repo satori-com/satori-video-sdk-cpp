@@ -25,7 +25,7 @@ struct read_json_impl {
 
   void generate(int count, streams::observer<rapidjson::Document> &observer) {
     if (!_input.good()) {
-      LOG_S(ERROR) << "replay file not found: " << _filename;
+      LOG(ERROR) << "replay file not found: " << _filename;
       observer.on_error(std::make_error_condition(std::errc::no_such_file_or_directory));
       return;
     }
@@ -33,15 +33,15 @@ struct read_json_impl {
     for (int sent = 0; sent < count; ++sent) {
       std::string line;
       if (!std::getline(_input, line)) {
-        LOG_S(4) << "end of file";
+        LOG(4) << "end of file";
         observer.on_complete();
         return;
       }
-      LOG_S(4) << "line=" << line;
+      LOG(4) << "line=" << line;
 
       rapidjson::Document data;
       data.Parse<0>(line.c_str()).HasParseError();
-      assert(data.IsObject());
+      CHECK(data.IsObject());
       observer.on_next(std::move(data));
     }
   }

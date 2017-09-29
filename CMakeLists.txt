@@ -70,8 +70,7 @@ target_link_libraries(rtmvideo
     )
 target_link_libraries(rtmvideo PUBLIC dl)
 
-target_include_directories(rtmvideo
-    PUBLIC include)
+target_include_directories(rtmvideo PUBLIC include)
 
 function(set_binary_output_directory TARGET DIRECTORY)
     set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${DIRECTORY})
@@ -84,7 +83,6 @@ add_executable(rtmvideo_publisher_cli
 set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(rtmvideo_publisher_cli bin)
 add_dependencies(rtmvideo_publisher_cli rtmvideo)
-target_include_directories(rtmvideo_publisher_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtmvideo_publisher_cli
         PRIVATE
         rtmvideo
@@ -100,7 +98,6 @@ add_executable(rtmvideo_recorder_cli
 set_property(TARGET rtmvideo_recorder_cli PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(rtmvideo_recorder_cli bin)
 add_dependencies(rtmvideo_recorder_cli rtmvideo)
-target_include_directories(rtmvideo_recorder_cli PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtmvideo_recorder_cli
         PRIVATE
         rtmvideo
@@ -117,7 +114,6 @@ add_executable(player src/player.cpp)
 set_property(TARGET player PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(player bin)
 add_dependencies(player rtmvideo)
-target_include_directories(player PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(player
         PRIVATE
         rtmvideo
@@ -131,7 +127,7 @@ add_executable(test_bot
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(test_bot test)
 add_dependencies(test_bot rtmvideo)
-target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(test_bot
         PRIVATE
         rtmvideo
@@ -139,7 +135,8 @@ target_link_libraries(test_bot
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl)
+        CONAN_PKG::Gsl
+        CONAN_PKG::Loguru)
 
 add_executable(empty_bot test/empty_bot.cpp)
 set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
@@ -151,7 +148,6 @@ function(add_rtmvideo_test TEST_NAME TEST_FILE)
     set_property(TARGET ${TEST_NAME} PROPERTY CXX_STANDARD 14)
     set_binary_output_directory(${TEST_NAME} test)
     add_dependencies(${TEST_NAME} rtmvideo)
-    target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(${TEST_NAME}
         PRIVATE

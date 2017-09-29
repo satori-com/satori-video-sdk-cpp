@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <librtmvideo/video_bot.h>
 #include <iostream>
 

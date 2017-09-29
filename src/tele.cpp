@@ -1,7 +1,6 @@
 #include "tele_impl.h"
 
 #include <unistd.h>
-#include <boost/assert.hpp>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -24,7 +23,7 @@ static std::string get_node_id() {
 
   char hostname[255] = {0};
   int err = gethostname(hostname, sizeof(hostname));
-  BOOST_VERIFY(!err);
+  CHECK(!err);
   return std::string(hostname, strnlen(hostname, sizeof(hostname)));
 }
 
@@ -59,7 +58,7 @@ struct counter : public cell<std::atomic_uint_fast64_t> {
   }
 
   void inc(uint64_t delta) {
-    BOOST_VERIFY(delta >= 0);
+    CHECK(delta >= 0);
     _value += delta;
   }
 
@@ -85,7 +84,7 @@ EXPORT uint64_t counter_get(const char *full_name) noexcept {
   const auto &counters = counter::counters();
   auto it = counters.find(full_name);
   if (it == counters.end()) {
-    LOG_S(ERROR) << "counter " << full_name << " not found";
+    LOG(ERROR) << "counter " << full_name << " not found";
     return 0;
   }
   return it->second->value();
@@ -125,7 +124,7 @@ EXPORT int64_t gauge_get(const char *full_name) noexcept {
   const auto &gauges = gauge::gauges();
   auto it = gauges.find(full_name);
   if (it == gauges.end()) {
-    LOG_S(ERROR) << "gauge " << full_name << " not found";
+    LOG(ERROR) << "gauge " << full_name << " not found";
     return 0;
   }
   return it->second->value();
@@ -218,7 +217,7 @@ cbor_item_t *tele_serialize(
 void on_tele_tick(rtm::publisher &publisher, boost::asio::deadline_timer &timer,
                   const boost::system::error_code &ec) {
   if (ec == boost::asio::error::operation_aborted) return;
-  BOOST_ASSERT(!ec);
+  CHECK(!ec);
   counter_inc(messages_published);
   publisher.publish(tele::channel, tele_serialize(counter::counters(), gauge::gauges(),
                                                   distribution::distributions()));

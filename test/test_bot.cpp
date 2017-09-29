@@ -1,8 +1,8 @@
-#include <assert.h>
 #include <librtmvideo/cbor_tools.h>
 #include <librtmvideo/video_bot.h>
-#include <boost/assert.hpp>
 #include <iostream>
+
+#include "logging.h"
 
 namespace test_bot {
 struct State {
@@ -15,8 +15,8 @@ cbor_item_t *build_message(const std::string &text) {
   return cbor_move(message);
 }
 void process_image(bot_context &context, const image_frame &frame) {
-  assert(context.instance_data != nullptr);  // Make sure initialization passed
-  assert(context.frame_metadata->width != 0);
+  CHECK(context.instance_data != nullptr);  // Make sure initialization passed
+  CHECK(context.frame_metadata->width != 0);
   std::cout << "got frame " << context.frame_metadata->width << "x"
             << context.frame_metadata->height << ", BGR stride "
             << context.frame_metadata->plane_strides[0] << "\n";
@@ -27,11 +27,11 @@ void process_image(bot_context &context, const image_frame &frame) {
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   if (cbor::map_has_str_value(config, "action", "configure")) {
-    assert(ctx.instance_data == nullptr);  // Make sure is has initialized once
+    CHECK(ctx.instance_data == nullptr);  // Make sure is has initialized once
     State *state = new State;
     std::cout << "bot is initializing, libraries are ok" << '\n';
     std::string p = cbor::map_get_str(cbor::map_get(config, "body"), "myparam", "");
-    BOOST_ASSERT(p == "myvalue");
+    CHECK_EQ(p, "myvalue");
     ctx.instance_data = state;
   }
   return nullptr;

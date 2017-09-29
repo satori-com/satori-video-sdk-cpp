@@ -14,7 +14,7 @@
 #include "cbor_json.h"
 #include "cli_streams.h"
 #include "librtmvideo/cbor_tools.h"
-#include "logging_implementation.h"
+#include "logging_impl.h"
 #include "rtm_streams.h"
 #include "signal_breaker.h"
 #include "worker.h"
@@ -90,7 +90,7 @@ struct file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
     cbor_decref(&t);
   }
   void on_error(std::error_condition ec) override {
-    LOG_S(ERROR) << "ERROR: " << ec.message();
+    LOG(ERROR) << "ERROR: " << ec.message();
     delete this;
   }
 
@@ -108,26 +108,26 @@ cbor_item_t* configure_command(cbor_item_t* config) {
 }
 
 void log_important_counters() {
-  LOG_S(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.network_buffer.delivered")
-              << "  input.network_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.network_buffer.dropped")
-              << "  input.network_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.network_buffer.size");
+  LOG(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
+            << tele::counter_get("input.network_buffer.delivered")
+            << "  input.network_buffer.dropped = " << std::setw(5) << std::left
+            << tele::counter_get("input.network_buffer.dropped")
+            << "  input.network_buffer.size = " << std::setw(2) << std::left
+            << tele::gauge_get("input.network_buffer.size");
 
-  LOG_S(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.encoded_buffer.delivered")
-              << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.encoded_buffer.dropped")
-              << "  input.encoded_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.encoded_buffer.size");
+  LOG(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
+            << tele::counter_get("input.encoded_buffer.delivered")
+            << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
+            << tele::counter_get("input.encoded_buffer.dropped")
+            << "  input.encoded_buffer.size = " << std::setw(2) << std::left
+            << tele::gauge_get("input.encoded_buffer.size");
 
-  LOG_S(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.image_buffer.delivered")
-              << "    input.image_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.image_buffer.dropped")
-              << "    input.image_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.image_buffer.size");
+  LOG(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
+            << tele::counter_get("input.image_buffer.delivered")
+            << "    input.image_buffer.dropped = " << std::setw(5) << std::left
+            << tele::counter_get("input.image_buffer.dropped")
+            << "    input.image_buffer.size = " << std::setw(2) << std::left
+            << tele::gauge_get("input.image_buffer.size");
 }
 
 }  // namespace
@@ -177,7 +177,7 @@ bot_environment& bot_environment::instance() {
 }
 
 void bot_environment::register_bot(const bot_descriptor* bot) {
-  assert(!_bot_descriptor);
+  CHECK(!_bot_descriptor);
   _bot_descriptor = bot;
 }
 
@@ -241,7 +241,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   if (cmd_args.count("analysis_file")) {
     std::string analysis_file = cmd_args["analysis_file"].as<std::string>();
-    LOG_S(INFO) << "saving analysis output to " << analysis_file;
+    LOG(INFO) << "saving analysis output to " << analysis_file;
     _analysis_file.reset(new std::ofstream(analysis_file.c_str()));
     _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
   } else if (_rtm_client) {
@@ -253,7 +253,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   if (cmd_args.count("debug_file")) {
     std::string debug_file = cmd_args["debug_file"].as<std::string>();
-    LOG_S(INFO) << "saving debug output to " << debug_file;
+    LOG(INFO) << "saving debug output to " << debug_file;
     _debug_file.reset(new std::ofstream(debug_file.c_str()));
     _debug_sink = new file_cbor_dump_observer(*_debug_file);
   } else if (_rtm_client) {
@@ -289,7 +289,7 @@ int bot_environment::main(int argc, char* argv[]) {
                 frames_count++;
                 constexpr int period = 100;
                 if (!(frames_count % period)) {
-                  LOG_S(INFO) << "Processed " << period << " frames";
+                  LOG(INFO) << "Processed " << period << " frames";
                   log_important_counters();
                 }
                 return pkt;
@@ -306,13 +306,13 @@ int bot_environment::main(int argc, char* argv[]) {
   _bot_instance->start(_source, _control_source);
 
   if (!batch_mode) {
-    LOG_S(INFO) << "entering asio loop";
+    LOG(INFO) << "entering asio loop";
     auto n = io_service.run();
-    LOG_S(INFO) << "asio loop exited, executed " << n << " handlers";
+    LOG(INFO) << "asio loop exited, executed " << n << " handlers";
 
     while (!finished) {
       // batch mode has no threads
-      LOG_S(INFO) << "waiting for all threads to finish...";
+      LOG(INFO) << "waiting for all threads to finish...";
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }

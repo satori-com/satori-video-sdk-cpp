@@ -23,9 +23,7 @@ struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
   }
 
   void on_error(std::error_condition ec) override {
-    LOG_S(ERROR) << "Error in control stream: " << ec.message();
-    _video_sub = nullptr;
-    exit(1);
+    ABORT() << "Error in control stream: " << ec.message();
   }
 
   void on_complete() override { _video_sub = nullptr; }
@@ -63,11 +61,7 @@ void bot_instance::stop() {
   _control_sub.reset();
 }
 
-void bot_instance::on_error(std::error_condition ec) {
-  LOG_S(ERROR) << ec.message();
-  _video_sub = nullptr;
-  exit(2);
-}
+void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); }
 
 void bot_instance::on_next(owned_image_packet&& packet) {
   if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&packet)) {
@@ -75,13 +69,13 @@ void bot_instance::on_next(owned_image_packet&& packet) {
   } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&packet)) {
     process_image_frame(*f);
   } else {
-    BOOST_ASSERT_MSG(false, "Bad variant");
+    ABORT() << "Bad variant";
   }
   _video_sub->request(1);
 }
 
 void bot_instance::on_complete() {
-  LOG_S(INFO) << "processing complete";
+  LOG(INFO) << "processing complete";
   _video_sub = nullptr;
 }
 
@@ -100,7 +94,7 @@ void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* messa
 void bot_instance::process_image_metadata(const owned_image_metadata& metadata) {}
 
 void bot_instance::process_image_frame(const owned_image_frame& frame) {
-  LOG_S(1) << "process_image_frame " << frame.width << "x" << frame.height;
+  LOG(1) << "process_image_frame " << frame.width << "x" << frame.height;
   stopwatch<> s;
 
   if (frame.width != _image_metadata.width) {
@@ -138,7 +132,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
   }
 
   if (!cbor_isa_map(msg)) {
-    LOG_S(ERROR) << "unsupported kind of message";
+    LOG(ERROR) << "unsupported kind of message";
     return;
   }
 
@@ -149,7 +143,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
   cbor_item_t* response = _descriptor.ctrl_callback(*this, msg);
 
   if (response != nullptr) {
-    BOOST_ASSERT(cbor_isa_map(response));
+    CHECK(cbor_isa_map(response));
     cbor_item_t* request_id = cbor::map_get(msg, "request_id");
     if (request_id != nullptr) {
       cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),

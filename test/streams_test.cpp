@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "asio_streams.h"
-#include "logging_implementation.h"
+#include "logging_impl.h"
 #include "streams.h"
 #include "worker.h"
 
@@ -226,7 +226,6 @@ struct collector_sink : public streams::subscriber<T> {
 };
 
 BOOST_AUTO_TEST_CASE(collector_asio) {
-  LOG_SCOPE_FUNCTION(ERROR);
   boost::asio::io_service io_service;
   bool terminated = false;
   auto p = streams::publishers::range(1, 300000000)

@@ -1,6 +1,8 @@
 #define BOOST_TEST_MODULE FlowDecoderTest
 #include <boost/test/included/unit_test.hpp>
 
+#include "logging_impl.h"
+
 #include <fstream>
 #include "avutils.h"
 #include "base64.h"

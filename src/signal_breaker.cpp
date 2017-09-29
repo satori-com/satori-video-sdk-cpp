@@ -8,7 +8,7 @@ namespace {
 std::atomic<bool> flag{true};
 
 void sig_handler(int signum) {
-  LOG_S(INFO) << "received signal " << signum << ", breaking the stream";
+  LOG(INFO) << "received signal " << signum << ", breaking the stream";
   flag = false;
 }
 
@@ -17,7 +17,7 @@ void sig_handler(int signum) {
 namespace impl {
 std::atomic<bool> &init_signal_breaker(std::initializer_list<int> signals) {
   static bool initialized{false};
-  BOOST_VERIFY_MSG(!initialized, "more than one instance of signal breaker");
+  CHECK(!initialized) << "more than one instance of signal breaker";
   for (int s : signals) {
     signal(s, sig_handler);
   }

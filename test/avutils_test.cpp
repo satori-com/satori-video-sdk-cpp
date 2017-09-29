@@ -4,7 +4,7 @@
 #include <boost/test/included/unit_test.hpp>
 
 #include "avutils.h"
-#include "logging_implementation.h"
+#include "logging_impl.h"
 
 BOOST_AUTO_TEST_CASE(av_error_messages) {
   BOOST_CHECK_EQUAL("Resource temporarily unavailable",

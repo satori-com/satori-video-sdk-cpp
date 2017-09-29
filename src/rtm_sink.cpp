@@ -20,15 +20,12 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
     } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
       on_image_frame(*f);
     } else {
-      BOOST_ASSERT_MSG(false, "Bad variant");
+      ABORT() << "Bad variant";
     }
     _src->request(1);
   }
 
-  void on_error(std::error_condition ec) override {
-    std::cerr << "ERROR: " << ec.message() << "\n";
-    exit(1);
-  }
+  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
 
   void on_complete() override { delete this; }
 

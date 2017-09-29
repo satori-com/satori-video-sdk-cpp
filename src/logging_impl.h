@@ -1,12 +1,13 @@
 #pragma once
 
-#include "librtmvideo/base.h"
-
 #define LOGURU_IMPLEMENTATION 1
-#define LOGURU_WITH_STREAMS 1
+#define LOGURU_REPLACE_GLOG 1
 #include <loguru/loguru.hpp>
 
-inline void init_logging(int &argc, char* argv[]) {
+#include "librtmvideo/base.h"
+#include "logging.h"
+
+inline void init_logging(int& argc, char* argv[]) {
   if (RELEASE_MODE) {
     loguru::g_stderr_verbosity = loguru::Verbosity_INFO;
   } else {
@@ -14,6 +15,6 @@ inline void init_logging(int &argc, char* argv[]) {
     loguru::g_stderr_verbosity = loguru::Verbosity_1;
   }
   loguru::init(argc, argv);
-  LOG_S(INFO) << "logging initialized in " << (RELEASE_MODE ? "release" : "debug")
-              << " mode";
+  LOG(INFO) << "logging initialized in " << (RELEASE_MODE ? "release" : "debug")
+            << " mode";
 }

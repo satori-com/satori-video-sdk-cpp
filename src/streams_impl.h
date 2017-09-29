@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <boost/assert.hpp>
 #include <chrono>
 #include <functional>
 #include <gsl/gsl>
@@ -45,7 +44,7 @@ void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
     }
 
     void on_subscribe(subscription &s) override {
-      BOOST_ASSERT(!_source);
+      CHECK(!_source);
       _source = &s;
       _source->request(1);
     }
@@ -84,9 +83,9 @@ struct drain_source_impl : public subscription {
     }
 
     _in_drain = true;
-    LOG_S(5) << this << " -> drain";
+    LOG(5) << this << " -> drain";
     auto exit_drain = gsl::finally([this]() {
-      LOG_S(5) << this << "<- drain needs=" << needs() << " _die=" << _die;
+      LOG(5) << this << "<- drain needs=" << needs() << " _die=" << _die;
       if (_die) {
         delete this;
       } else {
@@ -97,30 +96,30 @@ struct drain_source_impl : public subscription {
     while (needs() > 0 && !_die) {
       _drain_requested = false;
       if (!drain_impl()) {
-        LOG_S(5) << this << " drain_impl returned false";
+        LOG(5) << this << " drain_impl returned false";
         if (!_drain_requested) {
-          LOG_S(5) << this << " breaking drain";
+          LOG(5) << this << " breaking drain";
           break;
         }
-        LOG_S(5) << this << " drain_requested, doing another round";
+        LOG(5) << this << " drain_requested, doing another round";
       }
     }
   }
 
   void deliver_on_subscribe() {
-    LOG_S(5) << this << " deliver_on_subscribe";
+    LOG(5) << this << " deliver_on_subscribe";
     _sink.on_subscribe(*this);
   }
 
   void deliver_on_next(T &&t) {
-    LOG_S(5) << this << " deliver_on_next";
+    LOG(5) << this << " deliver_on_next";
     _delivered++;
-    CHECK_S(_delivered <= _requested);
+    CHECK(_delivered <= _requested);
     _sink.on_next(std::move(t));
   }
 
   void deliver_on_error(std::error_condition ec) {
-    LOG_S(5) << this << " deliver_on_error";
+    LOG(5) << this << " deliver_on_error";
     _sink.on_error(ec);
     if (!_in_drain) {
       delete this;
@@ -130,7 +129,7 @@ struct drain_source_impl : public subscription {
   }
 
   void deliver_on_complete() {
-    LOG_S(5) << this << " deliver_on_complete";
+    LOG(5) << this << " deliver_on_complete";
     _sink.on_complete();
     if (!_in_drain) {
       delete this;
@@ -141,13 +140,13 @@ struct drain_source_impl : public subscription {
 
  private:
   void request(int n) override final {
-    LOG_S(4) << this << " request " << n;
+    LOG(4) << this << " request " << n;
     _requested += n;
     drain();
   }
 
   void cancel() override final {
-    LOG_S(4) << this << " cancel";
+    LOG(4) << this << " cancel";
     if (!_in_drain) {
       delete this;
     } else {
@@ -186,15 +185,15 @@ struct async_publisher_impl : public publisher_impl<T> {
     void request(int n) override { _requested += n; }
 
     void cancel() override {
-      LOG_S(5) << "async_publisher_impl::sub::cancel";
+      LOG(5) << "async_publisher_impl::sub::cancel";
       _cancel_fn(_state);
       _state = nullptr;
     }
 
     void on_next(T &&t) override {
-      LOG_S(5) << "async_publisher_impl::sub::on_next";
+      LOG(5) << "async_publisher_impl::sub::on_next";
       if (_requested.fetch_sub(1) <= 0) {
-        LOG_S(1) << "dropping frame from async_publisher";
+        LOG(1) << "dropping frame from async_publisher";
         _requested++;
         return;
       }
@@ -214,7 +213,7 @@ struct async_publisher_impl : public publisher_impl<T> {
   };
 
   virtual void subscribe(subscriber<T> &s) {
-    LOG_S(5) << "async_publisher_impl::subscribe";
+    LOG(5) << "async_publisher_impl::subscribe";
     auto inst = new sub(s, _init_fn, _cancel_fn);
     s.on_subscribe(*inst);
     inst->init();
@@ -306,7 +305,7 @@ struct generator_publisher : public publisher_impl<T> {
     explicit sub(Generator &&gen, subscriber<T> &sink)
         : drain_source_impl<T>(sink), _gen(std::move(gen)), _state(_gen._create_fn()) {}
 
-    ~sub() { LOG_S(5) << "generator(" << this << ")::~generator"; }
+    ~sub() { LOG(5) << "generator(" << this << ")::~generator"; }
 
     bool drain_impl() override {
       _gen._gen_fn(_state.get(), drain_source_impl<T>::needs(), *this);
@@ -316,12 +315,12 @@ struct generator_publisher : public publisher_impl<T> {
     void on_next(T &&t) override { drain_source_impl<T>::deliver_on_next(std::move(t)); }
 
     void on_error(std::error_condition ec) override {
-      LOG_S(5) << "generator(" << this << ")::on_error";
+      LOG(5) << "generator(" << this << ")::on_error";
       drain_source_impl<T>::deliver_on_error(ec);
     }
 
     void on_complete() override {
-      LOG_S(5) << "generator(" << this << ")::on_complete";
+      LOG(5) << "generator(" << this << ")::on_complete";
       drain_source_impl<T>::deliver_on_complete();
     }
   };
@@ -329,7 +328,7 @@ struct generator_publisher : public publisher_impl<T> {
   explicit generator_publisher(Generator &&gen) : _gen(std::move(gen)) {}
 
   void subscribe(subscriber<value_t> &s) override {
-    BOOST_ASSERT_MSG(!_subscribed, "single subscription only");
+    CHECK(!_subscribed) << "single subscription only";
     _subscribed = true;
     s.on_subscribe(*(new sub(std::move(_gen), s)));
   }
@@ -390,7 +389,7 @@ struct map_op {
     }
 
     void on_subscribe(subscription &s) override {
-      BOOST_ASSERT(!_source);
+      CHECK(!_source);
       _source = &s;
       _sink.on_subscribe(*this);
     }
@@ -437,7 +436,7 @@ struct flat_map_op {
         : drain_source_impl<T>(sink), _fn(std::move(op._fn)) {}
 
     ~instance() {
-      LOG_S(5) << "flat_map_op(" << this << ")::~flat_map_op";
+      LOG(5) << "flat_map_op(" << this << ")::~flat_map_op";
       if (_fwd_sub) {
         _fwd_sub->cancel();
       }
@@ -447,29 +446,29 @@ struct flat_map_op {
     }
 
     void on_subscribe(subscription &s) override {
-      BOOST_ASSERT(!_source);
+      CHECK(!_source);
       _source = &s;
       drain_source_impl<T>::deliver_on_subscribe();
     }
 
     void on_next(S &&t) override {
-      LOG_S(5) << "flat_map_op(" << this
-               << ")::on_next needs=" << drain_source_impl<T>::needs();
-      BOOST_ASSERT(!_fwd_sub);
+      LOG(5) << "flat_map_op(" << this
+             << ")::on_next needs=" << drain_source_impl<T>::needs();
+      CHECK(!_fwd_sub);
       _requested_next = false;
       _fwd_sub = new fwd_sub(this);
       _fn(std::move(t))->subscribe(*_fwd_sub);
     }
 
     void on_error(std::error_condition ec) override {
-      LOG_S(5) << "flat_map_op(" << this << ")::on_error";
+      LOG(5) << "flat_map_op(" << this << ")::on_error";
       _source = nullptr;
       drain_source_impl<T>::deliver_on_error(ec);
     }
 
     void on_complete() override {
-      LOG_S(5) << "flat_map_op(" << this << ")::on_complete _fwd_sub=" << _fwd_sub;
-      BOOST_ASSERT(_source);
+      LOG(5) << "flat_map_op(" << this << ")::on_complete _fwd_sub=" << _fwd_sub;
+      CHECK(_source);
       _source_complete = true;
       _source = nullptr;
 
@@ -481,10 +480,10 @@ struct flat_map_op {
     }
 
     bool drain_impl() override {
-      LOG_S(5) << "flat_map_op(" << this << ")::drain_impl fwd_sub=" << _fwd_sub
-               << " needs=" << drain_source_impl<T>::needs()
-               << "_requested_next=" << _requested_next
-               << " _source_complete=" << _source_complete;
+      LOG(5) << "flat_map_op(" << this << ")::drain_impl fwd_sub=" << _fwd_sub
+             << " needs=" << drain_source_impl<T>::needs()
+             << "_requested_next=" << _requested_next
+             << " _source_complete=" << _source_complete;
 
       if (_fwd_sub) {
         _fwd_sub->request(drain_source_impl<T>::needs());
@@ -501,22 +500,22 @@ struct flat_map_op {
         return false;
       }
 
-      LOG_S(5) << "flat_map_op(" << this << ")::drain >requested_next from " << _source;
+      LOG(5) << "flat_map_op(" << this << ")::drain >requested_next from " << _source;
       _requested_next = true;
       _source->request(1);
-      LOG_S(5) << "flat_map_op(" << this << ")::drain <requested_next";
+      LOG(5) << "flat_map_op(" << this << ")::drain <requested_next";
       return true;
     }
 
     void current_result_complete() {
-      LOG_S(5) << "flat_map_op(" << this
-               << ")::current_result_complete needs=" << drain_source_impl<T>::needs();
+      LOG(5) << "flat_map_op(" << this
+             << ")::current_result_complete needs=" << drain_source_impl<T>::needs();
       _fwd_sub = nullptr;
       drain_source_impl<T>::drain();
     }
 
     void current_result_error(std::error_condition ec) {
-      LOG_S(5) << "flat_map_op(" << this << ")::current_result_error";
+      LOG(5) << "flat_map_op(" << this << ")::current_result_error";
       _fwd_sub = nullptr;
       drain_source_impl<T>::deliver_on_error(ec);
     }
@@ -528,13 +527,13 @@ struct flat_map_op {
       explicit fwd_sub(instance *i) : _instance(i) {}
 
       void on_subscribe(subscription &s) override {
-        BOOST_ASSERT(!_source);
+        CHECK(!_source);
         _source = &s;
         _source->request(_instance->needs());
       }
 
       void on_next(T &&t) override {
-        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_next";
+        LOG(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_next";
         _instance->deliver_on_next(std::move(t));
       }
 
@@ -543,13 +542,13 @@ struct flat_map_op {
       }
 
       void on_complete() override {
-        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_complete";
+        LOG(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_complete";
         _instance->current_result_complete();
         delete this;
       }
 
       void request(int n) override {
-        LOG_S(5) << "flat_map_op(" << _instance << ")::fwd_sub::request " << n;
+        LOG(5) << "flat_map_op(" << _instance << ")::fwd_sub::request " << n;
         _source->request(n);
       }
 
@@ -585,7 +584,7 @@ struct take_while_op {
         : _p(std::move(op._p)), _sink(sink) {}
 
     void on_next(T &&t) override {
-      LOG_S(5) << "take_while::on_next";
+      LOG(5) << "take_while::on_next";
       if (!_p(t)) {
         _source->cancel();
         on_complete();
@@ -605,7 +604,7 @@ struct take_while_op {
     }
 
     void on_subscribe(subscription &s) override {
-      BOOST_ASSERT(!_source);
+      CHECK(!_source);
       _source = &s;
       _sink.on_subscribe(*this);
     }
@@ -639,7 +638,7 @@ struct take_op {
       _received++;
 
       if (_received == _n) {
-        LOG_S(5) << "take_op(" << this << ") got enough";
+        LOG(5) << "take_op(" << this << ") got enough";
         _source_sub->cancel();
         _source_sub = nullptr;
         on_complete();
@@ -652,8 +651,8 @@ struct take_op {
     };
 
     void on_complete() override {
-      LOG_S(5) << "take_op(" << this << ") on_complete _requested=" << _requested
-               << " _received=" << _received;
+      LOG(5) << "take_op(" << this << ") on_complete _requested=" << _requested
+             << " _received=" << _received;
       _sink.on_complete();
       delete this;
     };
@@ -721,18 +720,18 @@ struct do_finally_op {
         : _fn(std::move(op._fn)), _sink(sink) {}
 
     void on_subscribe(subscription &s) override {
-      BOOST_ASSERT(!_source_sub);
+      CHECK(!_source_sub);
       _source_sub = &s;
       _sink.on_subscribe(*this);
     }
 
     void on_next(T &&s) override {
-      BOOST_ASSERT(_source_sub);
+      CHECK(_source_sub);
       _sink.on_next(std::move(s));
     };
 
     void on_error(std::error_condition ec) override {
-      BOOST_ASSERT(_source_sub);
+      CHECK(_source_sub);
       _source_sub = nullptr;
       _sink.on_error(ec);
       _fn();
@@ -740,8 +739,8 @@ struct do_finally_op {
     };
 
     void on_complete() override {
-      BOOST_ASSERT(_source_sub);
-      LOG_S(5) << "do_finally(" << this << ")::on_complete";
+      CHECK(_source_sub);
+      LOG(5) << "do_finally(" << this << ")::on_complete";
       _source_sub = nullptr;
       _sink.on_complete();
       _fn();
@@ -749,13 +748,13 @@ struct do_finally_op {
     };
 
     void request(int n) override {
-      BOOST_ASSERT(_source_sub);
-      LOG_S(5) << "do_finally(" << this << ")::request " << n;
+      CHECK(_source_sub);
+      LOG(5) << "do_finally(" << this << ")::request " << n;
       _source_sub->request(n);
     }
 
     void cancel() override {
-      LOG_S(5) << "do_finally(" << this << ")::cancel";
+      LOG(5) << "do_finally(" << this << ")::cancel";
       if (_source_sub) {
         _source_sub->cancel();
         _source_sub = nullptr;

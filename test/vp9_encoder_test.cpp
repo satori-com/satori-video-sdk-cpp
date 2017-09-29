@@ -34,9 +34,8 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
        gop_size](encoded_packet &&packet) mutable {
         if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
           if (f->key_frame) {
-            LOG_S(INFO) << "frames_from_last_key_frame_count = "
-                        << frames_from_last_key_frame_count
-                        << ", gop_size = " << gop_size;
+            LOG(INFO) << "frames_from_last_key_frame_count = "
+                      << frames_from_last_key_frame_count << ", gop_size = " << gop_size;
             BOOST_TEST(frames_from_last_key_frame_count <= gop_size);
             frames_from_last_key_frame_count = 0;
             key_frames_count++;
@@ -49,7 +48,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
 
   BOOST_CHECK_EQUAL(number_of_frames + 1 /* metadata frame */, packets_count);
 
-  LOG_S(INFO) << "min_key_frames_count = " << min_key_frames_count
-              << ", key_frames_count = " << key_frames_count;
+  LOG(INFO) << "min_key_frames_count = " << min_key_frames_count
+            << ", key_frames_count = " << key_frames_count;
   BOOST_TEST(min_key_frames_count <= key_frames_count);
 }

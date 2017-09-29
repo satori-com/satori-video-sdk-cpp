@@ -15,8 +15,8 @@ struct vp9_encoder {
   vp9_encoder(uint8_t lag_in_frames) : _lag_in_frames(lag_in_frames) {}
 
   streams::publisher<encoded_packet> init(const owned_image_frame &f) {
-    BOOST_ASSERT(!_encoder_context);
-    LOG_S(INFO) << "Initializing encoder";
+    CHECK(!_encoder_context);
+    LOG(INFO) << "Initializing encoder";
 
     avutils::init();
     _encoder_context = avutils::encoder_context(_encoder_id);
@@ -99,9 +99,9 @@ struct vp9_encoder {
 
     _counter++;
     if (_counter % 100 == 0) {
-      LOG_S(INFO) << "Encoded " << _counter << " frames";
+      LOG(INFO) << "Encoded " << _counter << " frames";
     }
-    LOG_S(2) << "Encoded " << _counter << " frames";
+    LOG(2) << "Encoded " << _counter << " frames";
 
     return streams::publishers::of(std::move(packets));
   }
@@ -130,7 +130,7 @@ streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames
              return streams::publishers::empty<encoded_packet>();
            })
            >> streams::do_finally([encoder]() {
-               LOG_S(INFO) << "Deleting VP9 encoder";
+               LOG(INFO) << "Deleting VP9 encoder";
                delete encoder;
              });
   };

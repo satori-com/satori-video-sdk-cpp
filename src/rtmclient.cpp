@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <boost/asio.hpp>
@@ -56,8 +55,8 @@ namespace {
 constexpr int READ_BUFFER_SIZE = 100000;
 
 static void fail(const std::string &ctx, boost::system::error_code ec) {
-  ABORT_S() << ctx << " error \" " << ec.category().name() << ':'
-               << ec.value() << " " << ec.message();
+  ABORT() << ctx << " error \" " << ec.category().name() << ':' << ec.value() << " "
+          << ec.message();
 }
 
 static rapidjson::Value cbor_to_json(const cbor_item_t *item,
@@ -70,11 +69,11 @@ static rapidjson::Value cbor_to_json(const cbor_item_t *item,
       break;
     case CBOR_TYPE_TAG:
     case CBOR_TYPE_BYTESTRING:
-      BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+      ABORT() << "NOT IMPLEMENTED";
       break;
     case CBOR_TYPE_STRING:
       if (cbor_string_is_indefinite(item)) {
-        BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+        ABORT() << "NOT IMPLEMENTED";
       } else {
         // unsigned char * -> char *
         a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)),
@@ -121,7 +120,7 @@ struct subscribe_request {
                     "subscription_id":"<not_set>"},
             "id": 2})";
     document.Parse(tmpl);
-    BOOST_VERIFY(document.IsObject());
+    CHECK(document.IsObject());
     document["id"].SetInt64(id);
     auto body = document["body"].GetObject();
     body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
@@ -148,7 +147,7 @@ struct unsubscribe_request {
             "body":{"subscription_id":"<not_set>"},
             "id": 2})";
     document.Parse(tmpl);
-    BOOST_VERIFY(document.IsObject());
+    CHECK(document.IsObject());
     document["id"].SetInt64(id);
     auto body = document["body"].GetObject();
     body["subscription_id"].SetString(channel.c_str(), channel.length(),
@@ -185,9 +184,9 @@ class secure_client : public client {
   ~secure_client() override = default;
 
   void start() override {
-    BOOST_VERIFY(_client_state == client_state::Stopped);
-    LOG_S(INFO) << "Starting secure RTM client: " << _host << ":" << _port
-                << ", appkey: " << _appkey;
+    CHECK(_client_state.load() == client_state::Stopped);
+    LOG(INFO) << "Starting secure RTM client: " << _host << ":" << _port
+              << ", appkey: " << _appkey;
 
     boost::system::error_code ec;
 
@@ -206,15 +205,15 @@ class secure_client : public client {
     // upgrade to ws.
     _ws.handshake(_host, "/v2?appkey=" + _appkey, ec);
     if (ec) fail("upgrading to websocket protocol", ec);
-    LOG_S(1) << "Websocket open";
+    LOG(1) << "Websocket open";
 
     _client_state = client_state::Running;
     ask_for_read();
   }
 
   void stop() override {
-    BOOST_VERIFY(_client_state == client_state::Running);
-    LOG_S(INFO) << "Stopping secure RTM client";
+    CHECK(_client_state == client_state::Running);
+    LOG(INFO) << "Stopping secure RTM client";
 
     _client_state = client_state::PendingStopped;
     boost::system::error_code ec;
@@ -224,15 +223,14 @@ class secure_client : public client {
 
   void publish(const std::string &channel, const cbor_item_t *message,
                publish_callbacks *callbacks) override {
-    BOOST_VERIFY_MSG(callbacks == nullptr, "Callbacks were not provided");
-    BOOST_VERIFY_MSG(_client_state == client_state::Running,
-                     "Secure RTM client is not running");
+    CHECK(callbacks) << "Callbacks were not provided";
+    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     rapidjson::Document document;
     constexpr const char *tmpl =
         R"({"action":"rtm/publish",
             "body":{"channel":"<not_set>"}})";
     document.Parse(tmpl);
-    BOOST_VERIFY(document.IsObject());
+    CHECK(document.IsObject());
     auto body = document["body"].GetObject();
     body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
 
@@ -247,8 +245,7 @@ class secure_client : public client {
   void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
-    BOOST_VERIFY_MSG(_client_state == client_state::Running,
-                     "Secure RTM client is not running");
+    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     _subscriptions.emplace(std::make_pair(
         channel, subscription_impl{sub, callbacks, subscription_status::PendingSubscribe,
                                    ++_request_id}));
@@ -264,19 +261,18 @@ class secure_client : public client {
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
-    LOG_S(INFO) << "requested subscribe for " << channel << ": "
-                << std::string(buf.GetString());
+    LOG(INFO) << "requested subscribe for " << channel << ": "
+              << std::string(buf.GetString());
   }
 
   void subscribe_filter(const std::string &filter, const subscription &sub,
                         subscription_callbacks &callbacks,
                         const subscription_options *options) override {
-    BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    ABORT() << "NOT IMPLEMENTED";
   }
 
   void unsubscribe(const subscription &sub_to_delete) override {
-    BOOST_VERIFY_MSG(_client_state == client_state::Running,
-                     "Secure RTM client is not running");
+    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
       const std::string &sub_id = it->first;
       subscription_impl &sub = it->second;
@@ -291,20 +287,20 @@ class secure_client : public client {
       _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
-      LOG_S(INFO) << "requested unsubscribe for " << sub_id << ": "
-                  << std::string(buf.GetString());
+      LOG(INFO) << "requested unsubscribe for " << sub_id << ": "
+                << std::string(buf.GetString());
       return;
     }
-    BOOST_VERIFY_MSG(false, "didn't find subscription");
+    ABORT() << "didn't find subscription";
   }
 
   channel_position position(const subscription &sub) override {
-    BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    ABORT() << "NOT IMPLEMENTED";
     return {0, 0};
   }
 
   bool is_up(const subscription &sub) override {
-    BOOST_VERIFY_MSG(false, "NOT IMPLEMENTED");
+    ABORT() << "NOT IMPLEMENTED";
     return false;
   }
 
@@ -313,8 +309,8 @@ class secure_client : public client {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
                                         unsigned long) {
       if (ec == boost::asio::error::operation_aborted) {
-        BOOST_VERIFY(_client_state == client_state::PendingStopped);
-        LOG_S(INFO) << "Got stop request for async_read loop";
+        CHECK(_client_state == client_state::PendingStopped);
+        LOG(INFO) << "Got stop request for async_read loop";
         _client_state = client_state::Stopped;
         _subscriptions.clear();
         return;
@@ -343,12 +339,12 @@ class secure_client : public client {
       auto body = d["body"].GetObject();
       std::string subscription_id = body["subscription_id"].GetString();
       auto it = _subscriptions.find(subscription_id);
-      BOOST_VERIFY(it != _subscriptions.end());
+      CHECK(it != _subscriptions.end());
       subscription_impl &sub = it->second;
-      BOOST_VERIFY(sub.status == subscription_status::Current
-                   || sub.status == subscription_status::PendingUnsubscribe);
+      CHECK(sub.status == subscription_status::Current
+            || sub.status == subscription_status::PendingUnsubscribe);
       if (sub.status == subscription_status::PendingUnsubscribe) {
-        LOG_S(2) << "Got data for subscription pending deletion";
+        LOG(2) << "Got data for subscription pending deletion";
         return;
       }
 
@@ -361,73 +357,67 @@ class secure_client : public client {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG_S(1) << "got subscribe confirmation for subscription " << sub_id
-                   << " in status " << std::to_string((int)sub.status) << ": "
-                   << to_string(d);
-          BOOST_VERIFY(sub.status == subscription_status::PendingSubscribe);
+          LOG(1) << "got subscribe confirmation for subscription " << sub_id
+                 << " in status " << std::to_string((int)sub.status) << ": "
+                 << to_string(d);
+          CHECK(sub.status == subscription_status::PendingSubscribe);
           sub.pending_request_id = UINT64_MAX;
           sub.status = subscription_status::Current;
           return;
         }
       }
-      LOG_S(ERROR) << "got unexpected subscribe confirmation: " << to_string(d);
-      BOOST_VERIFY(false);
+      ABORT() << "got unexpected subscribe confirmation: " << to_string(d);
     } else if (action == "rtm/subscribe/error") {
       const uint64_t id = d["id"].GetInt64();
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG_S(ERROR) << "got subscribe error for subscription " << sub_id
-                       << " in status " << std::to_string((int)sub.status) << ": "
-                       << to_string(d);
-          BOOST_VERIFY(sub.status == subscription_status::PendingSubscribe);
+          LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
+                     << std::to_string((int)sub.status) << ": " << to_string(d);
+          CHECK(sub.status == subscription_status::PendingSubscribe);
           _callbacks.on_error(client_error::SubscribeError);
           _subscriptions.erase(it);
           return;
         }
       }
-      LOG_S(ERROR) << "got unexpected subscribe error: " << to_string(d);
-      BOOST_VERIFY(false);
+      ABORT() << "got unexpected subscribe error: " << to_string(d);
     } else if (action == "rtm/unsubscribe/ok") {
       const uint64_t id = d["id"].GetInt64();
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG_S(INFO) << "got unsubscribe confirmation for subscription " << sub_id
-                      << " in status " << std::to_string((int)sub.status) << ": "
-                      << to_string(d);
-          BOOST_VERIFY(sub.status == subscription_status::PendingUnsubscribe);
+          LOG(INFO) << "got unsubscribe confirmation for subscription " << sub_id
+                    << " in status " << std::to_string((int)sub.status) << ": "
+                    << to_string(d);
+          CHECK(sub.status == subscription_status::PendingUnsubscribe);
           it = _subscriptions.erase(it);
           return;
         }
       }
-      LOG_S(ERROR) << "got unexpected unsubscribe confirmation: " << to_string(d);
-      BOOST_VERIFY(false);
+      ABORT() << "got unexpected unsubscribe confirmation: " << to_string(d);
     } else if (action == "rtm/unsubscribe/error") {
       const uint64_t id = d["id"].GetInt64();
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG_S(ERROR) << "got unsubscribe error for subscription " << sub_id
-                       << " in status " << std::to_string((int)sub.status) << ": "
-                       << to_string(d);
-          BOOST_VERIFY(sub.status == subscription_status::PendingUnsubscribe);
+          LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
+                     << " in status " << std::to_string((int)sub.status) << ": "
+                     << to_string(d);
+          CHECK(sub.status == subscription_status::PendingUnsubscribe);
           _callbacks.on_error(client_error::UnsubscribeError);
           _subscriptions.erase(it);
           return;
         }
       }
-      LOG_S(ERROR) << "got unexpected unsubscribe error: " << to_string(d);
-      BOOST_VERIFY(false);
+      ABORT() << "got unexpected unsubscribe error: " << to_string(d);
     } else if (action == "rtm/subscription/error") {
-      std::cerr << "subscription error: " << to_string(d) << "\n";
+      LOG(ERROR) << "subscription error: " << to_string(d);
       _callbacks.on_error(client_error::SubscriptionError);
     } else {
-      std::cerr << "unhandled action " << action << "\n" << to_string(d) << "\n";
-      BOOST_VERIFY(false);
+      ABORT() << "unhandled action " << action << to_string(d);
     }
   }
 
@@ -455,7 +445,7 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    asio::io_service &io_service,
                                    asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks) {
-  LOG_S(1) << "Creating RTM client for " << endpoint << ":" << port;
+  LOG(1) << "Creating RTM client for " << endpoint << ":" << port;
   std::unique_ptr<secure_client> client(
       new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);

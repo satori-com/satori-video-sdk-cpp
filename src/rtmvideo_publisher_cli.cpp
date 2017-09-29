@@ -1,17 +1,16 @@
-#include <boost/assert.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
 
 #include "asio_streams.h"
 #include "cli_streams.h"
-#include "logging_implementation.h"
+#include "logging_impl.h"
 #include "rtmclient.h"
 #include "video_streams.h"
 
 namespace {
 
 struct rtm_error_handler : public rtm::error_callbacks {
-  void on_error(std::error_condition ec) override { LOG_S(ERROR) << ec.message(); }
+  void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
 
 }  // namespace

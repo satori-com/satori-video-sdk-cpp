@@ -26,7 +26,7 @@ struct image_decoder_impl {
         _keep_proportions(keep_proportions) {}
 
   streams::publisher<owned_image_packet> on_metadata(const encoded_metadata &m) {
-    LOG_S(1) << "received stream metadata";
+    LOG(1) << "received stream metadata";
     if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
       return streams::publishers::empty<owned_image_packet>();
     }
@@ -40,7 +40,7 @@ struct image_decoder_impl {
           video_error::StreamInitializationError);
     }
 
-    LOG_S(INFO) << _metadata.codec_name << " video decoder initialized";
+    LOG(INFO) << _metadata.codec_name << " video decoder initialized";
     return streams::publishers::empty<owned_image_packet>();
   }
 
@@ -66,7 +66,7 @@ struct image_decoder_impl {
 
       int err = avcodec_send_packet(_context.get(), _packet.get());
       if (err) {
-        LOG_S(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
+        LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
         return streams::publishers::error<owned_image_packet>(
             video_error::FrameGenerationError);
       }
@@ -75,10 +75,10 @@ struct image_decoder_impl {
       if (err) {
         switch (err) {
           case AVERROR(EAGAIN):
-            LOG_S(4) << "eagain";
+            LOG(4) << "eagain";
             return streams::publishers::empty<owned_image_packet>();
           default:
-            LOG_S(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
+            LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
         }
       }
 
@@ -136,11 +136,11 @@ struct image_decoder_impl {
       }
     }
 
-    LOG_S(INFO) << "decoder resolution is " << _image_width << "x" << _image_height;
+    LOG(INFO) << "decoder resolution is " << _image_width << "x" << _image_height;
 
     _image = avutils::allocate_image(_image_width, _image_height, _pixel_format);
     if (!_image) {
-      LOG_S(ERROR) << "allocate_image failed";
+      LOG(ERROR) << "allocate_image failed";
       return false;
     }
 
@@ -149,7 +149,7 @@ struct image_decoder_impl {
         _image_height, avutils::to_av_pixel_format(_pixel_format));
 
     if (!_sws_context) {
-      LOG_S(ERROR) << "sws_context failed";
+      LOG(ERROR) << "sws_context failed";
       return false;
     }
 
@@ -188,7 +188,7 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
           } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
             return impl->on_image_frame(*f);
           } else {
-            BOOST_VERIFY_MSG(false, "Bad variant");
+            ABORT() << "Bad variant";
           }
         })
         >> streams::do_finally([impl]() { delete impl; });

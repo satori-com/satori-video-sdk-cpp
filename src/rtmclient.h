@@ -6,7 +6,6 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
-#include <boost/assert.hpp>
 #include <boost/optional.hpp>
 #include <functional>
 #include <memory>
@@ -14,6 +13,8 @@
 #include <string>
 #include <system_error>
 #include <vector>
+
+#include "logging.h"
 
 namespace rtm {
 
@@ -46,12 +47,12 @@ struct channel_position {
   static channel_position parse(const std::string &str) {
     char *str_pos = nullptr;
     auto gen = strtoll(str.c_str(), &str_pos, 10);
-    BOOST_ASSERT(gen <= std::numeric_limits<uint32_t>::max());
+    CHECK_LE(gen, std::numeric_limits<uint32_t>::max());
     if ((str_pos == nullptr) || str_pos == str.c_str() || *str_pos != ':') {
       return {0, 0};
     }
     auto pos = strtoull(str_pos + 1, &str_pos, 10);
-    BOOST_ASSERT(pos <= std::numeric_limits<uint64_t>::max());
+    CHECK_LE(pos, std::numeric_limits<uint64_t>::max());
     if ((str_pos == nullptr) || (*str_pos != 0)) {
       return {0, 0};
     }
@@ -149,7 +150,7 @@ class resilient_client : public client {
   void subscribe_filter(const std::string &filter, const subscription &sub,
                         subscription_callbacks &callbacks,
                         const subscription_options *options) override {
-    BOOST_ASSERT_MSG(false, "not implemented");
+    ABORT() << "not implemented";
   }
 
   void unsubscribe(const subscription &sub) override {

@@ -19,9 +19,9 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
     _format_context =
         avutils::format_context("matroska", _filename, [filename](AVFormatContext *ctx) {
           if (ctx->pb != nullptr) {
-            LOG_S(INFO) << "Writing trailer section into file " << filename;
+            LOG(INFO) << "Writing trailer section into file " << filename;
             av_write_trailer(ctx);
-            LOG_S(INFO) << "Closing file " << filename;
+            LOG(INFO) << "Closing file " << filename;
             avio_closep(&ctx->pb);
           }
         });
@@ -36,18 +36,15 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
     } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
       on_encoded_frame(*f);
     } else {
-      BOOST_VERIFY_MSG(false, "Bad variant");
+      ABORT() << "Bad variant";
     }
     _src->request(1);
   }
 
-  void on_error(std::error_condition ec) override {
-    LOG_S(ERROR) << ec.message();
-    exit(1);
-  }
+  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
 
   void on_complete() override {
-    LOG_S(INFO) << "got complete";
+    LOG(INFO) << "got complete";
     delete this;
   }
 
@@ -57,10 +54,10 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
   }
 
   void on_encoded_metadata(const encoded_metadata &metadata) {
-    BOOST_VERIFY(metadata.image_size);
+    CHECK(metadata.image_size);
 
     if (!_initialized) {
-      LOG_S(INFO) << "Initializing matroska sink for file " << _filename;
+      LOG(INFO) << "Initializing matroska sink for file " << _filename;
       std::shared_ptr<AVCodecContext> encoder_context =
           avutils::encoder_context(_encoder_id);
       if (encoder_context == nullptr) {
@@ -72,7 +69,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
       encoder_context->width = metadata.image_size->width;
       encoder_context->height = metadata.image_size->height;
 
-      LOG_S(INFO) << "Creating video stream for file " << _filename;
+      LOG(INFO) << "Creating video stream for file " << _filename;
       AVStream *video_stream = avformat_new_stream(_format_context.get(), nullptr);
       if (video_stream == nullptr) {
         throw std::runtime_error{"failed to create an output video stream"};
@@ -81,8 +78,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
       video_stream->time_base = encoder_context->time_base;
       _video_stream_index = video_stream->index;
 
-      LOG_S(INFO) << "Copying encoder parameters into video stream for file "
-                  << _filename;
+      LOG(INFO) << "Copying encoder parameters into video stream for file " << _filename;
       int ret =
           avcodec_parameters_from_context(video_stream->codecpar, encoder_context.get());
       if (ret < 0) {
@@ -90,13 +86,13 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
                                  + avutils::error_msg(ret)};
       }
 
-      LOG_S(INFO) << "Opening file " << _filename;
+      LOG(INFO) << "Opening file " << _filename;
       ret = avio_open(&_format_context->pb, _filename.c_str(), AVIO_FLAG_WRITE);
       if (ret < 0) {
         throw std::runtime_error{"failed to open file: " + avutils::error_msg(ret)};
       }
 
-      LOG_S(INFO) << "Writing header section into file " << _filename;
+      LOG(INFO) << "Writing header section into file " << _filename;
       AVDictionary *format_options{nullptr};
       av_dict_set(&format_options, "reserve_index_space",
                   std::to_string(_format_options.reserved_index_space).c_str(), 0);
@@ -125,10 +121,10 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
                                   f.timestamp - *_first_frame_ts)
                                   .count();
     if (f.key_frame) {
-      LOG_S(INFO) << "got key frame";
+      LOG(INFO) << "got key frame";
       packet.flags |= AV_PKT_FLAG_KEY;
     }
-    LOG_S(2) << "pts = " << packet.pts;
+    LOG(2) << "pts = " << packet.pts;
     packet.stream_index = _video_stream_index;
     int ret = av_interleaved_write_frame(_format_context.get(), &packet);
     if (ret < 0) {

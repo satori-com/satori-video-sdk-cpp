@@ -40,18 +40,18 @@ struct delay_op {
 
     instance(delay_op &&op, subscriber<T> &sink)
         : _fn(std::move(op._fn)), _sink(sink), _io(op._io) {
-      LOG_S(5) << "delay_op(" << this << ")";
+      LOG(5) << "delay_op(" << this << ")";
     }
 
     ~instance() {
       _timer.reset();
-      LOG_S(5) << "delay_op(" << this << "::~delay_op";
+      LOG(5) << "delay_op(" << this << "::~delay_op";
     }
 
     void on_next(T &&t) override {
-      BOOST_ASSERT(_active);
+      CHECK(_active);
       auto delay = _fn(t);
-      LOG_S(5) << "delay_op(" << this << ")::on_next delay=" << delay.count();
+      LOG(5) << "delay_op(" << this << ")::on_next delay=" << delay.count();
 
       if (delay.count()) {
         _buffer.push_back(std::move(t));
@@ -63,9 +63,8 @@ struct delay_op {
     }
 
     void on_complete() override {
-      BOOST_ASSERT(_active);
-      LOG_S(5) << "delay_op(" << this
-               << ")::on_complete _buffer.size()=" << _buffer.size();
+      CHECK(_active);
+      LOG(5) << "delay_op(" << this << ")::on_complete _buffer.size()=" << _buffer.size();
       if (_buffer.empty()) {
         _sink.on_complete();
         delete this;
@@ -75,8 +74,8 @@ struct delay_op {
     }
 
     void on_error(std::error_condition ec) override {
-      BOOST_ASSERT(_active);
-      LOG_S(5) << "delay_op(" << this << ")::on_error _buffer.size()=" << _buffer.size();
+      CHECK(_active);
+      LOG(5) << "delay_op(" << this << ")::on_error _buffer.size()=" << _buffer.size();
       if (_buffer.empty()) {
         _sink.on_error(ec);
         delete this;
@@ -93,8 +92,8 @@ struct delay_op {
     }
 
     void cancel() override {
-      LOG_S(5) << "delay_op(" << this << ")::cancel _buffer.size()=" << _buffer.size();
-      BOOST_ASSERT(_active);
+      LOG(5) << "delay_op(" << this << ")::cancel _buffer.size()=" << _buffer.size();
+      CHECK(_active);
       _src->cancel();
       _src = nullptr;
       _active = false;
@@ -111,27 +110,27 @@ struct delay_op {
         // we are still draining, ignore request.
         return;
       }
-      LOG_S(5) << "request n=" << n;
+      LOG(5) << "request n=" << n;
       _src->request(n);
     }
 
     void on_timer(const boost::system::error_code &ec) {
-      LOG_S(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
+      LOG(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
 
       if (ec) {
-        LOG_S(ERROR) << "ASIO ERROR: " << ec.message();
+        LOG(ERROR) << "ASIO ERROR: " << ec.message();
       }
 
-      BOOST_ASSERT(!_buffer.empty());
+      CHECK(!_buffer.empty());
       _sink.on_next(std::move(_buffer.front()));
       _buffer.pop_front();
 
       if (!_active && _buffer.empty()) {
         if (_error) {
-          LOG_S(5) << "delay_op not active, on_error";
+          LOG(5) << "delay_op not active, on_error";
           _sink.on_error(_error);
         } else if (!_cancelled) {
-          LOG_S(5) << "delay_op not active, on_complete";
+          LOG(5) << "delay_op not active, on_complete";
           _sink.on_complete();
         }
         delete this;
@@ -209,7 +208,7 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
     return std::move(src) >> take_while([flag, timer](const T &) {
              bool result = flag->load();
              if (!result) {
-               LOG_S(INFO) << "time limit expired, breaking the stream";
+               LOG(INFO) << "time limit expired, breaking the stream";
                delete timer;
                delete flag;
              }

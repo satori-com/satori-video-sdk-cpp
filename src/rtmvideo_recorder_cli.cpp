@@ -6,7 +6,7 @@
 
 #include "cli_streams.h"
 #include "librtmvideo/data.h"
-#include "logging_implementation.h"
+#include "logging_impl.h"
 #include "rtmclient.h"
 #include "signal_breaker.h"
 #include "video_streams.h"
@@ -20,7 +20,7 @@ constexpr size_t outgoing_encoded_frames_max_buffer_size = 1024;
 constexpr size_t image_frames_max_buffer_size = 1024;
 
 struct rtm_error_handler : public rtm::error_callbacks {
-  void on_error(std::error_condition ec) override { LOG_S(ERROR) << ec.message(); }
+  void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
 }  // namespace
 
@@ -83,11 +83,11 @@ int main(int argc, char* argv[]) {
 
   if (rtm_client) rtm_client->start();
 
-  LOG_S(INFO) << "Starting recording...";
+  LOG(INFO) << "Starting recording...";
 
   source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, rtm_channel));
 
   io_service.run();
 
-  LOG_S(INFO) << "Recording is done";
+  LOG(INFO) << "Recording is done";
 }

@@ -24,7 +24,7 @@ network_packet parse_network_frame(rapidjson::Value &&msg) {
         std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
     timestamp = std::chrono::system_clock::time_point{normal_duration};
   } else {
-    LOG_S(WARNING) << "network frame packet doesn't have timestamp";
+    LOG(WARNING) << "network frame packet doesn't have timestamp";
     timestamp = std::chrono::system_clock::now();
   }
 

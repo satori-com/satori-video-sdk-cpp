@@ -29,56 +29,56 @@ struct file_source_impl {
   int init() {
     int ret = 0;
 
-    LOG_S(1) << "Opening file " << _filename;
+    LOG(1) << "Opening file " << _filename;
     if ((ret = avformat_open_input(&_fmt_ctx, _filename.c_str(), nullptr, nullptr)) < 0) {
-      LOG_S(ERROR) << "Could not open file: " << _filename << " "
-                   << avutils::error_msg(ret);
+      LOG(ERROR) << "Could not open file: " << _filename << " "
+                 << avutils::error_msg(ret);
       return ret;
     }
-    LOG_S(1) << "File " << _filename << " is open";
+    LOG(1) << "File " << _filename << " is open";
 
-    LOG_S(1) << "Looking for stream info...";
+    LOG(1) << "Looking for stream info...";
     if ((ret = avformat_find_stream_info(_fmt_ctx, nullptr)) < 0) {
-      LOG_S(ERROR) << "Could not find stream information:" << avutils::error_msg(ret);
+      LOG(ERROR) << "Could not find stream information:" << avutils::error_msg(ret);
       return ret;
     }
-    LOG_S(1) << "Stream info found";
+    LOG(1) << "Stream info found";
 
-    LOG_S(1) << "Number of streams " << _fmt_ctx->nb_streams;
+    LOG(1) << "Number of streams " << _fmt_ctx->nb_streams;
 
-    LOG_S(1) << "Looking for best stream...";
+    LOG(1) << "Looking for best stream...";
     if ((ret = av_find_best_stream(_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &_dec, 0)) < 0) {
-      LOG_S(ERROR) << "Could not find video stream:" << avutils::error_msg(ret);
+      LOG(ERROR) << "Could not find video stream:" << avutils::error_msg(ret);
       return ret;
     }
-    LOG_S(1) << "Best stream found";
+    LOG(1) << "Best stream found";
 
     _stream_idx = ret;
     _stream = _fmt_ctx->streams[_stream_idx];
 
-    LOG_S(1) << "Allocating codec context...";
+    LOG(1) << "Allocating codec context...";
     _dec_ctx = avcodec_alloc_context3(_dec);
     if (!_dec_ctx) {
-      LOG_S(ERROR) << "Failed to allocate codec context";
+      LOG(ERROR) << "Failed to allocate codec context";
       return -1;
     }
-    LOG_S(1) << "Codec context is allocated";
+    LOG(1) << "Codec context is allocated";
 
-    LOG_S(1) << "Copying codec parameters to codec context...";
+    LOG(1) << "Copying codec parameters to codec context...";
     if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-      LOG_S(ERROR) << "Failed to copy codec parameters to codec context:"
-                   << avutils::error_msg(ret);
+      LOG(ERROR) << "Failed to copy codec parameters to codec context:"
+                 << avutils::error_msg(ret);
       return ret;
     }
-    LOG_S(1) << "Codec parameters were copied to codec context";
+    LOG(1) << "Codec parameters were copied to codec context";
 
-    LOG_S(1) << "Opening video codec...";
+    LOG(1) << "Opening video codec...";
     AVDictionary *opts = nullptr;
     if ((ret = avcodec_open2(_dec_ctx, _dec, &opts)) < 0) {
-      LOG_S(ERROR) << "*** Failed to open video codec:" << avutils::error_msg(ret);
+      LOG(ERROR) << "*** Failed to open video codec:" << avutils::error_msg(ret);
       return ret;
     }
-    LOG_S(1) << "Video codec is open";
+    LOG(1) << "Video codec is open";
 
     return 0;
   }
@@ -106,12 +106,12 @@ struct file_source_impl {
       if (ret < 0) {
         if (ret == AVERROR_EOF) {
           if (_loop) {
-            LOG_S(4) << "restarting " << _filename;
+            LOG(4) << "restarting " << _filename;
             av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
                           AVSEEK_FLAG_BACKWARD);
             continue;
           } else {
-            LOG_S(4) << "eof in " << _filename;
+            LOG(4) << "eof in " << _filename;
             observer.on_complete();
             return;
           }
@@ -122,7 +122,7 @@ struct file_source_impl {
       }
 
       if (_pkt.stream_index == _stream_idx) {
-        LOG_S(4) << "packet from file " << _filename;
+        LOG(4) << "packet from file " << _filename;
         encoded_frame frame;
         frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
         frame.id = {_last_pos, _pkt.pos};
