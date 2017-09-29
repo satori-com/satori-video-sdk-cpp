@@ -34,10 +34,14 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
        gop_size](encoded_packet &&packet) mutable {
         if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
           if (f->key_frame) {
+            LOG_S(INFO) << "frames_from_last_key_frame_count = "
+                        << frames_from_last_key_frame_count
+                        << ", gop_size = " << gop_size;
             BOOST_TEST(frames_from_last_key_frame_count <= gop_size);
             frames_from_last_key_frame_count = 0;
             key_frames_count++;
           }
+          frames_from_last_key_frame_count++;
         }
         packets_count++;
       },
