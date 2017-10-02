@@ -18,7 +18,9 @@ struct video_error_category : std::error_category {
       case video_error::EndOfStreamError:
         return "end of video stream";
       case video_error::FrameNotReadyError:
-        return "from not ready";
+        return "frame not ready";
+      case video_error::ValueWasMoved:
+        return "value was moved'";
     }
   }
 };
