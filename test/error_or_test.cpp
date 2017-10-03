@@ -19,14 +19,14 @@ BOOST_AUTO_TEST_CASE(error_or_conversions) {
 
 BOOST_AUTO_TEST_CASE(error_or_move_test) {
   std::unique_ptr<int> ptr(new int);
-  CHECK_NOTNULL(ptr);
+  BOOST_TEST((bool)ptr);
 
   error_or<std::unique_ptr<int>> status(std::move(ptr));
   status.check_ok();
-  CHECK(ptr == nullptr);
+  BOOST_TEST(!(bool)ptr);
 
   ptr = status.move();
-  CHECK_NOTNULL(ptr);
+  BOOST_TEST((bool)ptr);
   status.check_not_ok();
 }
 
@@ -46,30 +46,30 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
     }
   };
 
-  CHECK_EQ(constructor, 0);
-  CHECK_EQ(destructor, 0);
+  BOOST_TEST(constructor == 0);
+  BOOST_TEST(destructor == 0);
 
   std::unique_ptr<error_or<foo>> ptr;
-  CHECK_EQ(constructor, 0);
-  CHECK_EQ(destructor, 0);
+  BOOST_TEST(constructor == 0);
+  BOOST_TEST(destructor == 0);
 
   foo f;
-  CHECK_EQ(constructor, 1);
-  CHECK_EQ(destructor, 0);
+  BOOST_TEST(constructor == 1);
+  BOOST_TEST(destructor == 0);
 
   ptr.reset(new error_or<foo>(std::move(f)));
-  CHECK_EQ(constructor, 1);
-  CHECK_EQ(destructor, 0);
+  BOOST_TEST(constructor == 1);
+  BOOST_TEST(destructor == 0);
 
   ptr.reset();
-  CHECK_EQ(constructor, 1);
-  CHECK_EQ(destructor, 1);
+  BOOST_TEST(constructor == 1);
+  BOOST_TEST(destructor == 1);
 
   ptr.reset(new error_or<foo>(std::error_condition(video_error::FrameNotReadyError)));
-  CHECK_EQ(constructor, 1);
-  CHECK_EQ(destructor, 1);
+  BOOST_TEST(constructor == 1);
+  BOOST_TEST(destructor == 1);
 
   ptr.reset();
-  CHECK_EQ(constructor, 1);
-  CHECK_EQ(destructor, 1);
+  BOOST_TEST(constructor == 1);
+  BOOST_TEST(destructor == 1);
 };

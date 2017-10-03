@@ -11,7 +11,7 @@ namespace video {
 template <typename T>
 class error_or;
 
-namespace {
+namespace impl {
 template <typename T>
 using static_not = std::integral_constant<bool, !T::value>;
 
@@ -36,13 +36,13 @@ constexpr bool is_error_or() {
   using x = typename std::decay<X>::type;
   return is_error_or_helper<x>::value;
 }
-}  // namespace
+}  // namespace impl
 
 template <typename T>
 class error_or {
   // simple test.
-  static_assert(!is_error_or<int>(), "test failed");
-  static_assert(is_error_or<error_or<int>>(), "test failed");
+  static_assert(!impl::is_error_or<int>(), "test failed");
+  static_assert(impl::is_error_or<error_or<int>>(), "test failed");
 
  public:
   error_or() : _ec{} { ::new (dataptr()) T(); }
@@ -51,8 +51,8 @@ class error_or {
   // and for error_or itself.
   // For latter: https://akrzemi1.wordpress.com/2013/10/10/too-perfect-forwarding/
   template <typename X,
-            typename std::enable_if<!is_error_condition<X>()>::type * = nullptr,
-            typename std::enable_if<!is_error_or<X>()>::type * = nullptr>
+            typename std::enable_if<!impl::is_error_condition<X>()>::type * = nullptr,
+            typename std::enable_if<!impl::is_error_or<X>()>::type * = nullptr>
   error_or(X &&t) : _ec{} {
     ::new (dataptr()) T(std::forward<X>(t));
   }
@@ -103,7 +103,7 @@ class error_or {
     return _ec;
   }
 
-  const std::string &error_message() const { return _ec.message(); }
+  std::string error_message() const { return _ec.message(); }
 
  private:
   T *dataptr() { return &_s.t; }

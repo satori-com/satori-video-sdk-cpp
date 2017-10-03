@@ -20,7 +20,9 @@ struct video_error_category : std::error_category {
       case video_error::FrameNotReadyError:
         return "frame not ready";
       case video_error::ValueWasMoved:
-        return "value was moved'";
+        return "value was moved";
+      case video_error::NotInitialized:
+        return "not initialized";
     }
   }
 };
