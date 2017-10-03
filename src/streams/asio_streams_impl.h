@@ -1,8 +1,11 @@
 #pragma include once
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include "error.h"
-#include "logging.h"
+#include "../logging.h"
+#include "stream_error.h"
+
+namespace rtm {
+namespace video {
 
 namespace streams {
 namespace asio {
@@ -34,8 +37,8 @@ struct delay_op {
     using value_t = T;
 
     static publisher<T> apply(publisher<T> &&src, delay_op &&op) {
-      return publisher<T>(new ::streams::impl::op_publisher<T, T, delay_op>(
-          std::move(src), std::move(op)));
+      return publisher<T>(
+          new streams::impl::op_publisher<T, T, delay_op>(std::move(src), std::move(op)));
     }
 
     instance(delay_op &&op, subscriber<T> &sink)
@@ -219,3 +222,5 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
 
 }  // namespace asio
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

@@ -1,9 +1,9 @@
 #define BOOST_TEST_MODULE DeferredTest
 #include <boost/test/included/unit_test.hpp>
 
-#include "deferred.h"
+#include "streams/deferred.h"
 
-using namespace rtm::video;
+using namespace rtm::video::streams;
 
 BOOST_AUTO_TEST_CASE(deferred_resolve_test) {
   int value = 0;
@@ -24,9 +24,9 @@ BOOST_AUTO_TEST_CASE(deferred_resolve_error_test) {
   });
 
   BOOST_TEST(value == "");
-  i.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  i.resolve(std::error_condition(stream_error::NotInitialized));
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_map_test) {
   deferred<int> i;
@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(deferred_map_test) {
 
   i.resolve(123);
   BOOST_TEST(value == "123");
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_map_error_test) {
   deferred<int> i;
@@ -50,9 +50,9 @@ BOOST_AUTO_TEST_CASE(deferred_map_error_test) {
   });
 
   BOOST_TEST(value == "");
-  i.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  i.resolve(std::error_condition(stream_error::NotInitialized));
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_then_test) {
   deferred<bool> sema;
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE(deferred_then_test) {
   BOOST_TEST(value == "");
   sema.resolve(true);
   BOOST_TEST(value == "123");
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_then_error_test) {
   deferred<bool> sema;
@@ -90,10 +90,10 @@ BOOST_AUTO_TEST_CASE(deferred_then_error_test) {
     value = s1.error_message();
   });
 
-  i.resolve(std::error_condition(video_error::StreamInitializationError));
+  i.resolve(std::error_condition(stream_error::NotInitialized));
   // then block is not executed when there's error.
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_on_after_resolve) {
   deferred<int> i;
@@ -102,7 +102,7 @@ BOOST_AUTO_TEST_CASE(deferred_on_after_resolve) {
   int value = 0;
   i.on([&value](error_or<int> i1) { value = *i1; });
   BOOST_TEST(value == 42);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_already_resolved) {
   deferred<int> i(42);
@@ -110,18 +110,18 @@ BOOST_AUTO_TEST_CASE(deferred_already_resolved) {
   int value = 0;
   i.on([&value](error_or<int> i1) { value = *i1; });
   BOOST_TEST(value == 42);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_error_resolved) {
-  deferred<int> i{std::error_condition(video_error::StreamInitializationError)};
+  deferred<int> i{std::error_condition(stream_error::NotInitialized)};
 
   std::string value;
   i.on([&value](error_or<int> i1) {
     i1.check_not_ok();
     value = i1.error_message();
   });
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_void_normal_resolve) {
   deferred<void> v;
@@ -132,9 +132,9 @@ BOOST_AUTO_TEST_CASE(deferred_void_normal_resolve) {
     resolved = true;
   });
 
-  v.resolve(std::error_condition{});
+  v.resolve();
   BOOST_TEST(resolved);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_void_error_resolve) {
   deferred<void> v;
@@ -145,9 +145,9 @@ BOOST_AUTO_TEST_CASE(deferred_void_error_resolve) {
     value = s.message();
   });
 
-  v.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  v.fail(std::error_condition(stream_error::NotInitialized));
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_map_to_void) {
   deferred<int> i;
@@ -173,8 +173,8 @@ BOOST_AUTO_TEST_CASE(deferred_map_to_void_error) {
     value = s.message();
   });
 
-  i.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
+  i.resolve(std::error_condition(stream_error::NotInitialized));
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_CASE(deferred_then_to_void) {
@@ -182,7 +182,7 @@ BOOST_AUTO_TEST_CASE(deferred_then_to_void) {
   deferred<int> i;
   deferred<void> v = i.then([sema](int) mutable {
     deferred<void> result;
-    sema.on([result](error_or<bool>) mutable { result.resolve(std::error_condition{}); });
+    sema.on([result](error_or<bool>) mutable { result.resolve(); });
     return result;
   });
 
@@ -206,9 +206,9 @@ BOOST_AUTO_TEST_CASE(deferred_map_void) {
     value = *s;
   });
 
-  v.resolve(std::error_condition{});
+  v.resolve();
   BOOST_TEST(value == 42);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_map_void_void) {
   deferred<void> v1;
@@ -220,9 +220,9 @@ BOOST_AUTO_TEST_CASE(deferred_map_void_void) {
     resolved = true;
   });
 
-  v1.resolve(std::error_condition{});
+  v1.resolve();
   BOOST_TEST(resolved == true);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_map_void_error) {
   deferred<void> v;
@@ -234,9 +234,9 @@ BOOST_AUTO_TEST_CASE(deferred_map_void_error) {
     value = s.error_message();
   });
 
-  v.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
-};
+  v.fail(stream_error::NotInitialized);
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
+}
 
 BOOST_AUTO_TEST_CASE(deferred_then_void) {
   deferred<bool> sema;
@@ -253,19 +253,20 @@ BOOST_AUTO_TEST_CASE(deferred_then_void) {
     value = *s;
   });
 
-  v.resolve(std::error_condition{});
+  v.resolve();
   BOOST_TEST(value == 0);
   sema.resolve(true);
   BOOST_TEST(value == 42);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_then_void_void) {
   deferred<void> sema;
   deferred<void> v1;
   deferred<void> v2 = v1.then([sema]() mutable {
     deferred<void> result;
-    sema.on([result](std::error_condition) mutable {
-      result.resolve(std::error_condition{});
+    sema.on([result](std::error_condition ec) mutable {
+      BOOST_TEST(!ec);
+      result.resolve();
     });
     return result;
   });
@@ -276,11 +277,11 @@ BOOST_AUTO_TEST_CASE(deferred_then_void_void) {
     resolved = true;
   });
 
-  v1.resolve(std::error_condition{});
+  v1.resolve();
   BOOST_TEST(!resolved);
-  sema.resolve(std::error_condition{});
+  sema.resolve();
   BOOST_TEST(resolved);
-};
+}
 
 BOOST_AUTO_TEST_CASE(deferred_then_void_error) {
   deferred<bool> sema;
@@ -297,6 +298,6 @@ BOOST_AUTO_TEST_CASE(deferred_then_void_error) {
     value = s.error_message();
   });
 
-  v.resolve(std::error_condition(video_error::StreamInitializationError));
-  BOOST_TEST(value.find("can't initialize") != std::string::npos);
+  v.fail(stream_error::NotInitialized);
+  BOOST_TEST(value.find("not initialized") != std::string::npos);
 }

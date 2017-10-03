@@ -3,47 +3,38 @@
 #include <memory>
 #include <utility>
 
-#include "error.h"
-#include "logging.h"
+#include "../logging.h"
+#include "stream_error.h"
 
 namespace rtm {
 namespace video {
+namespace streams {
+
 template <typename T>
 class error_or;
 
 namespace impl {
-template <typename T>
-using static_not = std::integral_constant<bool, !T::value>;
-
-template <typename X>
-constexpr bool is_error_condition() {
-  using x = typename std::decay<X>::type;
-  return std::is_same<std::error_condition, x>::value;
-}
 
 template <typename T>
-struct is_error_or_helper {
+struct is_error_or_impl {
   static constexpr bool value = false;
 };
 
 template <typename X>
-struct is_error_or_helper<error_or<X>> {
+struct is_error_or_impl<error_or<X>> {
   static constexpr bool value = true;
 };
+
+}  // namespace impl
 
 template <typename X>
 constexpr bool is_error_or() {
   using x = typename std::decay<X>::type;
-  return is_error_or_helper<x>::value;
+  return impl::is_error_or_impl<x>::value;
 }
-}  // namespace impl
 
 template <typename T>
 class error_or {
-  // simple test.
-  static_assert(!impl::is_error_or<int>(), "test failed");
-  static_assert(impl::is_error_or<error_or<int>>(), "test failed");
-
  public:
   error_or() : _ec{} { ::new (dataptr()) T(); }
 
@@ -51,8 +42,8 @@ class error_or {
   // and for error_or itself.
   // For latter: https://akrzemi1.wordpress.com/2013/10/10/too-perfect-forwarding/
   template <typename X,
-            typename std::enable_if<!impl::is_error_condition<X>()>::type * = nullptr,
-            typename std::enable_if<!impl::is_error_or<X>()>::type * = nullptr>
+            typename std::enable_if<!is_error_condition<X>()>::type * = nullptr,
+            typename std::enable_if<!is_error_or<X>()>::type * = nullptr>
   error_or(X &&t) : _ec{} {
     ::new (dataptr()) T(std::forward<X>(t));
   }
@@ -92,13 +83,13 @@ class error_or {
 
   T &&move() {
     check_ok();
-    _ec = video_error::ValueWasMoved;
+    _ec = stream_error::ValueWasMoved;
     return std::move(_s.t);
   }
 
   const T &operator*() const { return get(); }
 
-  const std::error_condition &error_condition() const {
+  std::error_condition error_condition() const {
     check_not_ok();
     return _ec;
   }
@@ -119,5 +110,8 @@ class error_or {
     T t;
   } _s;
 };
+
+}  // namespace streams
+
 }  // namespace video
 }  // namespace rtm

@@ -1,7 +1,7 @@
 #include "avutils.h"
-#include "error.h"
 #include "librtmvideo/tele.h"
 #include "stopwatch.h"
+#include "video_error.h"
 #include "video_streams.h"
 
 namespace rtm {

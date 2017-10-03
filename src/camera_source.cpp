@@ -11,10 +11,10 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "asio_streams.h"
 #include "avutils.h"
-#include "error.h"
 #include "librtmvideo/base.h"
+#include "streams/asio_streams.h"
+#include "video_error.h"
 #include "video_streams.h"
 
 namespace rtm {

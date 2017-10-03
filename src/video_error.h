@@ -16,8 +16,6 @@ enum class video_error : uint8_t {
   AsioError = 3,
   EndOfStreamError = 4,
   FrameNotReadyError = 5,
-  ValueWasMoved = 6,
-  NotInitialized = 7,
 };
 
 std::error_condition make_error_condition(video_error e);

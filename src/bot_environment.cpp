@@ -8,7 +8,6 @@
 #include <boost/program_options.hpp>
 #include <fstream>
 
-#include "asio_streams.h"
 #include "avutils.h"
 #include "bot_instance.h"
 #include "cbor_json.h"
@@ -16,8 +15,9 @@
 #include "librtmvideo/cbor_tools.h"
 #include "logging_impl.h"
 #include "rtm_streams.h"
-#include "signal_breaker.h"
-#include "worker.h"
+#include "streams/asio_streams.h"
+#include "streams/buffered_worker.h"
+#include "streams/signal_breaker.h"
 
 namespace rtm {
 namespace video {
@@ -223,8 +223,8 @@ int bot_environment::main(int argc, char* argv[]) {
       _bot_descriptor->image_height, _bot_descriptor->pixel_format);
 
   if (!batch_mode) {
-    _source =
-        std::move(_source) >> buffered_worker("input.image_buffer", image_buffer_size);
+    _source = std::move(_source)
+              >> streams::buffered_worker("input.image_buffer", image_buffer_size);
   }
 
   if (cmd_args.count("analysis_file")) {

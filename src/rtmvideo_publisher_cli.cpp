@@ -1,11 +1,13 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
-#include "asio_streams.h"
 #include "cli_streams.h"
 #include "logging_impl.h"
 #include "rtmclient.h"
+#include "streams/asio_streams.h"
 #include "video_streams.h"
+
+using namespace rtm::video;
 
 namespace {
 

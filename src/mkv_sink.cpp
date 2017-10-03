@@ -4,7 +4,7 @@
 #include "librtmvideo/data.h"
 #include "logging.h"
 #include "mkv_options.h"
-#include "streams.h"
+#include "streams/streams.h"
 #include "video_streams.h"
 
 namespace rtm {

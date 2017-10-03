@@ -1,10 +1,10 @@
 #include <iostream>
 
-#include "asio_streams.h"
 #include "cli_streams.h"
 #include "mkv_options.h"
+#include "streams/asio_streams.h"
+#include "streams/buffered_worker.h"
 #include "video_streams.h"
-#include "worker.h"
 
 namespace rtm {
 namespace video {
@@ -231,10 +231,10 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
 
     if (network_buffer)
       source = std::move(source)
-               >> buffered_worker("input.network_buffer", network_buffer_size);
+               >> streams::buffered_worker("input.network_buffer", network_buffer_size);
 
     return std::move(source) >> rtm::video::decode_network_stream()
-           >> buffered_worker("input.encoded_buffer", encoded_buffer_size);
+           >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
   } else if (has_input_file_args) {
     const bool batch = enable_file_batch_mode && vm.count("batch");
 
@@ -252,7 +252,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
       return std::move(source);
     } else {
       return std::move(source)
-             >> buffered_worker("input.encoded_buffer", encoded_buffer_size);
+             >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
     }
   } else if (has_input_camera_args) {
     return rtm::video::camera_source(io_service,

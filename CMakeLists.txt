@@ -39,7 +39,7 @@ add_library(rtmvideo
     src/cli_streams.cpp
     src/data.cpp
     src/decode_image_frames.cpp
-    src/error.cpp
+    src/video_error.cpp
     src/file_source.cpp
     src/mkv_sink.cpp
     src/replay_source.cpp
@@ -47,8 +47,9 @@ add_library(rtmvideo
     src/rtm_source.cpp
     src/rtm_streams.cpp
     src/rtmclient.cpp
-    src/signal_breaker.cpp
-    src/streams.cpp
+    src/streams/signal_breaker.cpp
+    src/streams/streams.cpp
+    src/streams/stream_error.cpp
     src/tele.cpp
     src/video_bot.cpp
     src/video_streams.cpp

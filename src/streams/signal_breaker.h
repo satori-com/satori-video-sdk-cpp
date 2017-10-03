@@ -4,6 +4,9 @@
 
 #include "streams.h"
 
+namespace rtm {
+namespace video {
+
 namespace streams {
 
 namespace impl {
@@ -19,3 +22,5 @@ op<T, T> signal_breaker(std::initializer_list<int> signals) {
 }
 
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

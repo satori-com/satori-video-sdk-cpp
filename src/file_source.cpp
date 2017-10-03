@@ -8,10 +8,10 @@ extern "C" {
 #include <libavutil/error.h>
 }
 
-#include "asio_streams.h"
 #include "avutils.h"
-#include "error.h"
 #include "logging.h"
+#include "streams/asio_streams.h"
+#include "video_error.h"
 #include "video_streams.h"
 
 namespace rtm {

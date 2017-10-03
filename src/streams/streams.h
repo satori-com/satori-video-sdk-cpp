@@ -7,6 +7,11 @@
 #include <system_error>
 #include <vector>
 
+#include "deferred.h"
+
+namespace rtm {
+namespace video {
+
 namespace streams {
 
 struct subscription {
@@ -40,9 +45,8 @@ struct publisher_impl {
   // cancel() call.
   virtual void subscribe(subscriber<T> &s) = 0;
 
-  // subscribe to a publisher using given callbacks.
-  template <typename OnNext, typename OnComplete, typename OnError>
-  void process(OnNext &&on_next, OnComplete &&on_complete, OnError &&on_error);
+  template <typename OnNext>
+  deferred<void> process(OnNext &&on_next);
 };
 
 template <typename T>
@@ -137,5 +141,7 @@ template <typename Fn>
 auto do_finally(Fn &&fn);
 
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm
 
 #include "streams_impl.h"

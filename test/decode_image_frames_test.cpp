@@ -62,9 +62,9 @@ void run_decode_image_frames_test(const test_definition &td) {
   int last_frame_height;
   int frames_count{0};
 
-  image_stream->process(
-      [&last_frame_width, &last_frame_height,
-       &frames_count](owned_image_packet &&packet) mutable {
+  auto when_done =
+      image_stream->process([&last_frame_width, &last_frame_height,
+                             &frames_count](owned_image_packet &&packet) mutable {
         if (const owned_image_metadata *m = boost::get<owned_image_metadata>(&packet)) {
           // just count
         } else if (const owned_image_frame *f = boost::get<owned_image_frame>(&packet)) {
@@ -74,8 +74,9 @@ void run_decode_image_frames_test(const test_definition &td) {
           BOOST_FAIL("Bad variant");
         }
         frames_count++;
-      },
-      []() {}, [](const std::error_condition ec) { BOOST_FAIL(ec.message()); });
+      });
+
+  BOOST_TEST(when_done.ok());
 
   BOOST_TEST(td.expected_width == last_frame_width);
   BOOST_TEST(td.expected_height == last_frame_height);
@@ -148,13 +149,12 @@ BOOST_AUTO_TEST_CASE(id_test) {
   auto stream = file_source(io, "test_data/test.mp4", false, true)
                 >> decode_image_frames(-1, -1, image_pixel_format::RGB0);
 
-  stream->process(
-      [&ids](owned_image_packet &&pkt) {
-        if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {
-          ids.push_back(f->id);
-        }
-      },
-      []() {}, [](std::error_condition ec) { BOOST_TEST(false); });
+  auto when_done = stream->process([&ids](owned_image_packet &&pkt) {
+    if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {
+      ids.push_back(f->id);
+    }
+  });
+  BOOST_TEST(when_done.ok());
 
   BOOST_TEST(ids.size() == 6);
   BOOST_TEST(ids[0] == id(0, 48));

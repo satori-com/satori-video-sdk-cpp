@@ -10,8 +10,9 @@
 
 namespace rtm {
 namespace video {
+namespace streams {
 
-// streams operator.
+namespace impl {
 struct buffered_worker_op {
   buffered_worker_op(const std::string &name, size_t buffer_size)
       : _name(name), _size(buffer_size) {}
@@ -149,9 +150,12 @@ struct buffered_worker_op {
   const size_t _size;
 };
 
+}  // namespace impl
+
 inline auto buffered_worker(const std::string &name, size_t buffer_size) {
-  return buffered_worker_op(name, buffer_size);
+  return impl::buffered_worker_op(name, buffer_size);
 }
 
+}  // namespace streams
 }  // namespace video
 }  // namespace rtm

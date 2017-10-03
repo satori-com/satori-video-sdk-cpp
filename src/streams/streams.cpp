@@ -2,6 +2,9 @@
 
 #include <fstream>
 
+namespace rtm {
+namespace video {
+
 namespace streams {
 publisher<std::string> read_lines(const std::string &filename) {
   struct state {
@@ -26,3 +29,5 @@ publisher<std::string> read_lines(const std::string &filename) {
       });
 }
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

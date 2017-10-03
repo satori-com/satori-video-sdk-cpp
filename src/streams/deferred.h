@@ -2,12 +2,12 @@
 //
 // deferred<T> is a value that will become available later, once resolved. Its core API
 // consists of only two methods:
-//     - .on([](t){}) - registers value listener
-//     - .resolve(t) - calls all registered listeners with a given value.
+//     - .on([](t){}) - registers value listener. Can be called only once.
+//     - .resolve(t) - calls all registered listeners with a given value. Can be called
+//                     only once.
 //
 // deferred<T> has reference semantics, i.e. when copied, it does not introduce new
 // asynchronously available value. Only new value constructors do that.
-//
 //
 // Usage example:
 //
@@ -26,11 +26,11 @@
 //      });
 //
 // Important part of deferred<T> is error propagation: deferred<T> can be resolved into
-// error, using status instance created with make_error().
+// error, using fail method.
 //
 // Usage:
 //
-//      result.resolve(make_error("something bad has happened");
+//      result.fail(errors::MyError);
 //      result.on(const status_or<int> value) {
 //          value.verify_not_ok();
 //      });
@@ -61,7 +61,9 @@
 
 #pragma once
 
+#include <chrono>
 #include <memory>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -69,6 +71,8 @@
 
 namespace rtm {
 namespace video {
+
+namespace streams {
 template <typename T>
 class deferred;
 
@@ -133,7 +137,7 @@ struct impl_types<void> {
 };
 }  // namespace
 
-// base class for deffered<T> without any specialized constructors.
+// base class for deferred<T> without any specialized constructors.
 template <typename T>
 class deferred_base {
  public:
@@ -141,11 +145,16 @@ class deferred_base {
   // status_or<T> | status if T = void.
   using value_t = typename impl_types<T>::value_t;
 
+  bool resolved() const { return _impl->resolved(); }
+  bool ok() const { return _impl->ok(); }
+
   // Calls f(status_or<T>) when value is available.
   template <class Fn /* value_t -> () */>
   void on(Fn f) {
     _impl->on(f);
   }
+
+  void fail(std::error_condition ec) { _impl->resolve(std::move(ec)); }
 
   // Resolves the deferred.
   void resolve(value_t &&t) { _impl->resolve(std::move(t)); }
@@ -213,7 +222,7 @@ class deferred<void> : public deferred_base<void> {
       : deferred_base<void>(impl) {}
 
   template <typename>
-  friend class rtm::video::
+  friend class rtm::video::streams::
       deferred_base;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
 
  public:
@@ -221,6 +230,8 @@ class deferred<void> : public deferred_base<void> {
 
   deferred(std::error_condition ec)
       : deferred_base<void>(std::make_shared<deferred_impl<void>>(ec)) {}
+
+  void resolve() { deferred_base<void>::resolve(std::error_condition{}); }
 };
 
 template <typename T>
@@ -241,11 +252,18 @@ class deferred_impl_base {
 
   typename impl_types<T>::callback_type _resolve_cb;
 
-  deferred_impl_base() : _value(std::error_condition(video_error::NotInitialized)) {}
+  deferred_impl_base() : _value(std::error_condition(stream_error::NotInitialized)) {}
 
   deferred_impl_base(value_t value) : _value(std::move(value)), _resolved(true) {}
 
  public:
+  bool resolved() const { return _resolved; }
+
+  bool ok() const {
+    CHECK(resolved());
+    return impl_types<T>::ok(_value);
+  }
+
   template <class Fn>
   void on(Fn f) {
     CHECK(!_has_callback);
@@ -256,11 +274,6 @@ class deferred_impl_base {
     } else {
       f(std::move(_value));
     }
-  }
-
-  void fail(std::error_condition ec) {
-    _value = ec;
-    mark_resolved_and_notify();
   }
 
   void resolve(value_t &&t) {
@@ -321,7 +334,7 @@ template <typename T, typename U>
 struct error_fwd {
   inline static void fwd(const error_or<T> &t, std::shared_ptr<deferred_impl<U>> p) {
     t.check_not_ok();
-    p->fail(t.error_condition());
+    p->resolve(t.error_condition());
   }
 };
 
@@ -332,7 +345,7 @@ struct error_fwd<void, U> {
   inline static void fwd(const std::error_condition &ec,
                          std::shared_ptr<deferred_impl<U>> p) {
     CHECK((bool)ec);
-    p->fail(ec);
+    p->resolve(std::error_condition{ec});
   }
 };
 
@@ -402,5 +415,7 @@ typename then_types<Fn, T>::impl_return_t deferred_impl_base<T>::then(Fn f) {
   });
   return result;
 }
+
+}  // namespace streams
 }  // namespace video
 }  // namespace rtm

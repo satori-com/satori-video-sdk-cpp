@@ -6,6 +6,9 @@
 
 #include "streams.h"
 
+namespace rtm {
+namespace video {
+
 namespace streams {
 namespace asio {
 
@@ -25,5 +28,6 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
 
 }  // namespace asio
 }  // namespace streams
-
+}  // namespace video
+}  // namespace rtm
 #include "asio_streams_impl.h"

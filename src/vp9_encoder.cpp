@@ -5,8 +5,8 @@ extern "C" {
 }
 
 #include "avutils.h"
-#include "error.h"
 #include "logging.h"
+#include "video_error.h"
 
 namespace rtm {
 namespace video {

@@ -8,25 +8,24 @@
 #include <string>
 #include <vector>
 
-#include "logging.h"
-#include "type_traits.h"
+#include "../logging.h"
+#include "../type_traits.h"
+
+namespace rtm {
+namespace video {
 
 namespace streams {
 
 template <typename T>
-template <typename OnNext, typename OnComplete, typename OnError>
-void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
-                                OnError &&on_error) {
+template <typename OnNext>
+deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
   struct sub : subscriber<T> {
     OnNext _on_next;
-    OnComplete _on_complete;
-    OnError _on_error;
+    deferred<void> _when_done;
     subscription *_source{nullptr};
 
-    sub(OnNext &&on_next, OnComplete &&on_complete, OnError &&on_error)
-        : _on_next(std::move(on_next)),
-          _on_complete(std::move(on_complete)),
-          _on_error(std::move(on_error)) {}
+    sub(OnNext &&on_next, deferred<void> when_done)
+        : _on_next(std::move(on_next)), _when_done(when_done) {}
 
     void on_next(T &&t) override {
       _on_next(std::move(t));
@@ -34,12 +33,12 @@ void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
     }
 
     void on_complete() override {
-      _on_complete();
+      _when_done.resolve();
       delete this;
     }
 
     void on_error(std::error_condition ec) override {
-      _on_error(ec);
+      _when_done.fail(ec);
       delete this;
     }
 
@@ -50,7 +49,9 @@ void publisher_impl<T>::process(OnNext &&on_next, OnComplete &&on_complete,
     }
   };
 
-  subscribe(*(new sub{std::move(on_next), std::move(on_complete), std::move(on_error)}));
+  deferred<void> when_done;
+  subscribe(*(new sub{std::move(on_next), when_done}));
+  return when_done;
 }
 
 namespace impl {
@@ -868,3 +869,5 @@ auto do_finally(Fn &&fn) {
 }
 
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

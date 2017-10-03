@@ -2,6 +2,9 @@
 
 #include "signal_breaker.h"
 
+namespace rtm {
+namespace video {
+
 namespace streams {
 namespace {
 
@@ -26,3 +29,5 @@ std::atomic<bool> &init_signal_breaker(std::initializer_list<int> signals) {
 }
 }  // namespace impl
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

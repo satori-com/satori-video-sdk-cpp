@@ -2,8 +2,8 @@
 #include <iostream>
 
 #include "base64.h"
-#include "error.h"
 #include "logging.h"
+#include "video_error.h"
 #include "video_streams.h"
 
 extern "C" {

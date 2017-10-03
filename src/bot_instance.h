@@ -5,7 +5,7 @@
 #include "bot_environment.h"
 #include "librtmvideo/data.h"
 #include "librtmvideo/video_bot.h"
-#include "streams.h"
+#include "streams/streams.h"
 
 namespace rtm {
 namespace video {

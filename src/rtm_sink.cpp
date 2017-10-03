@@ -2,7 +2,7 @@
 
 #include "librtmvideo/data.h"
 #include "librtmvideo/rtmvideo.h"
-#include "streams.h"
+#include "streams/streams.h"
 #include "video_streams.h"
 
 namespace rtm {

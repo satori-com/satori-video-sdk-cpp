@@ -1,15 +1,19 @@
 #define BOOST_TEST_MODULE ErrorOrTest
 #include <boost/test/included/unit_test.hpp>
 
-#include "error_or.h"
+#include "streams/error_or.h"
 
 using namespace rtm::video;
+using namespace rtm::video::streams;
+
+static_assert(!is_error_or<int>(), "test failed");
+static_assert(is_error_or<error_or<int>>(), "test failed");
 
 BOOST_AUTO_TEST_CASE(error_or_conversions) {
   error_or<int> i1(10);
   i1.check_ok();
 
-  error_or<int> i2 = std::error_condition(video_error::EndOfStreamError);
+  error_or<int> i2 = std::error_condition(stream_error::NotInitialized);
   i2.check_not_ok();
 
   const int i = -100;
@@ -65,11 +69,11 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 
-  ptr.reset(new error_or<foo>(std::error_condition(video_error::FrameNotReadyError)));
+  ptr.reset(new error_or<foo>(std::error_condition(stream_error::NotInitialized)));
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 
   ptr.reset();
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
-};
+}

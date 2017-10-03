@@ -1,5 +1,10 @@
 #include "rtm_streams.h"
 
+#include "cbor_json.h"
+
+namespace rtm {
+namespace video {
+
 namespace streams {
 namespace rtm {
 
@@ -66,3 +71,5 @@ streams::publisher<cbor_item_t *> cbor_channel(
 
 }  // namespace rtm
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

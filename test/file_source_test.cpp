@@ -16,14 +16,13 @@ BOOST_AUTO_TEST_CASE(test_frame_ids) {
   boost::asio::io_service io;
 
   std::vector<frame_id> ids;
-  file_source(io, "test_data/test.mp4", false, true)
-      ->process(
-          [&ids](encoded_packet &&pkt) {
-            if (const encoded_frame *f = boost::get<encoded_frame>(&pkt)) {
-              ids.push_back(f->id);
-            }
-          },
-          []() {}, [](std::error_condition ec) { BOOST_TEST(false); });
+  auto when_done = file_source(io, "test_data/test.mp4", false, true)
+                       ->process([&ids](encoded_packet &&pkt) {
+                         if (const encoded_frame *f = boost::get<encoded_frame>(&pkt)) {
+                           ids.push_back(f->id);
+                         }
+                       });
+  BOOST_TEST(when_done.ok());
 
   BOOST_TEST(ids.size() == 6);
   BOOST_TEST(ids[0] == id(0, 48));

@@ -3,8 +3,10 @@
 #include <cbor.h>
 
 #include "rtmclient.h"
-#include "streams.h"
+#include "streams/streams.h"
 
+namespace rtm {
+namespace video {
 namespace streams {
 namespace rtm {
 
@@ -17,3 +19,5 @@ streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<::rtm::publisher> 
 
 }  // namespace rtm
 }  // namespace streams
+}  // namespace video
+}  // namespace rtm

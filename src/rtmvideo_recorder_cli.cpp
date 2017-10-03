@@ -8,10 +8,12 @@
 #include "librtmvideo/data.h"
 #include "logging_impl.h"
 #include "rtmclient.h"
-#include "signal_breaker.h"
+#include "streams/buffered_worker.h"
+#include "streams/signal_breaker.h"
 #include "video_streams.h"
 #include "vp9_encoder.h"
-#include "worker.h"
+
+using namespace rtm::video;
 
 namespace {
 constexpr size_t image_buffer_size = 1024;
@@ -67,10 +69,10 @@ int main(int argc, char* argv[]) {
                                 image_pixel_format::RGB0)
       >> streams::signal_breaker<rtm::video::owned_image_packet>(
              {SIGINT, SIGTERM, SIGQUIT})
-      >> rtm::video::buffered_worker("input.buffer_size", image_buffer_size)
+      >> streams::buffered_worker("input.buffer_size", image_buffer_size)
       >> rtm::video::encode_vp9(25)
-      >> rtm::video::buffered_worker("recorder.vp9_encoded_buffer",
-                                     outgoing_encoded_frames_max_buffer_size)
+      >> streams::buffered_worker("recorder.vp9_encoded_buffer",
+                                  outgoing_encoded_frames_max_buffer_size)
       >> streams::do_finally([&rtm_client]() {
           if (rtm_client) rtm_client->stop();
         });

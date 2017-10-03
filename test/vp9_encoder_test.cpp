@@ -29,7 +29,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
   int key_frames_count{0};
   int frames_from_last_key_frame_count{0};
   auto encoded_stream = std::move(frames) >> encode_vp9(1);
-  encoded_stream->process(
+  auto when_done = encoded_stream->process(
       [&packets_count, &key_frames_count, &frames_from_last_key_frame_count,
        gop_size](encoded_packet &&packet) mutable {
         if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
@@ -43,8 +43,8 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
           frames_from_last_key_frame_count++;
         }
         packets_count++;
-      },
-      []() {}, [](const std::error_condition ec) { BOOST_FAIL(ec.message()); });
+      });
+  BOOST_CHECK(when_done.ok());
 
   BOOST_CHECK_EQUAL(number_of_frames + 1 /* metadata frame */, packets_count);
 

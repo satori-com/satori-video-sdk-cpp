@@ -1,7 +1,7 @@
 #pragma once
 
 #include "librtmvideo/data.h"
-#include "streams.h"
+#include "streams/streams.h"
 
 namespace rtm {
 namespace video {
