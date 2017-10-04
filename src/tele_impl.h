@@ -4,7 +4,7 @@
 #include <boost/asio.hpp>
 #include "librtmvideo/tele.h"
 
-#include "rtmclient.h"
+#include "rtm_client.h"
 
 namespace tele {
 

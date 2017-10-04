@@ -249,7 +249,10 @@ int main(int argc, char *argv[]) {
 
   std::shared_ptr<rtm::client> rtm_client =
       cli_cfg.rtm_client(vm, io_service, ssl_context, rtm_error_handler);
-  if (rtm_client) rtm_client->start();
+  if (rtm_client) {
+    auto ec = rtm_client->start();
+    if (ec) ABORT() << "error starting rtm client: " << ec.message();
+  }
 
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
@@ -262,7 +265,10 @@ int main(int argc, char *argv[]) {
       >> surface_to_texture(renderer)
       >> streams::buffered_worker("player.texture_buffer", textures_max_buffer_size)
       >> streams::do_finally([&rtm_client]() {
-          if (rtm_client) rtm_client->stop();
+          if (rtm_client) {
+            auto ec = rtm_client->stop();
+            if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
+          }
         });
 
   auto when_done = source->process([renderer](std::shared_ptr<SDL_Texture> &&texture) {

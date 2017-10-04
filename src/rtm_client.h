@@ -26,7 +26,8 @@ enum class client_error : unsigned char {
   InvalidResponse = 4,
   SubscriptionError = 5,
   SubscribeError = 6,
-  UnsubscribeError = 7
+  UnsubscribeError = 7,
+  AsioError = 8,
 };
 
 std::error_condition make_error_condition(client_error e);
@@ -111,8 +112,8 @@ struct subscriber {
 
 class client : public publisher, public subscriber {
  public:
-  virtual void start() = 0;
-  virtual void stop() = 0;
+  virtual std::error_condition start() __attribute__((warn_unused_result)) = 0;
+  virtual std::error_condition stop() __attribute__((warn_unused_result))  = 0;
 };
 
 std::unique_ptr<client> new_client(const std::string &endpoint, const std::string &port,
@@ -165,9 +166,9 @@ class resilient_client : public client {
 
   bool is_up(const subscription &sub) override { return _client->is_up(sub); }
 
-  void start() override { _client->start(); }
+  std::error_condition start() override { return _client->start(); }
 
-  void stop() override { _client->stop(); }
+  std::error_condition stop() override { return _client->stop(); }
 
  private:
   struct subscription_info {

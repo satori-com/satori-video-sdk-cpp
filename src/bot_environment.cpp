@@ -212,7 +212,9 @@ int bot_environment::main(int argc, char* argv[]) {
 
   _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, ssl_context, *this);
   if (_rtm_client) {
-    _rtm_client->start();
+    if (auto ec = _rtm_client->start()) {
+      ABORT() << "error starting rtm client: " << ec.message();
+    }
     _tele_publisher.reset(new tele::publisher(*_rtm_client, io_service));
   }
 
@@ -277,7 +279,8 @@ int bot_environment::main(int argc, char* argv[]) {
                 _bot_instance->stop();
                 _tele_publisher.reset();
                 if (_rtm_client) {
-                  _rtm_client->stop();
+                  auto ec = _rtm_client->stop();
+                  if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
                 }
               });
 
