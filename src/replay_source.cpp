@@ -9,6 +9,8 @@
 #include <thread>
 
 #include "asio_streams.h"
+#include "cbor_json.h"
+#include "librtmvideo/cbor_tools.h"
 #include "logging.h"
 #include "video_streams.h"
 
@@ -23,7 +25,7 @@ struct read_json_impl {
   explicit read_json_impl(const std::string &filename)
       : _filename(filename), _input(filename) {}
 
-  void generate(int count, streams::observer<rapidjson::Document> &observer) {
+  void generate(int count, streams::observer<cbor_item_t *> &observer) {
     if (!_input.good()) {
       LOG(ERROR) << "replay file not found: " << _filename;
       observer.on_error(std::make_error_condition(std::errc::no_such_file_or_directory));
@@ -42,7 +44,7 @@ struct read_json_impl {
       rapidjson::Document data;
       data.Parse<0>(line.c_str()).HasParseError();
       CHECK(data.IsObject());
-      observer.on_next(std::move(data));
+      observer.on_next(json_to_cbor(data));
     }
   }
 
@@ -50,81 +52,59 @@ struct read_json_impl {
   std::ifstream _input;
 };
 
-streams::publisher<rapidjson::Document> read_json(const std::string &filename) {
-  return streams::generators<rapidjson::Document>::stateful(
+streams::publisher<cbor_item_t *> read_json(const std::string &filename) {
+  return streams::generators<cbor_item_t *>::stateful(
       [filename]() { return new read_json_impl(filename); },
-      [](read_json_impl *impl, int count, streams::observer<rapidjson::Document> &sink) {
+      [](read_json_impl *impl, int count, streams::observer<cbor_item_t *> &sink) {
         return impl->generate(count, sink);
       });
 }
 
-streams::publisher<network_packet> read_metadata(const std::string &metadata_file) {
-  streams::publisher<rapidjson::Document> doc =
-      read_json(metadata_file) >> streams::head();
-  return std::move(doc) >> streams::map([](rapidjson::Document &&document) {
-           const std::string name = document["codecName"].GetString();
-           const std::string base64_data =
-               document.HasMember("codecData") ? document["codecData"].GetString() : "";
+static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
+  cbor_item_t *messages = cbor::map(doc).get("messages");
+  std::vector<cbor_item_t *> result;
+  for (size_t i = 0; i < cbor_array_size(messages); ++i) {
+    result.push_back(cbor_array_get(messages, i));
+  }
+  cbor_decref(&doc);
+  return streams::publishers::of(std::move(result));
+}
 
-           network_metadata m;
-           m.codec_name = name;
-           m.base64_data = base64_data;
-           return network_packet{m};
-         });
+streams::publisher<network_packet> read_metadata(const std::string &metadata_file) {
+  return read_json(metadata_file) >> streams::head()
+         >> streams::map(&parse_network_metadata);
+}
+
+static double get_timestamp(const cbor_item_t *item) {
+  return cbor_float_get_float8(cbor::map(item).get("timestamp"));
 }
 
 streams::publisher<network_packet> network_replay_source(boost::asio::io_service &io,
                                                          const std::string &filename,
                                                          bool batch) {
   auto metadata = read_metadata(filename + ".metadata");
-  streams::publisher<rapidjson::Document> docs = read_json(filename);
+  streams::publisher<cbor_item_t *> items = read_json(filename);
   if (!batch) {
     double *last_time = new double{-1.0};
-    docs = std::move(docs) >> streams::asio::delay(
-                                  io,
-                                  [last_time](const rapidjson::Document &doc) {
-                                    if (*last_time < 0) {
-                                      return std::chrono::milliseconds(0);
-                                    }
+    items = std::move(items)
+            >> streams::asio::delay(
+                   io,
+                   [last_time](const cbor_item_t *item) {
+                     if (*last_time < 0) {
+                       return std::chrono::milliseconds(0);
+                     }
 
-                                    double timestamp = doc["timestamp"].GetDouble();
-                                    int delay_ms = (int)((timestamp - *last_time) * 1000);
-                                    return std::chrono::milliseconds(delay_ms);
-                                  })
-           >> streams::map([last_time](rapidjson::Document &&doc) {
-               *last_time = doc["timestamp"].GetDouble();
-               return std::move(doc);
-             })
-           >> streams::do_finally([last_time]() { delete last_time; });
+                     int delay_ms = (int)((get_timestamp(item) - *last_time) * 1000);
+                     return std::chrono::milliseconds(delay_ms);
+                   })
+            >> streams::map([last_time](cbor_item_t *&&item) {
+                *last_time = get_timestamp(item);
+                return std::move(item);
+              })
+            >> streams::do_finally([last_time]() { delete last_time; });
   }
-  auto frames = std::move(docs) >> streams::flat_map([](rapidjson::Document &&doc) {
-                  std::vector<network_packet> packets;
-                  for (const auto &msg : doc["messages"].GetArray()) {
-                    const std::string base64_data = msg["d"].GetString();
-                    const auto t = msg["i"].GetArray();
-                    const int64_t i1 = t[0].GetInt64();
-                    const int64_t i2 = t[1].GetInt64();
-
-                    const double ntp_timestamp =
-                        msg.HasMember("t") ? msg["t"].GetDouble() : 0;
-
-                    uint32_t chunk = 1, chunks = 1;
-                    if (msg.HasMember("c")) {
-                      chunk = msg["c"].GetUint();
-                      chunks = msg["l"].GetUint();
-                    }
-
-                    network_frame f;
-                    f.base64_data = base64_data;
-                    f.id = frame_id{i1, i2};
-                    f.t = std::chrono::system_clock::from_time_t(ntp_timestamp);
-                    f.chunk = chunk;
-                    f.chunks = chunks;
-
-                    packets.push_back(std::move(f));
-                  }
-                  return streams::publishers::of(std::move(packets));
-                });
+  auto frames = std::move(items) >> streams::flat_map(&get_messages)
+                >> streams::map(&parse_network_frame);
 
   return streams::publishers::merge(std::move(metadata), std::move(frames));
 }

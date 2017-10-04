@@ -1,38 +1,26 @@
 #include "rtm_streams.h"
 
-#include "cbor_json.h"
-
 namespace streams {
 namespace rtm {
 
 struct rtm_channel_impl : ::rtm::subscription_callbacks {
   rtm_channel_impl(std::shared_ptr<::rtm::subscriber> subscriber,
                    const std::string &channel, const ::rtm::subscription_options &options,
-                   streams::observer<rapidjson::Value> &sink)
+                   streams::observer<cbor_item_t *> &sink)
       : _subscriber(subscriber), _sink(sink) {
     _subscriber->subscribe_channel(channel, _subscription, *this, &options);
   }
 
   ~rtm_channel_impl() override { _subscriber->unsubscribe(_subscription); }
 
-  void on_data(const ::rtm::subscription &sub, rapidjson::Value &&value) override {
-    _sink.on_next(std::move(value));
+  void on_data(const ::rtm::subscription &sub, cbor_item_t *data) override {
+    _sink.on_next(std::move(data));
   }
 
   const std::shared_ptr<::rtm::subscriber> _subscriber;
-  streams::observer<rapidjson::Value> &_sink;
+  streams::observer<cbor_item_t *> &_sink;
   ::rtm::subscription _subscription;
 };
-
-streams::publisher<rapidjson::Value> json_channel(
-    std::shared_ptr<::rtm::subscriber> subscriber, const std::string &channel,
-    const ::rtm::subscription_options &options) {
-  return streams::generators<rapidjson::Value>::async<rtm_channel_impl>(
-      [subscriber, channel, options](streams::observer<rapidjson::Value> &observer) {
-        return new rtm_channel_impl(subscriber, channel, options, observer);
-      },
-      [](rtm_channel_impl *impl) { delete impl; });
-}
 
 struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
   cbor_sink_impl(std::shared_ptr<::rtm::publisher> client, const std::string &channel)
@@ -68,8 +56,12 @@ streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<::rtm::publisher> 
 streams::publisher<cbor_item_t *> cbor_channel(
     std::shared_ptr<::rtm::subscriber> subscriber, const std::string &channel,
     const ::rtm::subscription_options &options) {
-  return json_channel(subscriber, channel, options)
-         >> streams::map([](rapidjson::Value &&v) { return json_to_cbor(v); });
+  return streams::generators<cbor_item_t *>::async<rtm_channel_impl>(
+      [subscriber, channel, options](streams::observer<cbor_item_t *> &observer) {
+        return new rtm_channel_impl(subscriber, channel, options, observer);
+      },
+      [](rtm_channel_impl *impl) { delete impl; });
+  ;
 }
 
 }  // namespace rtm

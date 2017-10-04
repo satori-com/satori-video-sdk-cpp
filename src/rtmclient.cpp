@@ -59,47 +59,6 @@ static void fail(const std::string &ctx, boost::system::error_code ec) {
           << ec.message();
 }
 
-static rapidjson::Value cbor_to_json(const cbor_item_t *item,
-                                     rapidjson::Document &document) {
-  rapidjson::Value a;
-  switch (cbor_typeof(item)) {
-    case CBOR_TYPE_NEGINT:
-    case CBOR_TYPE_UINT:
-      a = rapidjson::Value(cbor_get_int(item));
-      break;
-    case CBOR_TYPE_TAG:
-    case CBOR_TYPE_BYTESTRING:
-      ABORT() << "NOT IMPLEMENTED";
-      break;
-    case CBOR_TYPE_STRING:
-      if (cbor_string_is_indefinite(item)) {
-        ABORT() << "NOT IMPLEMENTED";
-      } else {
-        // unsigned char * -> char *
-        a.SetString(reinterpret_cast<char *>(cbor_string_handle(item)),
-                    static_cast<int>(cbor_string_length(item)), document.GetAllocator());
-      }
-      break;
-    case CBOR_TYPE_ARRAY:
-      a = rapidjson::Value(rapidjson::kArrayType);
-      for (size_t i = 0; i < cbor_array_size(item); i++)
-        a.PushBack(cbor_to_json(cbor_array_handle(item)[i], document),
-                   document.GetAllocator());
-      break;
-    case CBOR_TYPE_MAP:
-      a = rapidjson::Value(rapidjson::kObjectType);
-      for (size_t i = 0; i < cbor_map_size(item); i++)
-        a.AddMember(cbor_to_json(cbor_map_handle(item)[i].key, document),
-                    cbor_to_json(cbor_map_handle(item)[i].value, document),
-                    document.GetAllocator());
-      break;
-    case CBOR_TYPE_FLOAT_CTRL:
-      a = rapidjson::Value(cbor_float_get_float(item));
-      break;
-  }
-  return a;
-}
-
 static std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -234,7 +193,8 @@ class secure_client : public client {
     auto body = document["body"].GetObject();
     body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
 
-    body.AddMember("message", cbor_to_json(message, document), document.GetAllocator());
+    body.AddMember("message", video::cbor_to_json(message, document),
+                   document.GetAllocator());
 
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
@@ -349,7 +309,7 @@ class secure_client : public client {
       }
 
       for (rapidjson::Value &m : body["messages"].GetArray()) {
-        sub.callbacks.on_data(sub.sub, std::move(m));
+        sub.callbacks.on_data(sub.sub, video::json_to_cbor(m));
       }
     } else if (action == "rtm/subscribe/ok") {
       const uint64_t id = d["id"].GetInt64();
