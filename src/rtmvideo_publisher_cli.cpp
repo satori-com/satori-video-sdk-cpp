@@ -3,7 +3,7 @@
 
 #include "cli_streams.h"
 #include "logging_impl.h"
-#include "rtmclient.h"
+#include "rtm_client.h"
 #include "streams/asio_streams.h"
 #include "video_streams.h"
 

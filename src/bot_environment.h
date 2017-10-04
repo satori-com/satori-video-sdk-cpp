@@ -9,7 +9,7 @@
 
 #include "librtmvideo/data.h"
 #include "librtmvideo/video_bot.h"
-#include "rtmclient.h"
+#include "rtm_client.h"
 #include "tele_impl.h"
 #include "video_streams.h"
 

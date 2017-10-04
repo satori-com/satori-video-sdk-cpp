@@ -46,7 +46,7 @@ add_library(rtmvideo
     src/rtm_sink.cpp
     src/rtm_source.cpp
     src/rtm_streams.cpp
-    src/rtmclient.cpp
+    src/rtm_client.cpp
     src/streams/signal_breaker.cpp
     src/streams/streams.cpp
     src/streams/stream_error.cpp

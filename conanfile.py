@@ -8,7 +8,7 @@ class SatorivideoConan(ConanFile):
     requires = "Libcbor/0.5.0@satorivideo/master", \
                "Boost/1.64.0@satorivideo/master", \
                "Openssl/1.1.0f@satorivideo/master", \
-               "Beast/95@satorivideo/master", \
+               "Beast/120@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
                "Rapidjson/1.1.0@satorivideo/master", \
                "Ffmpeg/3.3.3_03@satorivideo/master", \

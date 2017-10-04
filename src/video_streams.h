@@ -6,7 +6,7 @@
 
 #include "librtmvideo/data.h"
 #include "mkv_options.h"
-#include "rtmclient.h"
+#include "rtm_client.h"
 #include "streams/streams.h"
 
 namespace rtm {

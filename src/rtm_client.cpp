@@ -14,7 +14,7 @@
 
 #include "cbor_json.h"
 #include "logging.h"
-#include "rtmclient.h"
+#include "rtm_client.h"
 
 namespace asio = boost::asio;
 
@@ -41,6 +41,8 @@ struct client_error_category : std::error_category {
         return "subscribe error";
       case client_error::UnsubscribeError:
         return "unsubscribe error";
+      case client_error::AsioError:
+        return "asio error";
     }
   }
 };
@@ -53,11 +55,6 @@ std::error_condition make_error_condition(client_error e) {
 namespace {
 
 constexpr int READ_BUFFER_SIZE = 100000;
-
-static void fail(const std::string &ctx, boost::system::error_code ec) {
-  ABORT() << ctx << " error \" " << ec.category().name() << ':' << ec.value() << " "
-          << ec.message();
-}
 
 static std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -142,7 +139,7 @@ class secure_client : public client {
 
   ~secure_client() override = default;
 
-  void start() override {
+  std::error_condition start() override {
     CHECK(_client_state.load() == client_state::Stopped);
     LOG(INFO) << "Starting secure RTM client: " << _host << ":" << _port
               << ", appkey: " << _appkey;
@@ -150,34 +147,49 @@ class secure_client : public client {
     boost::system::error_code ec;
 
     auto endpoints = _tcp_resolver.resolve({_host, _port}, ec);
-    if (ec) fail("resolving endpoint", ec);
+    if (ec) {
+      LOG(ERROR) << "can't resolve endpoint: " << ec.message();
+      return make_error_condition(client_error::AsioError);
+    }
 
     _ws.read_message_max(READ_BUFFER_SIZE);
 
     // tcp connect
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
-    if (ec) fail("connecting to endpoint", ec);
+    if (ec) {
+      LOG(ERROR) << "can't connect: " << ec.message();
+      return make_error_condition(client_error::AsioError);
+    }
 
     // ssl handshake
     _ws.next_layer().handshake(boost::asio::ssl::stream_base::client);
 
     // upgrade to ws.
     _ws.handshake(_host, "/v2?appkey=" + _appkey, ec);
-    if (ec) fail("upgrading to websocket protocol", ec);
+    if (ec) {
+      LOG(ERROR) << "can't upgrade to websocket protocol: " << ec.message();
+      return make_error_condition(client_error::AsioError);
+    }
     LOG(1) << "Websocket open";
 
     _client_state = client_state::Running;
     ask_for_read();
+    return {};
   }
 
-  void stop() override {
+  std::error_condition stop() override {
     CHECK(_client_state == client_state::Running);
     LOG(INFO) << "Stopping secure RTM client";
 
     _client_state = client_state::PendingStopped;
     boost::system::error_code ec;
     _ws.next_layer().next_layer().close(ec);
-    if (ec) fail("sending close signal", ec);
+    if (ec)  {
+          LOG(ERROR) << "can't close: " << ec.message();
+      return make_error_condition(client_error::AsioError);
+
+    }
+    return {};
   }
 
   void publish(const std::string &channel, const cbor_item_t *message,
@@ -275,7 +287,11 @@ class secure_client : public client {
         _subscriptions.clear();
         return;
       }
-      if (ec) fail("async read from websocket", ec);
+      if (ec) {
+        LOG(ERROR) << "asio error: " << ec.message();
+        _callbacks.on_error(client_error::AsioError);
+        return;
+      }
 
       std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
       _read_buffer.consume(_read_buffer.size());
