@@ -23,9 +23,7 @@ namespace rtm {
 namespace video {
 namespace {
 
-constexpr size_t network_frames_max_buffer_size = 1024;
-constexpr size_t encoded_frames_max_buffer_size = 32;
-constexpr size_t image_frames_max_buffer_size = 2;
+constexpr size_t image_buffer_size = 2;
 
 variables_map parse_command_line(int argc, char* argv[],
                                  const cli_streams::configuration& cli_cfg) {
@@ -49,12 +47,6 @@ variables_map parse_command_line(int argc, char* argv[],
   bot_execution_options.add_options()(
       "debug_file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
-  bot_execution_options.add_options()(
-      "time_limit", po::value<long>(),
-      "(seconds) if specified, bot will exit after given time elapsed");
-  bot_execution_options.add_options()(
-      "frames_limit", po::value<long>(),
-      "(number) if specified, bot will exit after processing given number of frames");
 
   po::options_description cli_options = cli_cfg.to_boost();
   cli_options.add(bot_configuration_options).add(bot_execution_options).add(generic);
@@ -203,6 +195,7 @@ int bot_environment::main(int argc, char* argv[]) {
   cli_streams::configuration cli_cfg;
   cli_cfg.enable_rtm_input = true;
   cli_cfg.enable_file_input = true;
+  cli_cfg.enable_generic_input_options = true;
   cli_cfg.enable_file_batch_mode = true;
 
   auto cmd_args = parse_command_line(argc, argv, cli_cfg);
@@ -224,19 +217,14 @@ int bot_environment::main(int argc, char* argv[]) {
   }
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
+  const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
+  _source = cli_cfg.decoded_publisher(
+      cmd_args, io_service, _rtm_client, channel, true, _bot_descriptor->image_width,
+      _bot_descriptor->image_height, _bot_descriptor->pixel_format);
 
-  streams::publisher<encoded_packet> encoded_src =
-      cli_cfg.encoded_publisher(cmd_args, io_service, _rtm_client, channel, true);
-
-  bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
-  auto decode_op =
-      decode_image_frames(_bot_descriptor->image_width, _bot_descriptor->image_height,
-                          _bot_descriptor->pixel_format);
-
-  _source = std::move(encoded_src) >> std::move(decode_op);
   if (!batch_mode) {
-    _source = std::move(_source)
-              >> buffered_worker("input.image_buffer", image_frames_max_buffer_size);
+    _source =
+        std::move(_source) >> buffered_worker("input.image_buffer", image_buffer_size);
   }
 
   if (cmd_args.count("analysis_file")) {
@@ -268,16 +256,6 @@ int bot_environment::main(int argc, char* argv[]) {
   } else {
     _control_sink = new file_cbor_dump_observer(std::cout);
     _control_source = streams::publishers::empty<cbor_item_t*>();
-  }
-
-  if (cmd_args.count("time_limit")) {
-    _source = std::move(_source)
-              >> streams::asio::timer_breaker<owned_image_packet>(
-                     io_service, std::chrono::seconds(cmd_args["time_limit"].as<long>()));
-  }
-
-  if (cmd_args.count("frames_limit")) {
-    _source = std::move(_source) >> streams::take(cmd_args["frames_limit"].as<long>());
   }
 
   bool finished{false};

@@ -35,6 +35,11 @@ struct configuration {
       const std::shared_ptr<rtm::client> client, const std::string &channel,
       bool network_buffer) const;
 
+  streams::publisher<owned_image_packet> decoded_publisher(
+      const po::variables_map &vm, boost::asio::io_service &io_service,
+      const std::shared_ptr<rtm::client> client, const std::string &channel,
+      bool network_buffer, int width, int height, image_pixel_format pixel_format) const;
+
   streams::subscriber<encoded_packet> &encoded_subscriber(
       const po::variables_map &vm, const std::shared_ptr<rtm::client> client,
       const std::string &channel) const;
@@ -43,6 +48,7 @@ struct configuration {
   bool enable_rtm_input{false};
   bool enable_file_input{false};
   bool enable_camera_input{false};
+  bool enable_generic_input_options{false};
   bool enable_rtm_output{false};
   bool enable_file_output{false};
   bool enable_file_batch_mode{false};

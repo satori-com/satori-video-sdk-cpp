@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "asio_streams.h"
 #include "cli_streams.h"
 #include "mkv_options.h"
 #include "video_streams.h"
@@ -45,6 +46,17 @@ po::options_description camera_input_options() {
                                "Camera dimensions");
 
   return camera_options;
+}
+
+po::options_description generic_input_options() {
+  po::options_description options("Generic input options");
+  options.add_options()("time-limit", po::value<long>(),
+                        "(seconds) if specified, bot will exit after given time elapsed");
+  options.add_options()(
+      "frames-limit", po::value<long>(),
+      "(number) if specified, bot will exit after processing given number of frames");
+
+  return options;
 }
 
 po::options_description file_output_options() {
@@ -119,6 +131,7 @@ po::options_description configuration::to_boost() const {
   if (enable_rtm_input) options.add(rtm_options());
   if (enable_file_input) options.add(file_input_options(enable_file_batch_mode));
   if (enable_camera_input) options.add(camera_input_options());
+  if (enable_generic_input_options) options.add(generic_input_options());
 
   if (enable_rtm_output) options.add(rtm_options());
   if (enable_file_output) options.add(file_output_options());
@@ -247,6 +260,27 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
   } else {
     ABORT();
   }
+}
+
+streams::publisher<owned_image_packet> configuration::decoded_publisher(
+    const po::variables_map &vm, boost::asio::io_service &io_service,
+    const std::shared_ptr<rtm::client> client, const std::string &channel,
+    bool network_buffer, int width, int height, image_pixel_format pixel_format) const {
+  streams::publisher<owned_image_packet> source =
+      encoded_publisher(vm, io_service, client, channel, network_buffer)
+      >> decode_image_frames(width, height, pixel_format);
+
+  if (vm.count("time-limit")) {
+    source = std::move(source)
+             >> streams::asio::timer_breaker<owned_image_packet>(
+                    io_service, std::chrono::seconds(vm["time-limit"].as<long>()));
+  }
+
+  if (vm.count("frames-limit")) {
+    source = std::move(source) >> streams::take(vm["frames-limit"].as<long>());
+  }
+
+  return source;
 }
 
 streams::subscriber<encoded_packet> &configuration::encoded_subscriber(

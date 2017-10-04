@@ -14,10 +14,8 @@
 #include "worker.h"
 
 namespace {
-constexpr size_t network_frames_max_buffer_size = 1024;
-constexpr size_t incoming_encoded_frames_max_buffer_size = 1024;
+constexpr size_t image_buffer_size = 1024;
 constexpr size_t outgoing_encoded_frames_max_buffer_size = 1024;
-constexpr size_t image_frames_max_buffer_size = 1024;
 
 struct rtm_error_handler : public rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
@@ -36,6 +34,7 @@ int main(int argc, char* argv[]) {
   cli_cfg.enable_rtm_input = true;
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
+  cli_cfg.enable_generic_input_options = true;
   cli_cfg.enable_file_output = true;
   cli_cfg.enable_file_batch_mode = true;
 
@@ -64,16 +63,11 @@ int main(int argc, char* argv[]) {
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<rtm::video::encoded_packet> source =
-      cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel, true);
-
-  source =
-      std::move(source)
-      >> rtm::video::buffered_worker("recorder.encoded_buffer",
-                                     incoming_encoded_frames_max_buffer_size)
-      >> streams::signal_breaker<rtm::video::encoded_packet>({SIGINT, SIGTERM, SIGQUIT})
-      >> rtm::video::decode_image_frames(640, 480, image_pixel_format::RGB0)
-      >> rtm::video::buffered_worker("recorder.image_buffer",
-                                     image_frames_max_buffer_size)
+      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true, 640, 480,
+                                image_pixel_format::RGB0)
+      >> streams::signal_breaker<rtm::video::owned_image_packet>(
+             {SIGINT, SIGTERM, SIGQUIT})
+      >> rtm::video::buffered_worker("input.buffer_size", image_buffer_size)
       >> rtm::video::encode_vp9(25)
       >> rtm::video::buffered_worker("recorder.vp9_encoded_buffer",
                                      outgoing_encoded_frames_max_buffer_size)

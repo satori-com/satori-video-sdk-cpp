@@ -15,8 +15,7 @@
 
 namespace {
 
-constexpr size_t incoming_encoded_frames_max_buffer_size = 1024;
-constexpr size_t image_frames_max_buffer_size = 1024;
+constexpr size_t images_buffer_size = 1024;
 constexpr size_t surfaces_max_buffer_size = 1024;
 constexpr size_t textures_max_buffer_size = 1024;
 
@@ -31,6 +30,7 @@ rtm::video::cli_streams::configuration cli_configuration() {
   result.enable_rtm_input = true;
   result.enable_file_input = true;
   result.enable_camera_input = true;
+  result.enable_generic_input_options = true;
 
   return result;
 }
@@ -255,12 +255,9 @@ int main(int argc, char *argv[]) {
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<std::shared_ptr<SDL_Texture>> source =
-      cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel, true)
-      >> rtm::video::buffered_worker("player.encoded_buffer",
-                                     incoming_encoded_frames_max_buffer_size)
-      >> rtm::video::decode_image_frames(stream_width, stream_height,
-                                         image_pixel_format::BGR)
-      >> rtm::video::buffered_worker("player.image_buffer", image_frames_max_buffer_size)
+      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
+                                stream_width, stream_height, image_pixel_format::BGR)
+      >> rtm::video::buffered_worker("input.image_buffer", images_buffer_size)
       >> image_to_surface()
       >> rtm::video::buffered_worker("player.surface_buffer", surfaces_max_buffer_size)
       >> surface_to_texture(renderer)
