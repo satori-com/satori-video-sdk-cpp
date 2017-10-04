@@ -5,7 +5,7 @@
 #include "logging.h"
 
 namespace cbor {
-cbor_item_t *map_get(cbor_item_t *map, const std::string name,
+cbor_item_t *map_get(const cbor_item_t *map, const std::string name,
                      cbor_item_t *default_value) {
   if (map != nullptr && cbor_map_is_definite(map)) {
     for (size_t i = 0; i < cbor_map_size(map); i++) {
@@ -20,9 +20,9 @@ cbor_item_t *map_get(cbor_item_t *map, const std::string name,
   return default_value;
 }
 
-bool map_has_str_value(cbor_item_t *map, const std::string name,
+bool map_has_str_value(const cbor_item_t *map, const std::string name,
                        const std::string value) {
-  cbor_item_t *item = map_get(map, name);
+  const cbor_item_t *item = map_get(map, name);
   if (item == nullptr) return 0;
   if (cbor_string_length(item) != value.length()) return false;
   return strncmp(value.c_str(), reinterpret_cast<char *>(cbor_string_handle(item)),
@@ -30,16 +30,16 @@ bool map_has_str_value(cbor_item_t *map, const std::string name,
          == 0;
 }
 
-std::string map_get_str(cbor_item_t *map, const std::string name,
+std::string map_get_str(const cbor_item_t *map, const std::string name,
                         const std::string default_value) {
-  cbor_item_t *value = map_get(map, name);
+  const cbor_item_t *value = map_get(map, name);
   if (value == nullptr) return default_value;
   return std::string(reinterpret_cast<char *>(cbor_string_handle(value)),
                      cbor_string_length(value));
 }
 
-int map_get_int(cbor_item_t *map, const std::string name, const int default_value) {
-  cbor_item_t *value = map_get(map, name);
+int map_get_int(const cbor_item_t *map, const std::string name, const int default_value) {
+  const cbor_item_t *value = map_get(map, name);
   if (value == nullptr) return default_value;
   return cbor_get_int(value);
 }
@@ -88,4 +88,21 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
       break;
   }
 }
+
+int64_t get_int64(const cbor_item_t *item) {
+  if (cbor_isa_negint(item)) {
+    return -cbor_get_int(item);
+  } else {
+    return cbor_get_int(item);
+  }
+}
+
+double get_double(const cbor_item_t *item) {
+  if (cbor_is_int(item)) {
+    return static_cast<double>(get_int64(item));
+  } else {
+    return cbor_float_get_float(item);
+  }
+}
+
 }  // namespace cbor

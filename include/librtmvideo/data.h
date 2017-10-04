@@ -48,6 +48,9 @@ struct network_frame {
 // algebraic type to support flow of network data using streams API
 using network_packet = boost::variant<network_metadata, network_frame>;
 
+network_packet parse_network_metadata(cbor_item_t *item);
+network_packet parse_network_frame(cbor_item_t *item);
+
 // image size
 struct image_size {
   uint16_t width;

@@ -30,7 +30,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
     CHECK(ctx.instance_data == nullptr);  // Make sure is has initialized once
     State *state = new State;
     std::cout << "bot is initializing, libraries are ok" << '\n';
-    std::string p = cbor::map_get_str(cbor::map_get(config, "body"), "myparam", "");
+    std::string p = cbor::map(config).get_map("body").get_str("myparam", "");
     CHECK_EQ(p, "myvalue");
     ctx.instance_data = state;
   }

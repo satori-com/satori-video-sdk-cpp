@@ -136,7 +136,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
     return;
   }
 
-  if (_bot_id.empty() || cbor::map_get_str(msg, "to", "") != _bot_id) {
+  if (_bot_id.empty() || cbor::map(msg).get_str("to", "") != _bot_id) {
     return;
   }
 
@@ -144,7 +144,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
 
   if (response != nullptr) {
     CHECK(cbor_isa_map(response));
-    cbor_item_t* request_id = cbor::map_get(msg, "request_id");
+    cbor_item_t* request_id = cbor::map(msg).get("request_id");
     if (request_id != nullptr) {
       cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
                               cbor_move(cbor_copy(request_id))});

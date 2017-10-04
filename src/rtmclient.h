@@ -2,7 +2,6 @@
 #pragma once
 
 #include <cbor.h>
-#include <rapidjson/document.h>
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
@@ -77,8 +76,7 @@ struct publisher {
 struct subscription {};
 
 struct subscription_callbacks : public error_callbacks {
-  virtual void on_data(const subscription & /*subscription*/,
-                       rapidjson::Value && /*unused*/) {}
+  virtual void on_data(const subscription & /*subscription*/, cbor_item_t * /*unused*/) {}
 };
 
 struct history_options {
