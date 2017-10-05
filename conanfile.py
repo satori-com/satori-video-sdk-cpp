@@ -15,7 +15,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.1@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.3.'
+    version = '0.3.0'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \
