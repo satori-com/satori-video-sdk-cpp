@@ -120,23 +120,22 @@ struct image_decoder_op {
       stopwatch<> s;
       av_init_packet(_packet.get());
       _packet->flags |= f.key_frame ? AV_PKT_FLAG_KEY : 0;
-      _packet->data = (uint8_t *)f.data.data();
+      _packet->data = (uint8_t *) f.data.data();
       _packet->size = static_cast<int>(f.data.size());
       _packet->pos = f.id.i1;
       _packet->duration = f.id.i2 - f.id.i1;
       _packet->pts = _packet->dts = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        f.timestamp.time_since_epoch())
-                                        .count();
+          f.timestamp.time_since_epoch())
+          .count();
 
       int err = avcodec_send_packet(_context.get(), _packet.get());
       av_packet_unref(_packet.get());
       if (err) {
         LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
-        deliver_on_error(video_error::StreamInitializationError);
         return;
       }
       tele::distribution_add(send_packet_millis, s.millis());
-      }
+    }
   }
 
   bool drain_impl() override {

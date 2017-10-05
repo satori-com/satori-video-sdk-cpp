@@ -233,7 +233,7 @@ class secure_client : public client {
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
-    LOG(INFO) << "requested subscribe for " << channel << ": "
+    LOG(1) << "requested subscribe for " << channel << ": "
               << std::string(buf.GetString());
   }
 
@@ -259,7 +259,7 @@ class secure_client : public client {
       _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
-      LOG(INFO) << "requested unsubscribe for " << sub_id << ": "
+      LOG(1) << "requested unsubscribe for " << sub_id << ": "
                 << std::string(buf.GetString());
       return;
     }
@@ -364,7 +364,7 @@ class secure_client : public client {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
-          LOG(INFO) << "got unsubscribe confirmation for subscription " << sub_id
+          LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
                     << " in status " << std::to_string((int)sub.status) << ": "
                     << to_string(d);
           CHECK(sub.status == subscription_status::PendingUnsubscribe);
