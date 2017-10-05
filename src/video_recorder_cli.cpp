@@ -74,10 +74,18 @@ int main(int argc, char* argv[]) {
       >> streams::buffered_worker("recorder.vp9_encoded_buffer",
                                   outgoing_encoded_frames_max_buffer_size)
       >> streams::do_finally([&rtm_client]() {
-          if (rtm_client) rtm_client->stop();
+          if (rtm_client) {
+            if (auto ec = rtm_client->stop()) {
+              LOG(ERROR) << "error stopping rtm client: " << ec.message();
+            }
+          }
         });
 
-  if (rtm_client) rtm_client->start();
+  if (rtm_client) {
+    if (auto ec = rtm_client->start()) {
+      ABORT() << "error starting rtm client: " << ec.message();
+    }
+  }
 
   LOG(INFO) << "Starting recording...";
 

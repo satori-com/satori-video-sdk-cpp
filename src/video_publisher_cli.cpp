@@ -59,10 +59,15 @@ int main(int argc, char *argv[]) {
   streams::publisher<satori::video::encoded_packet> source =
       cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel, false);
 
-  rtm_client->start();
+  if (auto ec = rtm_client->start()) {
+    ABORT() << "error starting rtm client: " << ec.message();
+  }
 
-  source =
-      std::move(source) >> streams::do_finally([&rtm_client]() { rtm_client->stop(); });
+  source = std::move(source) >> streams::do_finally([&rtm_client]() {
+             if (auto ec = rtm_client->stop()) {
+               LOG(ERROR) << "error stopping rtm client: " << ec.message();
+             }
+           });
 
   source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, rtm_channel));
 
