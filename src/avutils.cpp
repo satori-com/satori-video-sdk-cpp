@@ -103,27 +103,27 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
 
 std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID encoder_id) {
   const std::string encoder_name = avcodec_get_name(encoder_id);
-  LOG(INFO) << "Searching for encoder '" << encoder_name << "'";
+  LOG(1) << "Searching for encoder '" << encoder_name << "'";
 
   const AVCodec *encoder = avcodec_find_encoder(encoder_id);
   if (encoder == nullptr) {
     LOG(ERROR) << "Encoder '" << encoder_name << "' was not found";
     return nullptr;
   }
-  LOG(INFO) << "Encoder '" << encoder_name << "' was found";
+  LOG(1) << "Encoder '" << encoder_name << "' was found";
 
   if (encoder->pix_fmts == nullptr) {
     LOG(ERROR) << "Encoder '" << encoder_name << "' doesn't support any pixel format";
     return nullptr;
   }
 
-  LOG(INFO) << "Allocating context for encoder '" << encoder_name << "'";
+  LOG(1) << "Allocating context for encoder '" << encoder_name << "'";
   AVCodecContext *encoder_context = avcodec_alloc_context3(encoder);
   if (encoder_context == nullptr) {
     LOG(ERROR) << "Failed to allocate context for encoder '" << encoder_name << "'";
     return nullptr;
   }
-  LOG(INFO) << "Allocated context for encoder '" << encoder_name << "'";
+  LOG(1) << "Allocated context for encoder '" << encoder_name << "'";
 
   encoder_context->codec_type = AVMEDIA_TYPE_VIDEO;
   encoder_context->codec_id = encoder_id;
@@ -135,7 +135,7 @@ std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID encoder_id) {
   encoder_context->bit_rate = 10000000;
 
   return std::shared_ptr<AVCodecContext>(encoder_context, [](AVCodecContext *ctx) {
-    LOG(INFO) << "Deleting context for encoder '" << ctx->codec->name << "'";
+    LOG(1) << "Deleting context for encoder '" << ctx->codec->name << "'";
     avcodec_free_context(&ctx);
   });
 }
@@ -237,14 +237,14 @@ std::shared_ptr<AVFrame> av_frame(int width, int height, int align,
   frame_smart_ptr->height = height;
   frame_smart_ptr->format = pixel_format;
 
-  LOG(INFO) << "Allocating data for frame " << frame_description;
+  LOG(1) << "Allocating data for frame " << frame_description;
   int ret = av_frame_get_buffer(frame_smart_ptr.get(), align);
   if (ret < 0) {
     LOG(ERROR) << "Failed to allocate data for frame " << frame_description << ": "
                << error_msg(ret);
     return nullptr;
   }
-  LOG(INFO) << "Allocated data for frame " << frame_description;
+  LOG(1) << "Allocated data for frame " << frame_description;
 
   return frame_smart_ptr;
 }
@@ -295,18 +295,18 @@ std::shared_ptr<AVFormatContext> output_format_context(
     std::function<void(AVFormatContext *)> file_cleaner) {
   AVFormatContext *format_context;
 
-  LOG(INFO) << "Allocating format context for " << filename;
+  LOG(1) << "Allocating format context for " << filename;
   avformat_alloc_output_context2(&format_context, nullptr, format.c_str(),
                                  filename.c_str());
   if (format_context == nullptr) {
     LOG(ERROR) << "Failed to allocate format context for " << filename;
     return nullptr;
   }
-  LOG(INFO) << "Allocated format context for " << filename;
+  LOG(1) << "Allocated format context for " << filename;
 
   return std::shared_ptr<AVFormatContext>(
       format_context, [filename, file_cleaner](AVFormatContext *ctx) {
-        LOG(INFO) << "Deleting format context for file " << filename;
+        LOG(1) << "Deleting format context for file " << filename;
         file_cleaner(ctx);
         avformat_free_context(ctx);  // releases streams too
       });
