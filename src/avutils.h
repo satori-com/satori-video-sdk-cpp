@@ -12,8 +12,8 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "librtmvideo/data.h"
-#include "librtmvideo/rtmvideo.h"
+#include "data.h"
+#include "rtmvideo.h"
 
 namespace rtm {
 namespace video {

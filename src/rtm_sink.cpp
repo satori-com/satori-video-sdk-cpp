@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include "librtmvideo/data.h"
-#include "librtmvideo/rtmvideo.h"
+#include "data.h"
+#include "rtmvideo.h"
 #include "streams/streams.h"
 #include "video_streams.h"
 

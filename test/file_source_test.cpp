@@ -1,7 +1,7 @@
 #define BOOST_TEST_MODULE FileSourceTest
 #include <boost/test/included/unit_test.hpp>
 
-#include "librtmvideo/data.h"
+#include "data.h"
 #include "video_streams.h"
 
 using namespace rtm::video;

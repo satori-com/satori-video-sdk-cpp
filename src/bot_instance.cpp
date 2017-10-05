@@ -1,6 +1,6 @@
 #include "bot_instance.h"
 
-#include "librtmvideo/cbor_tools.h"
+#include "cbor_tools.h"
 #include "stopwatch.h"
 
 namespace rtm {

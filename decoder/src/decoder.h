@@ -2,8 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base.h"
-#include "rtmvideo.h"
+#include "librtmvideo/base.h"
+#include "librtmvideo/video_bot.h"
 
 struct decoder;
 

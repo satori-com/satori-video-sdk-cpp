@@ -1,6 +1,6 @@
-#include <librtmvideo/cbor_tools.h>
 #include <librtmvideo/video_bot.h>
 #include <iostream>
+#include "../src/cbor_tools.h"
 
 #define LOGURU_WITH_STREAMS 1
 #include <loguru/loguru.hpp>

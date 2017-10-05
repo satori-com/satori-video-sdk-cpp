@@ -5,7 +5,7 @@
 #include <string>
 
 #include "cli_streams.h"
-#include "librtmvideo/data.h"
+#include "data.h"
 #include "logging_impl.h"
 #include "rtm_client.h"
 #include "streams/buffered_worker.h"

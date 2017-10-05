@@ -1,7 +1,7 @@
 #include "rtm_streams.h"
 #include "video_streams.h"
 
-#include "librtmvideo/cbor_tools.h"
+#include "cbor_tools.h"
 
 namespace rtm {
 namespace video {

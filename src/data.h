@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "librtmvideo/video_bot.h"
 #include "rtmvideo.h"
-#include "video_bot.h"
 
 inline bool operator==(const frame_id &lhs, const frame_id &rhs) {
   return lhs.i1 == rhs.i1 && lhs.i2 == rhs.i2;

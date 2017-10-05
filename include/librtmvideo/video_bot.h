@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include <cbor.h>
 #include <stdint.h>
 
 #include "base.h"
-#include "rtmvideo.h"
+
+struct cbor_item_t;
 
 // Every image belongs to a certain time interval, setting values wider
 // makes annotation applicable to multiple video frames
@@ -24,6 +24,8 @@ EXPORT struct frame_id {
   int64_t i1;
   int64_t i2;
 };
+
+constexpr uint8_t MAX_IMAGE_PLANES = 4;
 
 // If an image uses packed pixel format like packed RGB or packed YUV,
 // then it has only a single plane, e.g. all it's data is within plane_data[0].
@@ -63,6 +65,8 @@ using bot_ctrl_callback_t = cbor_item_t *(*)(bot_context &context, cbor_item_t *
 // Used to tell bot framework not to downscale original video stream
 constexpr int16_t ORIGINAL_IMAGE_WIDTH = -1;
 constexpr int16_t ORIGINAL_IMAGE_HEIGHT = -1;
+
+enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 
 struct bot_descriptor {
   // If received image's dimensions are greater than specified values,

@@ -15,7 +15,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.1@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.2.3'
+    version = '0.3.'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \
@@ -35,7 +35,7 @@ class SatorivideoConan(ConanFile):
         cmake = CMake(self)
         self.output.info('cmake . %s' % cmake.command_line)
         self.run('cmake . %s' % cmake.command_line)
-        self.run("VERBOSE=1 cmake --build . %s" % cmake.build_config)
+        self.run("VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config)
         self.run("CTEST_OUTPUT_ON_FAILURE=TRUE ctest -V .")
 
     def package(self):

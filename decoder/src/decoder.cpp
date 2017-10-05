@@ -1,4 +1,4 @@
-#include "librtmvideo/decoder.h"
+#include "decoder.h"
 
 #include <algorithm>
 #include <cmath>

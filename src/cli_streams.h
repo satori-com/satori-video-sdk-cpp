@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "librtmvideo/data.h"
+#include "data.h"
 #include "rtm_client.h"
 #include "streams/streams.h"
 

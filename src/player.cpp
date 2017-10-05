@@ -7,7 +7,7 @@
 
 #include "avutils.h"
 #include "cli_streams.h"
-#include "librtmvideo/data.h"
+#include "data.h"
 #include "streams/buffered_worker.h"
 #include "streams/streams.h"
 #include "video_error.h"
