@@ -9,7 +9,7 @@
 
 #include "deferred.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -142,6 +142,6 @@ auto do_finally(Fn &&fn);
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori
 
 #include "streams_impl.h"

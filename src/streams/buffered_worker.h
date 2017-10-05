@@ -8,7 +8,7 @@
 #include "librtmvideo/tele.h"
 #include "streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace streams {
 
@@ -158,4 +158,4 @@ inline auto buffered_worker(const std::string &name, size_t buffer_size) {
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

@@ -13,7 +13,7 @@
 #include "video_streams.h"
 #include "vp9_encoder.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 namespace {
 constexpr size_t image_buffer_size = 1024;
@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  rtm::video::cli_streams::configuration cli_cfg;
+  satori::video::cli_streams::configuration cli_cfg;
   cli_cfg.enable_rtm_input = true;
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
@@ -64,13 +64,13 @@ int main(int argc, char* argv[]) {
       cli_cfg.rtm_client(vm, io_service, ssl_context, error_handler);
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
-  streams::publisher<rtm::video::encoded_packet> source =
+  streams::publisher<satori::video::encoded_packet> source =
       cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true, 640, 480,
                                 image_pixel_format::RGB0)
-      >> streams::signal_breaker<rtm::video::owned_image_packet>(
+      >> streams::signal_breaker<satori::video::owned_image_packet>(
              {SIGINT, SIGTERM, SIGQUIT})
       >> streams::buffered_worker("input.buffer_size", image_buffer_size)
-      >> rtm::video::encode_vp9(25)
+      >> satori::video::encode_vp9(25)
       >> streams::buffered_worker("recorder.vp9_encoded_buffer",
                                   outgoing_encoded_frames_max_buffer_size)
       >> streams::do_finally([&rtm_client]() {

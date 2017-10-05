@@ -7,7 +7,7 @@
 #include "librtmvideo/video_bot.h"
 #include "streams/streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 class bot_instance : public bot_context, streams::subscriber<owned_image_packet> {
@@ -41,8 +41,8 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
   const std::string _bot_id;
   const bot_descriptor _descriptor;
 
-  rtm::video::bot_environment& _env;
-  std::list<rtm::video::bot_message> _message_buffer;
+  bot_environment& _env;
+  std::list<struct bot_message> _message_buffer;
   image_metadata _image_metadata{0, 0};
 
   streams::subscription* _video_sub{nullptr};
@@ -50,4 +50,4 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
 };
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

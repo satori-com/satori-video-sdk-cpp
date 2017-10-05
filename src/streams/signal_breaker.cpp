@@ -2,7 +2,7 @@
 
 #include "signal_breaker.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -30,4 +30,4 @@ std::atomic<bool> &init_signal_breaker(std::initializer_list<int> signals) {
 }  // namespace impl
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

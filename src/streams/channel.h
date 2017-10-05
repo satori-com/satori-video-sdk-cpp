@@ -7,7 +7,7 @@
 #include <mutex>
 #include <utility>
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 template <typename T>
@@ -66,4 +66,4 @@ class channel {
 };
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

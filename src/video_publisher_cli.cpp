@@ -7,7 +7,7 @@
 #include "streams/asio_streams.h"
 #include "video_streams.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 namespace {
 
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  rtm::video::cli_streams::configuration cli_cfg;
+  satori::video::cli_streams::configuration cli_cfg;
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
   cli_cfg.enable_rtm_output = true;
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
-  streams::publisher<rtm::video::encoded_packet> source =
+  streams::publisher<satori::video::encoded_packet> source =
       cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel, false);
 
   rtm_client->start();

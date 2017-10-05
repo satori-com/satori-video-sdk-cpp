@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace mkv {
 
@@ -10,4 +10,4 @@ struct format_options {
 
 }  // namespace mkv
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

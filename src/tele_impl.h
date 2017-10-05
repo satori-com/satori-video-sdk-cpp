@@ -6,6 +6,8 @@
 
 #include "rtm_client.h"
 
+namespace satori {
+namespace video {
 namespace tele {
 
 class publisher {
@@ -18,3 +20,6 @@ class publisher {
 };
 
 }  // namespace tele
+
+}  // namespace video
+}  // namespace satori

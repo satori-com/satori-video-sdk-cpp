@@ -4,7 +4,7 @@
 #include "../logging.h"
 #include "stream_error.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -223,4 +223,4 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
 }  // namespace asio
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

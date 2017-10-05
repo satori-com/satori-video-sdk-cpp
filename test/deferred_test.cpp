@@ -3,7 +3,7 @@
 
 #include "streams/deferred.h"
 
-using namespace rtm::video::streams;
+using namespace satori::video::streams;
 
 BOOST_AUTO_TEST_CASE(deferred_resolve_test) {
   int value = 0;

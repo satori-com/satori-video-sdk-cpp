@@ -15,8 +15,11 @@
 
 #include "logging.h"
 
-namespace rtm {
+namespace satori {
 
+namespace video {
+
+namespace rtm {
 enum class client_error : unsigned char {
   // 0 - not used, success.
 
@@ -171,8 +174,10 @@ class resilient_client : public client, error_callbacks {
 };
 
 }  // namespace rtm
+}  // namespace video
+}  // namespace satori
 
 namespace std {
 template <>
-struct is_error_condition_enum<rtm::client_error> : std::true_type {};
+struct is_error_condition_enum<satori::video::rtm::client_error> : std::true_type {};
 }  // namespace std

@@ -4,7 +4,7 @@
 #include "video_error.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace {
@@ -295,4 +295,4 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

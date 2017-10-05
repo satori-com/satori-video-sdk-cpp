@@ -4,7 +4,7 @@
 #include "logging.h"
 #include "vp9_encoder.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 BOOST_AUTO_TEST_CASE(vp9_encoder) {
   const int gop_size =

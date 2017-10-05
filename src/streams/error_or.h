@@ -6,7 +6,7 @@
 #include "../logging.h"
 #include "stream_error.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace streams {
 
@@ -114,4 +114,4 @@ class error_or {
 }  // namespace streams
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

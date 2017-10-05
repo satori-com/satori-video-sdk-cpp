@@ -1,6 +1,5 @@
 #pragma once
 
-#include <rapidjson/document.h>
 #include <boost/optional.hpp>
 #include <boost/program_options.hpp>
 #include <gsl/gsl>
@@ -13,12 +12,10 @@
 #include "tele_impl.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct bot_instance;
-
-using variables_map = boost::program_options::variables_map;
 
 struct bot_message {
   cbor_item_t* data;
@@ -26,18 +23,16 @@ struct bot_message {
   frame_id id;
 };
 
-class bot_environment : private error_callbacks {
+class bot_environment : private rtm::error_callbacks {
  public:
   static bot_environment& instance();
 
   void register_bot(const bot_descriptor* bot);
   int main(int argc, char* argv[]);
 
-  void on_metadata(const rapidjson::Value& msg);
-  void on_frame_data(const rapidjson::Value& msg);
   rtm::publisher& publisher() { return *_rtm_client; }
 
-  void send_messages(std::list<bot_message>&& messages);
+  void send_messages(std::list<struct bot_message>&& messages);
 
  private:
   void parse_config(boost::optional<std::string> config_file);
@@ -59,4 +54,4 @@ class bot_environment : private error_callbacks {
 };
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

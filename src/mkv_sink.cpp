@@ -7,7 +7,7 @@
 #include "streams/streams.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 // TODO: use AVMEDIA_TYPE_DATA
@@ -149,4 +149,4 @@ streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

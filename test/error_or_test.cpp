@@ -3,8 +3,8 @@
 
 #include "streams/error_or.h"
 
-using namespace rtm::video;
-using namespace rtm::video::streams;
+using namespace satori::video;
+using namespace satori::video::streams;
 
 static_assert(!is_error_or<int>(), "test failed");
 static_assert(is_error_or<error_or<int>>(), "test failed");

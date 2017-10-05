@@ -15,7 +15,7 @@
 #include "streams/buffered_worker.h"
 #include "streams/streams.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 namespace {
 

@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace streams {
 
@@ -25,4 +25,4 @@ std::error_condition make_error_condition(stream_error e) {
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

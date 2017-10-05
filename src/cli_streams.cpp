@@ -6,7 +6,7 @@
 #include "streams/buffered_worker.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace cli_streams {
 
@@ -202,7 +202,8 @@ bool configuration::validate(const po::variables_map &vm) const {
 
 std::shared_ptr<rtm::client> configuration::rtm_client(
     const po::variables_map &vm, boost::asio::io_service &io_service,
-    boost::asio::ssl::context &ssl_context, error_callbacks &rtm_error_callbacks) const {
+    boost::asio::ssl::context &ssl_context,
+    rtm::error_callbacks &rtm_error_callbacks) const {
   if (!enable_rtm_input && !enable_rtm_output) return nullptr;
   if (!check_rtm_args_provided(vm)) return nullptr;
 
@@ -210,7 +211,7 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
   const std::string port = vm["port"].as<std::string>();
   const std::string appkey = vm["appkey"].as<std::string>();
 
-  return std::make_shared<resilient_client>(
+  return std::make_shared<rtm::resilient_client>(
       [endpoint, port, appkey, &io_service, &ssl_context,
        &rtm_error_callbacks](rtm::error_callbacks &callbacks) {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1,
@@ -242,25 +243,26 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
   const bool has_input_url_args = enable_url_input && check_url_input_args_provided(vm);
 
   if (has_input_rtm_args) {
-    streams::publisher<network_packet> source = rtm::video::rtm_source(client, channel);
+    streams::publisher<network_packet> source =
+        satori::video::rtm_source(client, channel);
 
     if (network_buffer)
       source = std::move(source)
                >> streams::buffered_worker("input.network_buffer", network_buffer_size);
 
-    return std::move(source) >> rtm::video::decode_network_stream()
+    return std::move(source) >> satori::video::decode_network_stream()
            >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
   } else if (has_input_file_args) {
     const bool batch = enable_file_batch_mode && vm.count("batch");
 
     streams::publisher<encoded_packet> source;
     if (vm.count("input-video-file")) {
-      source = rtm::video::file_source(
+      source = satori::video::file_source(
           io_service, vm["input-video-file"].as<std::string>(), vm.count("loop"), batch);
     } else {
-      source = rtm::video::network_replay_source(
+      source = satori::video::network_replay_source(
                    io_service, vm["input-replay-file"].as<std::string>(), batch)
-               >> rtm::video::decode_network_stream();
+               >> satori::video::decode_network_stream();
     }
 
     if (batch) {
@@ -270,11 +272,11 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
              >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
     }
   } else if (has_input_camera_args) {
-    return rtm::video::camera_source(io_service,
-                                     vm["camera-dimensions"].as<std::string>());
+    return satori::video::camera_source(io_service,
+                                        vm["camera-dimensions"].as<std::string>());
   } else if (has_input_url_args) {
     std::string url = vm["input-url"].as<std::string>();
-    return rtm::video::url_source(url);
+    return satori::video::url_source(url);
   } else {
     ABORT() << "should not happen";
   }
@@ -309,12 +311,12 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
       enable_file_output && check_file_output_args_provided(vm);
 
   if (has_output_rtm_args) {
-    return rtm::video::rtm_sink(client, channel);
+    return satori::video::rtm_sink(client, channel);
   } else if (has_output_file_args) {
     mkv::format_options mkv_format_options;
     mkv_format_options.reserved_index_space = vm["reserved-index-space"].as<int>();
-    return rtm::video::mkv_sink(vm["output-video-file"].as<std::string>(),
-                                mkv_format_options);
+    return satori::video::mkv_sink(vm["output-video-file"].as<std::string>(),
+                                   mkv_format_options);
   } else {
     ABORT();
   }
@@ -322,4 +324,4 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
 
 }  // namespace cli_streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

@@ -13,9 +13,9 @@ extern "C" {
 }
 
 #include "data.h"
-#include "rtmvideo.h"
+#include "satori_video.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace avutils {
 
@@ -86,4 +86,4 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
 boost::optional<image_size> parse_image_size(const std::string &str);
 }  // namespace avutils
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

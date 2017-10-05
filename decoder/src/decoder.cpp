@@ -15,6 +15,8 @@ extern "C" {
 #include "base64.h"
 #include "librtmvideo/base.h"
 
+using namespace satori::video;
+
 namespace {
 
 constexpr double epsilon = .000001;
@@ -144,7 +146,7 @@ struct decoder {
 
   int process_frame(uint64_t i1, uint64_t i2, const uint8_t *data, size_t length) {
     std::string encoded{data, data + length};
-    std::string decoded = rtm::video::decoder::base64_decode(encoded);
+    std::string decoded = base64_decode(encoded);
     return process_binary_message(i1, i2, (uint8_t *)decoded.data(), (int)decoded.size());
   }
 

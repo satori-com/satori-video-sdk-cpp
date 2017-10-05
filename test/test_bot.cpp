@@ -4,6 +4,8 @@
 
 #include "logging.h"
 
+using namespace satori::video;
+
 namespace test_bot {
 struct State {
   int magic_number;
@@ -20,10 +22,10 @@ void process_image(bot_context &context, const image_frame &frame) {
   std::cout << "got frame " << context.frame_metadata->width << "x"
             << context.frame_metadata->height << ", BGR stride "
             << context.frame_metadata->plane_strides[0] << "\n";
-  rtm_video_bot_message(context, bot_message_kind::ANALYSIS,
-                        cbor_move(build_message("test_analysis_message")));
-  rtm_video_bot_message(context, bot_message_kind::DEBUG,
-                        cbor_move(build_message("test_debug_message")));
+  bot_message(context, bot_message_kind::ANALYSIS,
+              cbor_move(build_message("test_analysis_message")));
+  bot_message(context, bot_message_kind::DEBUG,
+              cbor_move(build_message("test_debug_message")));
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   if (cbor::map_has_str_value(config, "action", "configure")) {
@@ -39,8 +41,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
 }  // namespace test_bot
 
 int main(int argc, char *argv[]) {
-  rtm_video_bot_register(bot_descriptor{640, 480, image_pixel_format::BGR,
-                                        &test_bot::process_image,
-                                        &test_bot::process_command});
-  return rtm_video_bot_main(argc, argv);
+  bot_register(bot_descriptor{640, 480, image_pixel_format::BGR, &test_bot::process_image,
+                              &test_bot::process_command});
+  return bot_main(argc, argv);
 }

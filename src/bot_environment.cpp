@@ -19,11 +19,12 @@
 #include "streams/buffered_worker.h"
 #include "streams/signal_breaker.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace {
 
 constexpr size_t image_buffer_size = 2;
+using variables_map = boost::program_options::variables_map;
 
 variables_map parse_command_line(int argc, char* argv[],
                                  const cli_streams::configuration& cli_cfg) {
@@ -173,7 +174,7 @@ void bot_environment::register_bot(const bot_descriptor* bot) {
   _bot_descriptor = bot;
 }
 
-void bot_environment::send_messages(std::list<bot_message>&& messages) {
+void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
   for (auto&& msg : messages) {
     switch (msg.kind) {
       case bot_message_kind::ANALYSIS:
@@ -235,8 +236,7 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_file.reset(new std::ofstream(analysis_file.c_str()));
     _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
   } else if (_rtm_client) {
-    _analysis_sink =
-        &streams::rtm::cbor_sink(_rtm_client, channel + analysis_channel_suffix);
+    _analysis_sink = &rtm::cbor_sink(_rtm_client, channel + analysis_channel_suffix);
   } else {
     _analysis_sink = new file_cbor_dump_observer(std::cout);
   }
@@ -247,14 +247,14 @@ int bot_environment::main(int argc, char* argv[]) {
     _debug_file.reset(new std::ofstream(debug_file.c_str()));
     _debug_sink = new file_cbor_dump_observer(*_debug_file);
   } else if (_rtm_client) {
-    _debug_sink = &streams::rtm::cbor_sink(_rtm_client, channel + debug_channel_suffix);
+    _debug_sink = &rtm::cbor_sink(_rtm_client, channel + debug_channel_suffix);
   } else {
     _debug_sink = new file_cbor_dump_observer(std::cerr);
   }
 
   if (_rtm_client) {
-    _control_sink = &streams::rtm::cbor_sink(_rtm_client, control_channel);
-    _control_source = streams::rtm::cbor_channel(_rtm_client, control_channel, {});
+    _control_sink = &rtm::cbor_sink(_rtm_client, control_channel);
+    _control_source = rtm::cbor_channel(_rtm_client, control_channel, {});
   } else {
     _control_sink = new file_cbor_dump_observer(std::cout);
     _control_source = streams::publishers::empty<cbor_item_t*>();
@@ -306,4 +306,4 @@ void bot_environment::on_error(std::error_condition ec) {
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

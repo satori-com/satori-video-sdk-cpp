@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "base.h"
 
+namespace satori {
+namespace video {
 namespace tele {
 
 // RTM channel for telemetry data. Values of all telemetry counters are
@@ -36,3 +38,5 @@ EXPORT distribution *distribution_new(const char *group, const char *name) noexc
 EXPORT void distribution_add(distribution *distribution, int64_t value) noexcept;
 
 }  // namespace tele
+}  // namespace video
+}  // namespace satori

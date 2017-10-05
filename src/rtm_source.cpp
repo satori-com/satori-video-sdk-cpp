@@ -3,7 +3,7 @@
 
 #include "cbor_tools.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 network_packet parse_network_metadata(cbor_item_t *item) {
@@ -55,20 +55,18 @@ network_packet parse_network_frame(cbor_item_t *item) {
 
 streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
                                               const std::string &channel_name) {
-  subscription_options metadata_options;
+  rtm::subscription_options metadata_options;
   metadata_options.history.count = 1;
 
   streams::publisher<network_packet> metadata =
-      streams::rtm::cbor_channel(client, channel_name + metadata_channel_suffix,
-                                 metadata_options)
+      rtm::cbor_channel(client, channel_name + metadata_channel_suffix, metadata_options)
       >> streams::map(&parse_network_metadata) >> streams::take(1);
 
   streams::publisher<network_packet> frames =
-      streams::rtm::cbor_channel(client, channel_name, {})
-      >> streams::map(&parse_network_frame);
+      rtm::cbor_channel(client, channel_name, {}) >> streams::map(&parse_network_frame);
 
   return streams::publishers::merge(std::move(metadata), std::move(frames));
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

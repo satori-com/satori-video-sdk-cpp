@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 template <class Clock = std::chrono::system_clock>
@@ -20,4 +20,4 @@ class stopwatch {
 };
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

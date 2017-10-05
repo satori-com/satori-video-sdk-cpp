@@ -3,12 +3,7 @@
 #include "base64.h"
 #include "data.h"
 
-std::ostream &operator<<(std::ostream &os, const frame_id &id) {
-  os << "[" << id.i1 << ", " << id.i2 << "]";
-  return os;
-}
-
-namespace rtm {
+namespace satori {
 namespace video {
 
 cbor_item_t *network_frame::to_cbor() const {
@@ -54,7 +49,7 @@ network_metadata encoded_metadata::to_network() const {
 
   nm.codec_name = codec_name;
   if (codec_data.size() > 0) {
-    nm.base64_data = std::move(rtm::video::encode64(codec_data));
+    nm.base64_data = std::move(satori::video::encode64(codec_data));
   }
 
   return nm;
@@ -64,7 +59,7 @@ std::vector<network_frame> encoded_frame::to_network(
     std::chrono::system_clock::time_point t) const {
   std::vector<network_frame> frames;
 
-  std::string encoded = std::move(rtm::video::encode64(data));
+  std::string encoded = std::move(satori::video::encode64(data));
   size_t chunks = std::ceil((double)encoded.length() / max_payload_size);
 
   for (size_t i = 0; i < chunks; i++) {
@@ -82,4 +77,4 @@ std::vector<network_frame> encoded_frame::to_network(
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

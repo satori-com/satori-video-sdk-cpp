@@ -4,7 +4,7 @@
 
 #include "streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -23,4 +23,4 @@ op<T, T> signal_breaker(std::initializer_list<int> signals) {
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

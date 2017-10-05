@@ -18,7 +18,7 @@ extern "C" {
 #include <libavutil/error.h>
 }
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct read_json_impl {
@@ -110,4 +110,4 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

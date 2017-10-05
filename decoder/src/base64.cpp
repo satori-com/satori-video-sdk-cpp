@@ -4,7 +4,7 @@
 
 #include "base64.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace decoder {
 
@@ -55,4 +55,4 @@ std::string base64_decode(const std::string &encoded_string) {
 
 }  // namespace decoder
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

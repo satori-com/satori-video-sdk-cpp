@@ -13,7 +13,7 @@
 #include "video_error.h"
 #include "video_streams.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 namespace {
 

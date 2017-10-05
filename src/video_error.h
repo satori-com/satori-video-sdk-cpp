@@ -3,7 +3,7 @@
 
 #include <system_error>
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 // Video processing error codes.
@@ -21,9 +21,9 @@ enum class video_error : uint8_t {
 std::error_condition make_error_condition(video_error e);
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori
 
 namespace std {
 template <>
-struct is_error_condition_enum<rtm::video::video_error> : std::true_type {};
+struct is_error_condition_enum<satori::video::video_error> : std::true_type {};
 }  // namespace std

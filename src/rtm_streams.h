@@ -5,19 +5,17 @@
 #include "rtm_client.h"
 #include "streams/streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
-namespace streams {
 namespace rtm {
 
 streams::publisher<cbor_item_t *> cbor_channel(
-    std::shared_ptr<::rtm::subscriber> subscriber, const std::string &channel,
-    const ::rtm::subscription_options &options);
+    std::shared_ptr<rtm::subscriber> subscriber, const std::string &channel,
+    const subscription_options &options);
 
-streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<::rtm::publisher> client,
+streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<publisher> client,
                                               const std::string &channel);
 
 }  // namespace rtm
-}  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

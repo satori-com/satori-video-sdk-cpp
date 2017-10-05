@@ -9,7 +9,7 @@
 #include "rtm_client.h"
 #include "streams/streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace cli_streams {
 
@@ -21,10 +21,10 @@ struct configuration {
 
   bool validate(const po::variables_map &vm) const;
 
-  std::shared_ptr<rtm::client> rtm_client(const po::variables_map &vm,
-                                          boost::asio::io_service &io_service,
-                                          boost::asio::ssl::context &ssl_context,
-                                          error_callbacks &rtm_error_callbacks) const;
+  std::shared_ptr<rtm::client> rtm_client(
+      const po::variables_map &vm, boost::asio::io_service &io_service,
+      boost::asio::ssl::context &ssl_context,
+      rtm::error_callbacks &rtm_error_callbacks) const;
 
   std::string rtm_channel(const po::variables_map &vm) const;
 
@@ -57,4 +57,4 @@ struct configuration {
 
 }  // namespace cli_streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

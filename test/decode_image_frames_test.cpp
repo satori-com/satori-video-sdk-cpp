@@ -10,7 +10,7 @@
 #include "logging_impl.h"
 #include "video_streams.h"
 
-using namespace rtm::video;
+using namespace satori::video;
 
 namespace {
 
@@ -32,7 +32,7 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
   metadata_file >> base64_metadata;
 
   encoded_packet metadata(
-      encoded_metadata{td.codec_name, rtm::video::decode64(base64_metadata)});
+      encoded_metadata{td.codec_name, satori::video::decode64(base64_metadata)});
 
   streams::publisher<encoded_packet> frames =
       streams::read_lines(td.frames_filename) >> streams::map([](std::string &&line) {
@@ -40,7 +40,7 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
         int id = ++next_id;
 
         encoded_frame f;
-        f.data = rtm::video::decode64(line);
+        f.data = satori::video::decode64(line);
         f.id = frame_id{id, id};
         return encoded_packet{f};
       });

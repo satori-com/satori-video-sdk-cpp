@@ -1,9 +1,10 @@
 #include "bot_instance.h"
 
 #include "cbor_tools.h"
+#include "librtmvideo/tele.h"
 #include "stopwatch.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace {
 auto processing_times_millis = tele::distribution_new("vbot", "processing_times_millis");
@@ -38,7 +39,7 @@ struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
 };
 
 bot_instance::bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
-                           rtm::video::bot_environment& env)
+                           satori::video::bot_environment& env)
     : _bot_id(bot_id), _descriptor(descriptor), _env(env) {
   frame_metadata = &_image_metadata;
 }
@@ -86,7 +87,9 @@ void bot_instance::on_subscribe(streams::subscription& s) {
 
 void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
                                  const frame_id& id) {
-  bot_message newmsg{message, kind, id};
+  struct bot_message newmsg {
+    message, kind, id
+  };
   cbor_incref(message);
   _message_buffer.push_back(newmsg);
 }
@@ -181,4 +184,4 @@ void bot_instance::send_messages(const frame_id& id) {
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

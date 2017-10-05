@@ -4,10 +4,10 @@
 //
 // Example:
 // int main(int argc, char *argv[]) {
-//   rtm_video_bot_register(bot_descriptor{640, 480, image_pixel_format::BGR,
+//   satori::video::bot_register({640, 480, image_pixel_format::BGR,
 //                                         &transcoder::process_image,
 //                                         nullptr});
-//   return rtm_video_bot_main(argc, argv);
+//   return satori::video::bot_main(argc, argv);
 // }
 
 #pragma once
@@ -17,6 +17,9 @@
 #include "base.h"
 
 struct cbor_item_t;
+
+namespace satori {
+namespace video {
 
 // Every image belongs to a certain time interval, setting values wider
 // makes annotation applicable to multiple video frames
@@ -91,14 +94,16 @@ EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 // Sends bot implementation output to RTM subchannel.
 // id parameter is used to bind a message to a frame, by default a message is
 // bound to the current frame that is received by the callback function
-EXPORT void rtm_video_bot_message(bot_context &context, const bot_message_kind kind,
-                                  cbor_item_t *message,
-                                  const frame_id &id = frame_id{0, 0});
+EXPORT void bot_message(bot_context &context, const bot_message_kind kind,
+                        cbor_item_t *message, const frame_id &id = frame_id{0, 0});
 
 // Registers a bot.
 // Should be called by bot implementation before starting a bot.
-EXPORT void rtm_video_bot_register(const bot_descriptor &bot);
+EXPORT void bot_register(const bot_descriptor &bot);
 
 // Starts a bot (e.g. launches main event loop).
 // A bot implementation should be registered before calling this method.
-EXPORT int rtm_video_bot_main(int argc, char *argv[]);
+EXPORT int bot_main(int argc, char *argv[]);
+
+}  // namespace video
+}  // namespace satori

@@ -8,7 +8,7 @@ extern "C" {
 #include "logging.h"
 #include "video_error.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct vp9_encoder {
@@ -137,4 +137,4 @@ streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct video_error_category : std::error_category {
@@ -29,4 +29,4 @@ std::error_condition make_error_condition(video_error e) {
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

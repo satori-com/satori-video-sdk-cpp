@@ -79,12 +79,12 @@ function(set_binary_output_directory TARGET DIRECTORY)
     set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
 endfunction()
 
-add_executable(rtmvideo_publisher_cli
-    src/rtmvideo_publisher_cli.cpp)
-set_property(TARGET rtmvideo_publisher_cli PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(rtmvideo_publisher_cli bin)
-add_dependencies(rtmvideo_publisher_cli rtmvideo)
-target_link_libraries(rtmvideo_publisher_cli
+add_executable(video_publisher_cli
+        src/video_publisher_cli.cpp)
+set_property(TARGET video_publisher_cli PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(video_publisher_cli bin)
+add_dependencies(video_publisher_cli rtmvideo)
+target_link_libraries(video_publisher_cli
         PRIVATE
         rtmvideo
         CONAN_PKG::Boost
@@ -94,12 +94,12 @@ target_link_libraries(rtmvideo_publisher_cli
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl)
 
-add_executable(rtmvideo_recorder_cli
-    src/rtmvideo_recorder_cli.cpp)
-set_property(TARGET rtmvideo_recorder_cli PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(rtmvideo_recorder_cli bin)
-add_dependencies(rtmvideo_recorder_cli rtmvideo)
-target_link_libraries(rtmvideo_recorder_cli
+add_executable(video_recorder_cli
+        src/video_recorder_cli.cpp)
+set_property(TARGET video_recorder_cli PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(video_recorder_cli bin)
+add_dependencies(video_recorder_cli rtmvideo)
+target_link_libraries(video_recorder_cli
         PRIVATE
         rtmvideo
         CONAN_PKG::Boost
@@ -148,7 +148,7 @@ set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(empty_bot test)
 target_link_libraries(empty_bot PRIVATE rtmvideo CONAN_PKG::Loguru)
 
-function(add_rtmvideo_test TEST_NAME TEST_FILE)
+function(add_video_test TEST_NAME TEST_FILE)
     add_executable(${TEST_NAME} ${TEST_FILE})
     set_property(TARGET ${TEST_NAME} PROPERTY CXX_STANDARD 14)
     set_binary_output_directory(${TEST_NAME} test)
@@ -175,10 +175,10 @@ add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --inp
 add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis_file=a3.txt --debug=d3.txt && grep test_analysis_message a3.txt && grep test_debug_message d3.txt")
 add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
 
-add_rtmvideo_test(avutils_test test/avutils_test.cpp)
-add_rtmvideo_test(deferred_test test/deferred_test.cpp)
-add_rtmvideo_test(error_or_test test/error_or_test.cpp)
-add_rtmvideo_test(file_source_test test/file_source_test.cpp)
-add_rtmvideo_test(decode_image_frames_test test/decode_image_frames_test.cpp)
-add_rtmvideo_test(streams_test test/streams_test.cpp)
-add_rtmvideo_test(vp9_encoder_test test/vp9_encoder_test.cpp)
+add_video_test(avutils_test test/avutils_test.cpp)
+add_video_test(deferred_test test/deferred_test.cpp)
+add_video_test(error_or_test test/error_or_test.cpp)
+add_video_test(file_source_test test/file_source_test.cpp)
+add_video_test(decode_image_frames_test test/decode_image_frames_test.cpp)
+add_video_test(streams_test test/streams_test.cpp)
+add_video_test(vp9_encoder_test test/vp9_encoder_test.cpp)

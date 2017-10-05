@@ -4,7 +4,8 @@
 #include "data.h"
 #include "video_streams.h"
 
-using namespace rtm::video;
+namespace satori {
+namespace video {
 
 namespace {
 
@@ -25,6 +26,7 @@ BOOST_AUTO_TEST_CASE(test_frame_ids) {
   BOOST_TEST(when_done.ok());
 
   BOOST_TEST(ids.size() == 6);
+  CHECK(ids[0] == id(0, 48));
   BOOST_TEST(ids[0] == id(0, 48));
   BOOST_TEST(ids[1] == id(49, 28975));
   BOOST_TEST(ids[2] == id(28976, 32918));
@@ -32,3 +34,6 @@ BOOST_AUTO_TEST_CASE(test_frame_ids) {
   BOOST_TEST(ids[4] == id(38322, 44809));
   BOOST_TEST(ids[5] == id(44810, 47582));
 }
+
+}  // namespace video
+}  // namespace satori

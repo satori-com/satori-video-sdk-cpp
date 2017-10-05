@@ -1,11 +1,11 @@
 #include <iostream>
 
 #include "data.h"
-#include "rtmvideo.h"
+#include "satori_video.h"
 #include "streams/streams.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
@@ -69,4 +69,4 @@ streams::subscriber<encoded_packet> &rtm_sink(std::shared_ptr<rtm::publisher> cl
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

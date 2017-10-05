@@ -9,6 +9,8 @@
 
 #include "logging.h"
 
+namespace satori {
+namespace video {
 namespace tele {
 
 namespace {
@@ -236,3 +238,5 @@ publisher::publisher(rtm::publisher &rtm_publisher, boost::asio::io_service &io_
 publisher::~publisher() { _timer.cancel(); }
 
 }  // namespace tele
+}  // namespace video
+}  // namespace satori

@@ -9,18 +9,21 @@
 #include <vector>
 
 #include "librtmvideo/video_bot.h"
-#include "rtmvideo.h"
+#include "satori_video.h"
+
+namespace satori {
+namespace video {
 
 inline bool operator==(const frame_id &lhs, const frame_id &rhs) {
   return lhs.i1 == rhs.i1 && lhs.i2 == rhs.i2;
 }
 
+inline std::ostream &operator<<(std::ostream &os, const frame_id &id) {
+  os << "[" << id.i1 << ", " << id.i2 << "]";
+  return os;
+}
+
 inline bool operator!=(const frame_id &lhs, const frame_id &rhs) { return !(lhs == rhs); }
-
-std::ostream &operator<<(std::ostream &os, const frame_id &id);
-
-namespace rtm {
-namespace video {
 
 static constexpr size_t max_payload_size = 65000;
 
@@ -109,4 +112,4 @@ struct owned_image_frame {
 using owned_image_packet = boost::variant<owned_image_metadata, owned_image_frame>;
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

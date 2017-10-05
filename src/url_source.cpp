@@ -7,7 +7,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct url_source_impl {
@@ -118,4 +118,4 @@ streams::publisher<encoded_packet> url_source(std::string url) {
       [](url_source_impl *impl) { delete impl; });
 }
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

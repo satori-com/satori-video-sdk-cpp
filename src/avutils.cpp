@@ -12,7 +12,7 @@ extern "C" {
 #include "avutils.h"
 #include "logging.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace avutils {
 
@@ -394,4 +394,4 @@ int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out) {
 
 }  // namespace avutils
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

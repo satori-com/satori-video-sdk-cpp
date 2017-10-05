@@ -69,7 +69,7 @@
 
 #include "error_or.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -222,7 +222,7 @@ class deferred<void> : public deferred_base<void> {
       : deferred_base<void>(impl) {}
 
   template <typename>
-  friend class rtm::video::streams::
+  friend class satori::video::streams::
       deferred_base;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
 
  public:
@@ -418,4 +418,4 @@ typename then_types<Fn, T>::impl_return_t deferred_impl_base<T>::then(Fn f) {
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

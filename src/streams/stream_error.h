@@ -3,7 +3,7 @@
 #include <system_error>
 #include <type_traits>
 
-namespace rtm {
+namespace satori {
 namespace video {
 namespace streams {
 
@@ -22,9 +22,9 @@ std::error_condition make_error_condition(stream_error e);
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori
 
 namespace std {
 template <>
-struct is_error_condition_enum<rtm::video::streams::stream_error> : std::true_type {};
+struct is_error_condition_enum<satori::video::streams::stream_error> : std::true_type {};
 }  // namespace std

@@ -11,7 +11,7 @@
 #include "../logging.h"
 #include "../type_traits.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -870,4 +870,4 @@ auto do_finally(Fn &&fn) {
 
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

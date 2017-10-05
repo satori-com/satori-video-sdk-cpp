@@ -11,7 +11,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 streams::op<network_packet, encoded_packet> decode_network_stream() {
@@ -65,4 +65,4 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

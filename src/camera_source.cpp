@@ -17,7 +17,7 @@ extern "C" {
 #include "video_error.h"
 #include "video_streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 struct camera_source_impl {
@@ -251,4 +251,4 @@ streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
 }
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

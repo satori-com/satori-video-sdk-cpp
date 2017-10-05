@@ -2,7 +2,7 @@
 
 #include <fstream>
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 namespace streams {
@@ -30,4 +30,4 @@ publisher<std::string> read_lines(const std::string &filename) {
 }
 }  // namespace streams
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori

@@ -9,7 +9,7 @@
 #include "rtm_client.h"
 #include "streams/streams.h"
 
-namespace rtm {
+namespace satori {
 namespace video {
 
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
@@ -40,4 +40,4 @@ streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
                                               const mkv::format_options &format_options);
 
 }  // namespace video
-}  // namespace rtm
+}  // namespace satori
