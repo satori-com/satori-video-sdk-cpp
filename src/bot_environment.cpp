@@ -301,5 +301,9 @@ int bot_environment::main(int argc, char* argv[]) {
   return 0;
 }
 
+void bot_environment::on_error(std::error_condition ec) {
+  ABORT() << "rtm error: " << ec.message();
+}
+
 }  // namespace video
 }  // namespace rtm

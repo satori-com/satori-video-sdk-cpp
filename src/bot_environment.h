@@ -41,7 +41,7 @@ class bot_environment : private error_callbacks {
 
  private:
   void parse_config(boost::optional<std::string> config_file);
-
+  void on_error(std::error_condition ec) override;
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;

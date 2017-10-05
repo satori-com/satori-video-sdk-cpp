@@ -426,4 +426,80 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
       new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);
 }
+
+resilient_client::resilient_client(resilient_client::client_factory_t &&factory,
+                                   error_callbacks &callbacks)
+    : _factory(std::move(factory)), _error_callbacks(callbacks) {
+  restart();
+}
+
+void resilient_client::publish(const std::string &channel, const cbor_item_t *message,
+                               publish_callbacks *callbacks) {
+  std::lock_guard<std::mutex> guard(_client_mutex);
+  _client->publish(channel, message, callbacks);
+}
+
+void resilient_client::subscribe_channel(const std::string &channel,
+                                         const subscription &sub,
+                                         subscription_callbacks &callbacks,
+                                         const subscription_options *options) {
+  std::lock_guard<std::mutex> guard(_client_mutex);
+  _subscriptions.push_back({channel, &sub, &callbacks, options});
+  _client->subscribe_channel(channel, sub, callbacks, options);
+}
+
+void resilient_client::subscribe_filter(const std::string &filter,
+                                        const subscription &sub,
+                                        subscription_callbacks &callbacks,
+                                        const subscription_options *options) {
+  ABORT() << "not implemented";
+}
+
+void resilient_client::unsubscribe(const subscription &sub) {
+  std::lock_guard<std::mutex> guard(_client_mutex);
+  _client->unsubscribe(sub);
+  std::remove_if(_subscriptions.begin(), _subscriptions.end(),
+                 [&sub](const subscription_info &si) { return &sub == si.sub; });
+}
+
+channel_position resilient_client::position(const subscription &sub) {
+  std::lock_guard<std::mutex> guard(_client_mutex);
+  return _client->position(sub);
+}
+
+bool resilient_client::is_up(const subscription &sub) { return _client->is_up(sub); }
+
+std::error_condition resilient_client::start() {
+  _started = true;
+  return _client->start();
+}
+
+std::error_condition resilient_client::stop() {
+  _started = false;
+  return _client->stop();
+}
+
+void resilient_client::on_error(std::error_condition ec) {
+  LOG(INFO) << "restarting rtm client because of error: " << ec.message();
+  restart();
+}
+
+void resilient_client::restart() {
+  std::lock_guard<std::mutex> guard(_client_mutex);
+
+  _client = _factory(*this);
+  if (!_started) return;
+
+  auto ec = _client->start();
+  if (ec) {
+    LOG(ERROR) << "can't restart client: " << ec.message();
+    _error_callbacks.on_error(ec);
+    return;
+  }
+
+  for (const auto &sub : _subscriptions) {
+    _client->subscribe_channel(sub.channel, *sub.sub, *sub.callbacks, sub.options);
+  }
+}
+
 }  // namespace rtm

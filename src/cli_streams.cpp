@@ -211,10 +211,12 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
   const std::string appkey = vm["appkey"].as<std::string>();
 
   return std::make_shared<resilient_client>(
-      [endpoint, port, appkey, &io_service, &ssl_context, &rtm_error_callbacks]() {
+      [endpoint, port, appkey, &io_service, &ssl_context,
+       &rtm_error_callbacks](rtm::error_callbacks &callbacks) {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1,
-                               rtm_error_callbacks);
-      });
+                               callbacks);
+      },
+      rtm_error_callbacks);
 }
 
 std::string configuration::rtm_channel(const po::variables_map &vm) const {

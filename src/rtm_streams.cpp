@@ -22,6 +22,8 @@ struct rtm_channel_impl : ::rtm::subscription_callbacks {
     _sink.on_next(std::move(data));
   }
 
+  void on_error(std::error_condition ec) override { _sink.on_error(ec); }
+
   const std::shared_ptr<::rtm::subscriber> _subscriber;
   streams::observer<cbor_item_t *> &_sink;
   ::rtm::subscription _subscription;

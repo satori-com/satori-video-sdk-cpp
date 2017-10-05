@@ -34,8 +34,7 @@ std::error_condition make_error_condition(client_error e);
 
 struct error_callbacks {
   virtual ~error_callbacks() = default;
-
-  virtual void on_error(std::error_condition ec) {}
+  virtual void on_error(std::error_condition ec) = 0;
 };
 
 struct channel_position {
@@ -122,55 +121,39 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    boost::asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks);
 
-// reconnects on errors.
-// todo(mike): once I have several error reports, I will figure out how to handle those.
-class resilient_client : public client {
+// reconnects on any error.
+class resilient_client : public client, error_callbacks {
  public:
-  using client_factory_t = std::function<std::unique_ptr<client>()>;
+  using client_factory_t =
+      std::function<std::unique_ptr<client>(error_callbacks &callbacks)>;
 
-  explicit resilient_client(client_factory_t &&factory) : _factory(std::move(factory)) {
-    _client = _factory();
-  }
+  explicit resilient_client(client_factory_t &&factory, error_callbacks &callbacks);
 
   void publish(const std::string &channel, const cbor_item_t *message,
-               publish_callbacks *callbacks) override {
-    std::lock_guard<std::mutex> guard(_client_mutex);
-    _client->publish(channel, message, callbacks);
-  }
+               publish_callbacks *callbacks) override;
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
-                         const subscription_options *options) override {
-    std::lock_guard<std::mutex> guard(_client_mutex);
-    _subscriptions.push_back({channel, &sub, &callbacks, options});
-    _client->subscribe_channel(channel, sub, callbacks, options);
-  }
+                         const subscription_options *options) override;
 
   void subscribe_filter(const std::string &filter, const subscription &sub,
                         subscription_callbacks &callbacks,
-                        const subscription_options *options) override {
-    ABORT() << "not implemented";
-  }
+                        const subscription_options *options) override;
 
-  void unsubscribe(const subscription &sub) override {
-    std::lock_guard<std::mutex> guard(_client_mutex);
-    _client->unsubscribe(sub);
-    std::remove_if(_subscriptions.begin(), _subscriptions.end(),
-                   [&sub](const subscription_info &si) { return &sub == si.sub; });
-  }
+  void unsubscribe(const subscription &sub) override;
 
-  channel_position position(const subscription &sub) override {
-    std::lock_guard<std::mutex> guard(_client_mutex);
-    return _client->position(sub);
-  }
+  channel_position position(const subscription &sub) override;
 
-  bool is_up(const subscription &sub) override { return _client->is_up(sub); }
+  bool is_up(const subscription &sub) override;
 
-  std::error_condition start() override { return _client->start(); }
+  std::error_condition start() override;
 
-  std::error_condition stop() override { return _client->stop(); }
+  std::error_condition stop() override;
 
  private:
+  void on_error(std::error_condition ec) override;
+  void restart();
+
   struct subscription_info {
     std::string channel;
     const subscription *sub;
@@ -179,8 +162,10 @@ class resilient_client : public client {
   };
 
   client_factory_t _factory;
+  error_callbacks &_error_callbacks;
   std::unique_ptr<client> _client;
   std::mutex _client_mutex;
+  bool _started{false};
 
   std::vector<subscription_info> _subscriptions;
 };
