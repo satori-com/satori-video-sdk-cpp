@@ -40,7 +40,7 @@ struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
 
 bot_instance::bot_instance(const std::string& bot_id, const execution_mode execmode,
                            const bot_descriptor& descriptor,
-                           rtm::video::bot_environment& env)
+                           satori::video::bot_environment& env)
     : _bot_id(bot_id),
       _descriptor(descriptor),
       _env(env),
@@ -186,8 +186,4 @@ void bot_instance::send_messages(const frame_id& id) {
 }
 
 }  // namespace video
-<<<<<<< 0c07f8bb825c2e8ecc79d60d18d592fffca3483e
 }  // namespace satori
-=======
-}  // namespace rtm
->>>>>>> Batch mode for DNN
