@@ -26,8 +26,6 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
 
-add_subdirectory(decoder)
-
 add_library(rtmvideo
     src/avutils.cpp
     src/base64.cpp
