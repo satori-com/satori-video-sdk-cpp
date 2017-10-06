@@ -5,6 +5,10 @@ class SatorivideoConan(ConanFile):
     name = "SatoriVideo"
     url = "https://bitbucket.addsrv.com/projects/PLATFORM/repos/video/browse"
     description = "Satori Video Client Library"
+
+    options = {"with_opencv": [True, False]}
+
+
     requires = "Libcbor/0.5.0@satorivideo/master", \
                "Boost/1.64.0@satorivideo/master", \
                "Openssl/1.1.0f@satorivideo/master", \
@@ -15,9 +19,10 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.1@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.4.0'
+    version = '0.5.0'
     settings = "os", "compiler", "build_type", "arch"
-    default_options = "Libcbor:fPIC=True", \
+    default_options = "with_opencv=True", \
+                      "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \
                       "Boost:fPIC=True", \
                       "Boost:shared=False", \
@@ -31,6 +36,10 @@ class SatorivideoConan(ConanFile):
     generators = "cmake"
     exports_sources = "*"
 
+    def requirements(self):
+        if self.options.with_opencv:
+            self.requires("Opencv/3.3.0_01@satorivideo/master")
+
     def build(self):
         cmake = CMake(self)
         self.output.info('cmake . %s' % cmake.command_line)
@@ -39,8 +48,12 @@ class SatorivideoConan(ConanFile):
         self.run("CTEST_OUTPUT_ON_FAILURE=TRUE ctest -V .")
 
     def package(self):
-        self.copy("*.h", dst="include", src="include")
-        self.copy("*.h", dst="include/librtmvideo/impl", src="src")
+        excludes = None
+        if not self.options.with_opencv:
+            excludes = "opencv"
+
+        self.copy("*.h", dst="include", src="include", excludes=excludes)
+        self.copy("*.h", dst="include/librtmvideo/impl", src="src", excludes=excludes)
         self.copy("*.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so", dst="lib", keep_path=False)

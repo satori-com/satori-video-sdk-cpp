@@ -57,7 +57,8 @@ add_library(rtmvideo
 set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(rtmvideo
     PUBLIC
-        CONAN_PKG::Libcbor
+        dl
+        CONAN_PKG::Libcbor   # part of api interface
     PRIVATE
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
@@ -67,14 +68,22 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Beast
         CONAN_PKG::Loguru
     )
-target_link_libraries(rtmvideo PUBLIC dl)
-
 target_include_directories(rtmvideo PUBLIC include)
 
+if (CONAN_OPENCV_ROOT)
+    message("** Building OpenCV variant")
+    target_link_libraries(rtmvideo PUBLIC CONAN_PKG::Opencv)
+    target_sources(rtmvideo PRIVATE
+            src/opencv/opencv_utils.cpp)
+endif()
+
 function(set_binary_output_directory TARGET DIRECTORY)
-    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${DIRECTORY})
-    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/${DIRECTORY})
-    set_property(TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
 endfunction()
 
 add_executable(video_publisher_cli
