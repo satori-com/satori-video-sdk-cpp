@@ -55,7 +55,9 @@ struct vp9_encoder {
     m.codec_name = "vp9";
     m.codec_data.assign(_encoder_context->extradata,
                         _encoder_context->extradata + _encoder_context->extradata_size);
-    m.image_size = image_size{f.width, f.height};
+    m.image_size =
+        image_size{static_cast<int16_t>(f.width),
+                   static_cast<int16_t>(f.height)};  // FIXME: static_cast is not good
 
     return streams::publishers::of({encoded_packet{m}});
   }

@@ -366,6 +366,10 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
 }
 
 boost::optional<image_size> parse_image_size(const std::string &str) {
+  if (str == "original") {
+    return image_size{ORIGINAL_IMAGE_WIDTH, ORIGINAL_IMAGE_HEIGHT};
+  }
+
   int width;
   int height;
   int ret = av_parse_video_size(&width, &height, str.c_str());
@@ -374,7 +378,7 @@ boost::optional<image_size> parse_image_size(const std::string &str) {
     return {};
   }
 
-  return image_size{(uint16_t)width, (uint16_t)height};
+  return image_size{(int16_t)width, (int16_t)height};
 }
 
 int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out) {

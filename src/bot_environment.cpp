@@ -223,9 +223,8 @@ int bot_environment::main(int argc, char* argv[]) {
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
-  _source = cli_cfg.decoded_publisher(
-      cmd_args, io_service, _rtm_client, channel, true, _bot_descriptor->image_width,
-      _bot_descriptor->image_height, _bot_descriptor->pixel_format);
+  _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel, true,
+                                      _bot_descriptor->pixel_format);
 
   if (!batch_mode) {
     _source = std::move(_source)

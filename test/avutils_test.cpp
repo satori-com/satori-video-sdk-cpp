@@ -121,6 +121,10 @@ BOOST_AUTO_TEST_CASE(parse_image_size) {
   s = avutils::parse_image_size("137x245");
   BOOST_CHECK_EQUAL(137, s->width);
   BOOST_CHECK_EQUAL(245, s->height);
+
+  s = avutils::parse_image_size("original");
+  BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_WIDTH, s->width);
+  BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_HEIGHT, s->height);
 }
 
 }  // namespace video

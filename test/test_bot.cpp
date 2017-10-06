@@ -41,7 +41,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
 }  // namespace test_bot
 
 int main(int argc, char *argv[]) {
-  bot_register(bot_descriptor{640, 480, image_pixel_format::BGR, &test_bot::process_image,
+  bot_register(bot_descriptor{image_pixel_format::BGR, &test_bot::process_image,
                               &test_bot::process_command});
   return bot_main(argc, argv);
 }

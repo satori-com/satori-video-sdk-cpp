@@ -12,6 +12,8 @@ namespace empty_bot {
 void process_image(bot_context &context, const image_frame &frame) {
   LOG_S(INFO) << "got frame " << context.frame_metadata->width << "x"
               << context.frame_metadata->height;
+  std::cout << "got frame " << context.frame_metadata->width << "x"
+            << context.frame_metadata->height << std::endl;
 
   cbor_item_t *msg = cbor_new_indefinite_map();
   cbor_map_add(
@@ -23,7 +25,7 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) { return nul
 }  // namespace empty_bot
 
 int main(int argc, char *argv[]) {
-  bot_register(bot_descriptor{640, 480, image_pixel_format::BGR,
-                              &empty_bot::process_image, &empty_bot::process_command});
+  bot_register(bot_descriptor{image_pixel_format::BGR, &empty_bot::process_image,
+                              &empty_bot::process_command});
   return bot_main(argc, argv);
 }

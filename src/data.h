@@ -54,10 +54,14 @@ using network_packet = boost::variant<network_metadata, network_frame>;
 network_packet parse_network_metadata(cbor_item_t *item);
 network_packet parse_network_frame(cbor_item_t *item);
 
+// Used to tell not to downscale original video stream
+constexpr int16_t ORIGINAL_IMAGE_WIDTH = -1;
+constexpr int16_t ORIGINAL_IMAGE_HEIGHT = -1;
+
 // image size
 struct image_size {
-  uint16_t width;
-  uint16_t height;
+  int16_t width;
+  int16_t height;
 };
 
 // codec parameters to decode encoded frames

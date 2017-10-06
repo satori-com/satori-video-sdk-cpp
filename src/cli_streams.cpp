@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "avutils.h"
 #include "cli_streams.h"
 #include "mkv_options.h"
 #include "streams/asio_streams.h"
@@ -55,6 +56,12 @@ po::options_description generic_input_options() {
   options.add_options()(
       "frames-limit", po::value<long>(),
       "(number) if specified, bot will exit after processing given number of frames");
+  options.add_options()("input-resolution",
+                        po::value<std::string>()->default_value("320x240"),
+                        "(<width>x<height>|original) resolution of input video stream");
+  options.add_options()("keep-proportions", po::value<bool>()->default_value(true),
+                        "(bool) tells if original video stream resolution's proportion "
+                        "should remain unchanged");
 
   return options;
 }
@@ -197,6 +204,12 @@ bool configuration::validate(const po::variables_map &vm) const {
 
   if (has_output_rtm_args && !validate_rtm_args(vm)) return false;
 
+  if (enable_generic_input_options) {
+    if (!avutils::parse_image_size(vm["input-resolution"].as<std::string>())) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -285,10 +298,17 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
 streams::publisher<owned_image_packet> configuration::decoded_publisher(
     const po::variables_map &vm, boost::asio::io_service &io_service,
     const std::shared_ptr<rtm::client> client, const std::string &channel,
-    bool network_buffer, int width, int height, image_pixel_format pixel_format) const {
+    bool network_buffer, image_pixel_format pixel_format) const {
+  CHECK(enable_generic_input_options);
+
+  boost::optional<image_size> resolution =
+      avutils::parse_image_size(vm["input-resolution"].as<std::string>());
+  bool keep_proportions = vm["keep-proportions"].as<bool>();
+
   streams::publisher<owned_image_packet> source =
       encoded_publisher(vm, io_service, client, channel, network_buffer)
-      >> decode_image_frames(width, height, pixel_format);
+      >> decode_image_frames(resolution->width, resolution->height, pixel_format,
+                             keep_proportions);
 
   if (vm.count("time-limit")) {
     source = std::move(source)

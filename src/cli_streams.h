@@ -38,7 +38,7 @@ struct configuration {
   streams::publisher<owned_image_packet> decoded_publisher(
       const po::variables_map &vm, boost::asio::io_service &io_service,
       const std::shared_ptr<rtm::client> client, const std::string &channel,
-      bool network_buffer, int width, int height, image_pixel_format pixel_format) const;
+      bool network_buffer, image_pixel_format pixel_format) const;
 
   streams::subscriber<encoded_packet> &encoded_subscriber(
       const po::variables_map &vm, const std::shared_ptr<rtm::client> client,

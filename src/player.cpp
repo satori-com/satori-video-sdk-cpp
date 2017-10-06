@@ -39,11 +39,6 @@ cli_streams::configuration cli_configuration() {
 }
 
 po::options_description cli_options(const cli_streams::configuration &cli_cfg) {
-  po::options_description cli_dimensions("Video stream downscaling options");
-  cli_dimensions.add_options()("stream-dimensions",
-                               po::value<std::string>()->default_value("original"),
-                               "'original' or '<width>x<height>', for example, 320x240");
-
   po::options_description cli_generic("Generic options");
   cli_generic.add_options()("help", "produce help message");
   cli_generic.add_options()(
@@ -51,7 +46,6 @@ po::options_description cli_options(const cli_streams::configuration &cli_cfg) {
       "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
   po::options_description result = cli_cfg.to_boost();
-  result.add(cli_dimensions);
   result.add(cli_generic);
 
   return result;
@@ -77,32 +71,7 @@ po::variables_map cli_parse(int argc, char *argv[],
 
   if (!cli_cfg.validate(vm)) exit(1);
 
-  std::string dimensions_str = vm["stream-dimensions"].as<std::string>();
-  if (dimensions_str != "original") {
-    boost::optional<image_size> dimensions = avutils::parse_image_size(dimensions_str);
-
-    if (!dimensions) {
-      std::cerr << "invalid value provided for dimensions\n";
-      exit(1);
-    }
-  }
-
   return vm;
-}
-
-void stream_image_size_from_cli(const po::variables_map &vm, int16_t &width,
-                                int16_t &height) {
-  std::string dimensions_str = vm["stream-dimensions"].as<std::string>();
-  if (dimensions_str == "original") {
-    width = ORIGINAL_IMAGE_WIDTH;
-    height = ORIGINAL_IMAGE_HEIGHT;
-    return;
-  }
-
-  boost::optional<image_size> dimensions = avutils::parse_image_size(dimensions_str);
-
-  width = dimensions->width;
-  height = dimensions->height;
 }
 
 std::shared_ptr<SDL_Window> create_window() {
@@ -227,10 +196,6 @@ int main(int argc, char *argv[]) {
 
   init_logging(argc, argv);
 
-  int16_t stream_width{ORIGINAL_IMAGE_WIDTH};
-  int16_t stream_height{ORIGINAL_IMAGE_HEIGHT};
-  stream_image_size_from_cli(vm, stream_width, stream_height);
-
   std::shared_ptr<SDL_Window> window = create_window();
   if (!window) {
     LOG(ERROR) << "Failed to create window";
@@ -258,7 +223,7 @@ int main(int argc, char *argv[]) {
 
   streams::publisher<std::shared_ptr<SDL_Texture>> source =
       cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
-                                stream_width, stream_height, image_pixel_format::BGR)
+                                image_pixel_format::BGR)
       >> streams::buffered_worker("input.image_buffer", images_buffer_size)
       >> image_to_surface()
       >> streams::buffered_worker("player.surface_buffer", surfaces_max_buffer_size)

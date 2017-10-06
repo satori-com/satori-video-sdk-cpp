@@ -56,7 +56,7 @@ void run_decode_image_frames_test(const test_definition &td) {
   if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
 
   streams::publisher<owned_image_packet> image_stream =
-      test_stream(td) >> decode_image_frames(-1, -1, image_pixel_format::RGB0);
+      test_stream(td) >> decode_image_frames(-1, -1, image_pixel_format::RGB0, true);
 
   int last_frame_width;
   int last_frame_height;
@@ -147,7 +147,7 @@ BOOST_AUTO_TEST_CASE(id_test) {
 
   std::vector<frame_id> ids;
   auto stream = file_source(io, "test_data/test.mp4", false, true)
-                >> decode_image_frames(-1, -1, image_pixel_format::RGB0);
+                >> decode_image_frames(-1, -1, image_pixel_format::RGB0, true);
 
   auto when_done = stream->process([&ids](owned_image_packet &&pkt) {
     if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {

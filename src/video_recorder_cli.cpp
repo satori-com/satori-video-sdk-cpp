@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<satori::video::encoded_packet> source =
-      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true, 640, 480,
+      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
                                 image_pixel_format::RGB0)
       >> streams::signal_breaker<satori::video::owned_image_packet>(
              {SIGINT, SIGTERM, SIGQUIT})

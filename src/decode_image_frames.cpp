@@ -105,120 +105,121 @@ struct image_decoder_op {
       }
 
       LOG(INFO) << _metadata.codec_name << " video decoder initialized";
-  }
-
-  void on_image_frame(const encoded_frame &f) {
-    LOG(4) << this << " on_image_frame";
-    tele::counter_inc(messages_received);
-    tele::counter_inc(bytes_received, f.data.size());
-
-    if (!_context) {
-      tele::counter_inc(messages_dropped);
     }
 
-    {
-      stopwatch<> s;
-      av_init_packet(_packet.get());
-      _packet->flags |= f.key_frame ? AV_PKT_FLAG_KEY : 0;
-      _packet->data = (uint8_t *) f.data.data();
-      _packet->size = static_cast<int>(f.data.size());
-      _packet->pos = f.id.i1;
-      _packet->duration = f.id.i2 - f.id.i1;
-      _packet->pts = _packet->dts = std::chrono::duration_cast<std::chrono::milliseconds>(
-          f.timestamp.time_since_epoch())
-          .count();
-
-      int err = avcodec_send_packet(_context.get(), _packet.get());
-      av_packet_unref(_packet.get());
-      if (err) {
-        LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
-        return;
-      }
-      tele::distribution_add(send_packet_millis, s.millis());
-    }
-  }
-
-  bool drain_impl() override {
-    LOG(4) << this << " drain_impl needs=" << needs();
-    if (!_context) {
-      LOG(4) << this << " requesting metadata";
-      _source->request(1);
+    void on_image_frame(const encoded_frame &f) {
+      LOG(4) << this << " on_image_frame";
+      tele::counter_inc(messages_received);
+      tele::counter_inc(bytes_received, f.data.size());
 
       if (!_context) {
-        LOG(4) << this << " context not ready";
-        return false;
+        tele::counter_inc(messages_dropped);
       }
 
-      LOG(4) << this << " context ready";
-    }
+      {
+        stopwatch<> s;
+        av_init_packet(_packet.get());
+        _packet->flags |= f.key_frame ? AV_PKT_FLAG_KEY : 0;
+        _packet->data = (uint8_t *)f.data.data();
+        _packet->size = static_cast<int>(f.data.size());
+        _packet->pos = f.id.i1;
+        _packet->duration = f.id.i2 - f.id.i1;
+        _packet->pts = _packet->dts =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                f.timestamp.time_since_epoch())
+                .count();
 
-    auto ec = receive_frame();
-    if (ec == video_error::FrameNotReadyError) {
-      LOG(4) << this << " frame not ready, requesting next";
-      _source->request(1);
-    }
-    return !static_cast<bool>(ec);
-  }
-
-  std::error_condition receive_frame() {
-    LOG(4) << this << " receive_frame";
-
-    stopwatch<> s;
-    int err = avcodec_receive_frame(_context.get(), _frame.get());
-    if (err) {
-      switch (err) {
-        case AVERROR(EAGAIN):
-          LOG(4) << this << " eagain";
-          return video_error::FrameNotReadyError;
-        case AVERROR_EOF:
-          LOG(4) << this << " eof";
-          deliver_on_complete();
-          return video_error::EndOfStreamError;
-        default:
-          LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
-          deliver_on_error(video_error::FrameGenerationError);
-          return video_error::FrameGenerationError;
+        int err = avcodec_send_packet(_context.get(), _packet.get());
+        av_packet_unref(_packet.get());
+        if (err) {
+          LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
+          return;
+        }
+        tele::distribution_add(send_packet_millis, s.millis());
       }
     }
 
-    tele::distribution_add(receive_frame_millis, s.millis());
-    deliver_frame();
-    return {};
-  }
+    bool drain_impl() override {
+      LOG(4) << this << " drain_impl needs=" << needs();
+      if (!_context) {
+        LOG(4) << this << " requesting metadata";
+        _source->request(1);
 
-  void deliver_frame() {
-    if (!_image) {
-      if (!init_image()) {
-        deliver_on_error(video_error::StreamInitializationError);
-        return;
+        if (!_context) {
+          LOG(4) << this << " context not ready";
+          return false;
+        }
+
+        LOG(4) << this << " context ready";
       }
+
+      auto ec = receive_frame();
+      if (ec == video_error::FrameNotReadyError) {
+        LOG(4) << this << " frame not ready, requesting next";
+        _source->request(1);
+      }
+      return !static_cast<bool>(ec);
     }
 
-    sws_scale(_sws_context.get(), _frame->data, _frame->linesize, 0, _frame->height,
-              _image->data, _image->linesize);
+    std::error_condition receive_frame() {
+      LOG(4) << this << " receive_frame";
 
-    frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
-
-    owned_image_frame frame;
-    frame.id = id;
-    frame.pixel_format = _pixel_format;
-    frame.width = static_cast<uint16_t>(_image_width);
-    frame.height = static_cast<uint16_t>(_image_height);
-    frame.timestamp =
-        std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
-
-    for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
-      const uint32_t plane_stride = static_cast<uint32_t>(_image->linesize[i]);
-      const uint8_t *plane_data = _image->data[i];
-      frame.plane_strides[i] = plane_stride;
-      if (plane_stride > 0) {
-        frame.plane_data[i].assign(plane_data,
-                                   plane_data + (plane_stride * _image_height));
+      stopwatch<> s;
+      int err = avcodec_receive_frame(_context.get(), _frame.get());
+      if (err) {
+        switch (err) {
+          case AVERROR(EAGAIN):
+            LOG(4) << this << " eagain";
+            return video_error::FrameNotReadyError;
+          case AVERROR_EOF:
+            LOG(4) << this << " eof";
+            deliver_on_complete();
+            return video_error::EndOfStreamError;
+          default:
+            LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
+            deliver_on_error(video_error::FrameGenerationError);
+            return video_error::FrameGenerationError;
+        }
       }
+
+      tele::distribution_add(receive_frame_millis, s.millis());
+      deliver_frame();
+      return {};
     }
 
-    tele::counter_inc(frames_received);
-    deliver_on_next(owned_image_packet{frame});
+    void deliver_frame() {
+      if (!_image) {
+        if (!init_image()) {
+          deliver_on_error(video_error::StreamInitializationError);
+          return;
+        }
+      }
+
+      sws_scale(_sws_context.get(), _frame->data, _frame->linesize, 0, _frame->height,
+                _image->data, _image->linesize);
+
+      frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
+
+      owned_image_frame frame;
+      frame.id = id;
+      frame.pixel_format = _pixel_format;
+      frame.width = static_cast<uint16_t>(_image_width);
+      frame.height = static_cast<uint16_t>(_image_height);
+      frame.timestamp =
+          std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
+
+      for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
+        const uint32_t plane_stride = static_cast<uint32_t>(_image->linesize[i]);
+        const uint8_t *plane_data = _image->data[i];
+        frame.plane_strides[i] = plane_stride;
+        if (plane_stride > 0) {
+          frame.plane_data[i].assign(plane_data,
+                                     plane_data + (plane_stride * _image_height));
+        }
+      }
+
+      tele::counter_inc(frames_received);
+      deliver_on_next(owned_image_packet{frame});
     }
 
     bool init_image() {
@@ -240,24 +241,24 @@ struct image_decoder_op {
         }
       }
 
-    LOG(INFO) << "decoder resolution is " << _image_width << "x" << _image_height;
+      LOG(INFO) << "decoder resolution is " << _image_width << "x" << _image_height;
 
-    _image = avutils::allocate_image(_image_width, _image_height, _pixel_format);
-    if (!_image) {
-      LOG(ERROR) << "allocate_image failed";
-      return false;
-    }
+      _image = avutils::allocate_image(_image_width, _image_height, _pixel_format);
+      if (!_image) {
+        LOG(ERROR) << "allocate_image failed";
+        return false;
+      }
 
-    _sws_context = avutils::sws_context(
-        _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image_width,
-        _image_height, avutils::to_av_pixel_format(_pixel_format));
+      _sws_context = avutils::sws_context(
+          _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image_width,
+          _image_height, avutils::to_av_pixel_format(_pixel_format));
 
-    if (!_sws_context) {
-      LOG(ERROR) << "sws_context failed";
-      return false;
-    }
+      if (!_sws_context) {
+        LOG(ERROR) << "sws_context failed";
+        return false;
+      }
 
-    return true;
+      return true;
     }
 
     const image_pixel_format _pixel_format;
@@ -284,13 +285,14 @@ struct image_decoder_op {
 }  // namespace
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
-    int bounding_width, int bounding_height, image_pixel_format pixel_format) {
+    int bounding_width, int bounding_height, image_pixel_format pixel_format,
+    bool keep_proportions) {
   avutils::init();
 
-  return [bounding_width, bounding_height,
-          pixel_format](streams::publisher<encoded_packet> &&src) {
-    return std::move(src)
-           >> image_decoder_op(pixel_format, bounding_width, bounding_height, true);
+  return [bounding_width, bounding_height, pixel_format,
+          keep_proportions](streams::publisher<encoded_packet> &&src) {
+    return std::move(src) >> image_decoder_op(pixel_format, bounding_width,
+                                              bounding_height, keep_proportions);
   };
 }
 
