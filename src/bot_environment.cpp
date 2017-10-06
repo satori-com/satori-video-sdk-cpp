@@ -203,7 +203,9 @@ int bot_environment::main(int argc, char* argv[]) {
   init_logging(argc, argv);
 
   const std::string id = cmd_args["id"].as<std::string>();
-  _bot_instance.reset(new bot_instance(id, *_bot_descriptor, *this));
+  const bool batch = cmd_args["batch"].as<bool>();
+  _bot_instance.reset(new bot_instance(
+      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this));
   parse_config(cmd_args.count("config")
                    ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
                    : boost::optional<std::string>{});

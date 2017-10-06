@@ -12,8 +12,8 @@ namespace video {
 
 class bot_instance : public bot_context, streams::subscriber<owned_image_packet> {
  public:
-  bot_instance(const std::string& bot_id, const bot_descriptor& descriptor,
-               bot_environment& env);
+  bot_instance(const std::string& bot_id, const execution_mode execmode,
+               const bot_descriptor& descriptor, bot_environment& env);
   ~bot_instance();
 
   void start(streams::publisher<owned_image_packet>& video_stream,

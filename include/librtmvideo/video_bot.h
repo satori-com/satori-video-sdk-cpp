@@ -48,12 +48,17 @@ EXPORT struct image_metadata {
   uint32_t plane_strides[MAX_IMAGE_PLANES];
 };
 
+// In batch mode, framework is waiting for each frame to be processed
+// without drops to catch with live stream
+EXPORT enum class execution_mode { LIVE = 1, BATCH = 2 };
+
 EXPORT struct bot_context {
   // instance_data can be used to store data across multiple callbacks
   // within a single bot instance
   void *instance_data{nullptr};
   // image_metadata contains frame size information
   const image_metadata *frame_metadata;
+  const execution_mode mode;
 };
 
 // API for image handler callback
