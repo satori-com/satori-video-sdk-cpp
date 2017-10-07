@@ -66,7 +66,7 @@ struct vp9_encoder {
     if (!_encoder_context) {
       auto metadata = init(f);
       auto frames = encode_frame(f);
-      return streams::publishers::merge(std::move(metadata), std::move(frames));
+      return streams::publishers::concat(std::move(metadata), std::move(frames));
     }
 
     return encode_frame(f);

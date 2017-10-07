@@ -106,7 +106,7 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
   auto frames = std::move(items) >> streams::flat_map(&get_messages)
                 >> streams::map(&parse_network_frame);
 
-  return streams::publishers::merge(std::move(metadata), std::move(frames));
+  return streams::publishers::concat(std::move(metadata), std::move(frames));
 }
 
 }  // namespace video

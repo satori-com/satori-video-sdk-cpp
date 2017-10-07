@@ -36,7 +36,8 @@ void spin_wait(const streams::deferred<T> &d, std::chrono::milliseconds delay) {
 }
 
 template <typename T>
-std::vector<std::string> events(streams::publisher<T> &&p, boost::asio::io_service *io = nullptr) {
+std::vector<std::string> events(streams::publisher<T> &&p,
+                                boost::asio::io_service *io = nullptr) {
   std::vector<std::string> events;
 
   auto when_done =
@@ -112,10 +113,10 @@ BOOST_AUTO_TEST_CASE(take_while) {
              == strings({"2", "3", "4", "5", "6", "7", "8", "9", "."}));
 }
 
-BOOST_AUTO_TEST_CASE(merge) {
+BOOST_AUTO_TEST_CASE(concat) {
   auto p1 = streams::publishers::range(1, 3);
   auto p2 = streams::publishers::range(3, 6);
-  auto p = streams::publishers::merge(std::move(p1), std::move(p2));
+  auto p = streams::publishers::concat(std::move(p1), std::move(p2));
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "5", "."}));
 }
 
@@ -203,14 +204,15 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
 }
 
 BOOST_AUTO_TEST_CASE(delay_finally) {
-    boost::asio::io_service io_service;
-    bool terminated = false;
-    auto p = streams::publishers::of({1, 2, 3, 4, 5})
-             >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
-             >> streams::do_finally([&terminated]() { terminated = true; });
-    BOOST_TEST(!terminated);
-    BOOST_TEST(events(std::move(p), &io_service) == strings({"1", "2", "3", "4", "5", "."}));
-    BOOST_TEST(terminated);
+  boost::asio::io_service io_service;
+  bool terminated = false;
+  auto p = streams::publishers::of({1, 2, 3, 4, 5})
+           >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
+           >> streams::do_finally([&terminated]() { terminated = true; });
+  BOOST_TEST(!terminated);
+  BOOST_TEST(events(std::move(p), &io_service)
+             == strings({"1", "2", "3", "4", "5", "."}));
+  BOOST_TEST(terminated);
 }
 
 template <typename T>
@@ -257,7 +259,16 @@ BOOST_AUTO_TEST_CASE(collector_asio) {
   BOOST_TEST(terminated);
 }
 
-int main(int argc, char* argv[]) {
+BOOST_AUTO_TEST_CASE(merge) {
+  auto p1 = streams::publishers::range(1, 3);
+  auto p2 = streams::publishers::range(3, 6);
+  auto p = streams::publishers::merge(std::move(p1), std::move(p2));
+  auto e = events(std::move(p));
+  std::sort(e.begin(), e.end());
+  BOOST_TEST(e == strings({".", "1", "2", "3", "4", "5"}));
+}
+
+int main(int argc, char *argv[]) {
   init_logging(argc, argv);
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }

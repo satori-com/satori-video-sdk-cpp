@@ -45,8 +45,8 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
         return encoded_packet{f};
       });
 
-  return streams::publishers::merge(streams::publishers::of({metadata}),
-                                    std::move(frames));
+  return streams::publishers::concat(streams::publishers::of({metadata}),
+                                     std::move(frames));
 }
 
 void run_decode_image_frames_test(const test_definition &td) {

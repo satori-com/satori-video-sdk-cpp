@@ -65,7 +65,7 @@ streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> c
   streams::publisher<network_packet> frames =
       rtm::cbor_channel(client, channel_name, {}) >> streams::map(&parse_network_frame);
 
-  return streams::publishers::merge(std::move(metadata), std::move(frames));
+  return streams::publishers::concat(std::move(metadata), std::move(frames));
 }
 
 }  // namespace video

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <functional>
 #include <gsl/gsl>
 #include <iostream>
@@ -86,7 +87,7 @@ struct drain_source_impl : public subscription {
     _in_drain = true;
     LOG(5) << this << " -> drain";
     auto exit_drain = gsl::finally([this]() {
-      LOG(5) << this << "<- drain needs=" << needs() << " _die=" << _die;
+      LOG(5) << this << " <- drain needs=" << needs() << " _die=" << _die;
       if (_die) {
         delete this;
       } else {
@@ -108,19 +109,20 @@ struct drain_source_impl : public subscription {
   }
 
   void deliver_on_subscribe() {
-    LOG(5) << this << " deliver_on_subscribe";
+    LOG(5) << this << " drain_source_impl::deliver_on_subscribe";
     _sink.on_subscribe(*this);
   }
 
   void deliver_on_next(T &&t) {
-    LOG(5) << this << " deliver_on_next";
+    LOG(5) << this << " drain_source_impl::deliver_on_next";
     _delivered++;
     CHECK(_delivered <= _requested);
+    LOG(5) << this << " drain_source_impl sending to sink " << &_sink;
     _sink.on_next(std::move(t));
   }
 
   void deliver_on_error(std::error_condition ec) {
-    LOG(5) << this << " deliver_on_error";
+    LOG(5) << this << " drain_source_impl::deliver_on_error";
     _sink.on_error(ec);
     if (!_in_drain) {
       delete this;
@@ -130,7 +132,7 @@ struct drain_source_impl : public subscription {
   }
 
   void deliver_on_complete() {
-    LOG(5) << this << " deliver_on_complete";
+    LOG(5) << this << " drain_source_impl::deliver_on_complete";
     _sink.on_complete();
     if (!_in_drain) {
       delete this;
@@ -141,13 +143,13 @@ struct drain_source_impl : public subscription {
 
  private:
   void request(int n) override final {
-    LOG(4) << this << " request " << n;
+    LOG(4) << this << " drain_source_impl::request " << n;
     _requested += n;
     drain();
   }
 
   void cancel() override final {
-    LOG(4) << this << " cancel";
+    LOG(4) << this << " drain_source_impl::cancel";
     if (!_in_drain) {
       delete this;
     } else {
@@ -326,7 +328,9 @@ struct generator_publisher : public publisher_impl<T> {
     }
   };
 
-  explicit generator_publisher(Generator &&gen) : _gen(std::move(gen)) {}
+  explicit generator_publisher(Generator &&gen) : _gen(std::move(gen)) {
+    LOG(5) << this << " generator_publisher::ctor";
+  }
 
   void subscribe(subscriber<value_t> &s) override {
     CHECK(!_subscribed) << "single subscription only";
@@ -336,6 +340,155 @@ struct generator_publisher : public publisher_impl<T> {
 
   Generator _gen;
   bool _subscribed{false};
+};
+
+// TODO: need to fix, this is a very dumb implementation of merge_op
+template <typename T>
+struct merge_publisher : public publisher_impl<T>, public subscription, observer<T> {
+  template <typename T1>
+  struct merge_sub : public subscriber<T>, subscription {
+    merge_sub(observer<T> *parent) : parent(parent) {
+      LOG(5) << this << " merge_sub::ctor";
+    }
+
+    ~merge_sub() override { LOG(5) << this << " merge_sub::dtor"; }
+
+    void on_subscribe(subscription &s) override { src = &s; }
+
+    void on_next(T &&t) override {
+      LOG(5) << this << " merge_sub::on_next";
+      parent->on_next(std::move(t));
+    }
+
+    void on_error(std::error_condition ec) override {
+      error = true;
+      parent->on_error(ec);
+    }
+
+    void on_complete() override {
+      LOG(5) << this << " merge_sub::on_complete";
+      complete = true;
+      parent->on_complete();
+    }
+
+    void request(int n) override {
+      LOG(5) << this << " merge_sub::request " << n << ", src = " << src;
+      if (src != nullptr) src->request(n);
+    }
+
+    void cancel() override {
+      if (src != nullptr) src->cancel();
+    }
+
+    observer<T> *parent;
+    subscription *src{nullptr};
+    bool complete{false};
+    bool error{false};
+  };
+
+  merge_publisher(std::vector<publisher<T>> &&publishers) {
+    LOG(5) << this << " merge_publisher::ctor";
+    for (auto &p : publishers) {
+      auto sub = std::make_unique<merge_sub<T>>(this);
+      p->subscribe(*sub);
+      _subscriptions.push_back(std::move(sub));
+    }
+    LOG(5) << this << " merge_publisher::ctor done";
+  }
+
+  void subscribe(subscriber<T> &s) override {
+    LOG(5) << this << " merge_publisher::subscribe";
+    CHECK(_sink == nullptr) << "already has sink";
+    _sink = &s;
+    _sink->on_subscribe(*this);
+  }
+
+  void request(int n) override {
+    LOG(5) << this << " merge_publisher::request " << n;
+    while (!_items.empty() && n > 0) {
+      LOG(5) << this << " merge_publisher::request sending from queue n = " << n;
+      n--;
+      _sink->on_next(std::move(_items.front()));
+      _items.pop_front();
+    }
+
+    if (n > 0) {
+      LOG(5) << this << " merge_publisher::request requesting " << n;
+      _requested += n;
+      for (auto &s : _subscriptions) {
+        if (!s->complete) {
+          LOG(5) << this << " merge_publisher::request requesting " << n << " from "
+                 << s.get();
+          s->request(n); // TODO: avoid potential over-demanding
+        }
+      }
+    } else if (n == 0) {
+      while (!_items.empty() && _requested > 0) {
+        LOG(5) << this << " merge_publisher::request sending from queue _requested = "
+               << _requested;
+        _requested--;
+        _sink->on_next(std::move(_items.front()));
+        _items.pop_front();
+      }
+    }
+  }
+
+  void cancel() override {
+    LOG(5) << this << " merge_publisher::cancel";
+    for (auto &s : _subscriptions) s->cancel();
+
+    delete this;
+  }
+
+  void on_next(T &&t) override {
+    LOG(5) << this << " merge_publisher::on_next";
+    while (!_items.empty() && _requested > 0) {
+      LOG(5) << this << " merge_publisher::on_next sending from queue, _requested = "
+             << _requested;
+      _requested--;
+      _sink->on_next(std::move(_items.front()));
+      _items.pop_front();
+    }
+
+    if (_requested > 0) {
+      LOG(5) << this
+             << " merge_publisher::on_next sending item, _requested = " << _requested;
+      _requested--;
+      _sink->on_next(std::move(t));
+    } else {
+      LOG(5) << this << " merge_publisher::on_next putting into queue";
+      _items.push_back(std::move(t));
+    }
+  }
+
+  void on_error(std::error_condition ec) override {
+    for (auto &s : _subscriptions) {
+      if (!s->error) s->cancel();
+    }
+
+    LOG(5) << this << " merge_publisher::on_error";
+    _sink->on_error(ec);
+
+    delete this;
+  }
+
+  void on_complete() override {
+    int completed = 0;
+    for (auto &s : _subscriptions) {
+      if (s->complete) completed++;
+    }
+
+    if (completed == _subscriptions.size()) {
+      LOG(5) << this << " merge_publisher::on_complete";
+      _sink->on_complete();
+    }
+  }
+
+  std::vector<std::unique_ptr<merge_sub<T>>> _subscriptions;
+  subscriber<T> *_sink{nullptr};
+
+  long _requested{0};
+  std::deque<T> _items;
 };
 
 // operators -------
@@ -834,9 +987,14 @@ publisher<T> generators<T>::stateful(CreateFn &&create_fn, GenFn &&gen_fn) {
 }
 
 template <typename T>
-publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
+publisher<T> publishers::concat(std::vector<publisher<T>> &&publishers) {
   auto p = streams::publishers::of(std::move(publishers));
   return std::move(p) >> flat_map([](publisher<T> &&p) { return std::move(p); });
+}
+
+template <typename T>
+publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
+  return publisher<T>(new impl::merge_publisher<T>(std::move(publishers)));
 }
 
 template <typename T, typename Op>
