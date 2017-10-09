@@ -106,3 +106,8 @@ double get_double(const cbor_item_t *item) {
 }
 
 }  // namespace cbor
+
+std::ostream &operator<<(std::ostream &out, const cbor_item_t *item) {
+  cbor::dump_as_json(out, item);
+  return out;
+}
