@@ -44,8 +44,6 @@ struct map {
 
   const cbor_item_t *item;
 };
-
-// Prints JSON representation of CBOR value
-// todo: should be CBOR diagnostic notation summary.
-void dump_as_json(std::ostream &out, const cbor_item_t *item);
 }  // namespace cbor
+
+std::ostream &operator<<(std::ostream &out, const cbor_item_t *item);

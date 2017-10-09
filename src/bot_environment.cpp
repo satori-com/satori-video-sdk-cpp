@@ -78,8 +78,7 @@ struct file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
   explicit file_cbor_dump_observer(std::ostream& out) : _out(out) {}
 
   void on_next(cbor_item_t*&& t) override {
-    cbor::dump_as_json(_out, t);
-    _out << std::endl;
+    _out << t << std::endl;
     cbor_decref(&t);
   }
   void on_error(std::error_condition ec) override {

@@ -137,7 +137,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
   }
 
   if (!cbor_isa_map(msg)) {
-    LOG(ERROR) << "unsupported kind of message";
+    LOG(ERROR) << "unsupported kind of message: " << msg;
     return;
   }
 
@@ -148,7 +148,7 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
   cbor_item_t* response = _descriptor.ctrl_callback(*this, msg);
 
   if (response != nullptr) {
-    CHECK(cbor_isa_map(response));
+    CHECK(cbor_isa_map(response)) << "bot response is not a map: " << response;
     cbor_item_t* request_id = cbor::map(msg).get("request_id");
     if (request_id != nullptr) {
       cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
