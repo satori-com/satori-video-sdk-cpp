@@ -33,8 +33,7 @@ struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
       : _client(client), _channel(channel) {}
 
   void on_next(cbor_item_t *&&item) override {
-    _client->publish(_channel, item, nullptr);
-    cbor_decref(&item);
+    _client->publish(_channel, cbor_move(item), nullptr);
     if (_src) {
       _src->request(1);
     }

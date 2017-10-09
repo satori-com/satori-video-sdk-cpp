@@ -36,8 +36,7 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
 
   void on_metadata(const encoded_metadata &m) {
     cbor_item_t *packet = m.to_network().to_cbor();
-    _client->publish(_metadata_channel, packet, nullptr);
-    cbor_decref(&packet);
+    _client->publish(_metadata_channel, cbor_move(packet), nullptr);
   }
 
   void on_image_frame(const encoded_frame &f) {
@@ -46,8 +45,7 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
 
     for (const network_frame &nf : network_frames) {
       cbor_item_t *packet = nf.to_cbor();
-      _client->publish(_frames_channel, packet, nullptr);
-      cbor_decref(&packet);
+      _client->publish(_frames_channel, cbor_move(packet), nullptr);
     }
 
     _frames_counter++;

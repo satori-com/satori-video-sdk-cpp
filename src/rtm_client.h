@@ -71,7 +71,7 @@ struct publish_callbacks : public error_callbacks {
 struct publisher {
   virtual ~publisher() = default;
 
-  virtual void publish(const std::string &channel, const cbor_item_t *message,
+  virtual void publish(const std::string &channel, cbor_item_t *message,
                        publish_callbacks *callbacks = nullptr) = 0;
 };
 
@@ -132,7 +132,7 @@ class resilient_client : public client, error_callbacks {
 
   explicit resilient_client(client_factory_t &&factory, error_callbacks &callbacks);
 
-  void publish(const std::string &channel, const cbor_item_t *message,
+  void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override;
 
   void subscribe_channel(const std::string &channel, const subscription &sub,

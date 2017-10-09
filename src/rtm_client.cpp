@@ -8,6 +8,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
 #include <deque>
+#include <gsl/gsl>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -196,10 +197,13 @@ class secure_client : public client {
     return {};
   }
 
-  void publish(const std::string &channel, const cbor_item_t *message,
+  void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override {
     CHECK(!callbacks) << "not implemeneted";
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
+    cbor_incref(message);
+    auto decref = gsl::finally([message]() mutable { cbor_decref(&message); });
+
     rapidjson::Document document;
     constexpr const char *tmpl =
         R"({"action":"rtm/publish",
@@ -437,7 +441,7 @@ resilient_client::resilient_client(resilient_client::client_factory_t &&factory,
   restart();
 }
 
-void resilient_client::publish(const std::string &channel, const cbor_item_t *message,
+void resilient_client::publish(const std::string &channel, cbor_item_t *message,
                                publish_callbacks *callbacks) {
   std::lock_guard<std::mutex> guard(_client_mutex);
   _client->publish(channel, message, callbacks);

@@ -221,8 +221,9 @@ void on_tele_tick(rtm::publisher &publisher, boost::asio::deadline_timer &timer,
   if (ec == boost::asio::error::operation_aborted) return;
   CHECK(!ec);
   counter_inc(messages_published);
-  publisher.publish(tele::channel, tele_serialize(counter::counters(), gauge::gauges(),
-                                                  distribution::distributions()));
+  publisher.publish(tele::channel,
+                    cbor_move(tele_serialize(counter::counters(), gauge::gauges(),
+                                             distribution::distributions())));
   timer.expires_at(timer.expires_at() + tele_interval);
   timer.async_wait([&publisher, &timer](const boost::system::error_code &ec) {
     on_tele_tick(publisher, timer, ec);
