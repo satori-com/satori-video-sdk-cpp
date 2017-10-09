@@ -50,7 +50,7 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
 
     _frames_counter++;
     if (_frames_counter % 100 == 0) {
-      std::cout << "Published " << _frames_counter << " frames\n";
+      LOG(INFO) << "published " << _frames_counter << " frames to " << _frames_channel;
     }
   }
 

@@ -36,6 +36,7 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
   if (d.IsFalse()) return cbor_build_bool(false);
   if (d.IsUint()) return cbor_build_uint32(d.GetUint());
   if (d.IsUint64()) return cbor_build_uint64(d.GetUint64());
+  if (d.IsNull()) return cbor_new_null();
 
   ABORT() << "Unsupported message field";
   return cbor_build_bool(false);

@@ -6,7 +6,7 @@ class SatorivideoConan(ConanFile):
     url = "https://bitbucket.addsrv.com/projects/PLATFORM/repos/video/browse"
     description = "Satori Video Client Library"
 
-    options = {"with_opencv": [True, False]}
+    options = {"with_opencv": [True, False], "sanitizer": ["", "address"]}
 
 
     requires = "Libcbor/0.5.0@satorivideo/master", \
@@ -19,9 +19,10 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.1@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.6.1'
+    version = '0.6.2'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
+                      "sanitizer=", \
                       "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \
                       "Boost:fPIC=True", \
@@ -42,6 +43,9 @@ class SatorivideoConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
+        if self.options.sanitizer:
+            cmake.definitions["CMAKE_CXX_SANITIZER"] = self.options.sanitizer
+
         self.output.info('cmake . %s' % cmake.command_line)
         self.run('cmake . %s' % cmake.command_line)
         self.run("VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config)

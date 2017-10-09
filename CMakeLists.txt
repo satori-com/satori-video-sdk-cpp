@@ -21,6 +21,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if (DEFINED CMAKE_CXX_SANITIZER)
+    message("** Using ${CMAKE_CXX_SANITIZER} sanitizer")
     set(CMAKE_CXX_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_CXX_FLAGS}")
 endif()
 
