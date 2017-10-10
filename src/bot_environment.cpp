@@ -130,6 +130,10 @@ void bot_environment::parse_config(boost::optional<std::string> config_file) {
     exit(1);
   }
 
+  if (!_bot_descriptor->ctrl_callback) {
+    return;
+  }
+
   cbor_item_t* config;
 
   if (config_file.is_initialized()) {
