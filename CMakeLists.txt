@@ -182,10 +182,10 @@ add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --in
 add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a2.txt --debug=d2.txt && grep test_analysis_message a2.txt && grep test_debug_message d2.txt")
 add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis_file=a3.txt --debug=d3.txt && grep test_analysis_message a3.txt && grep test_debug_message d3.txt")
 add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis_file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
-add_test(NAME DefaultResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 > test.txt && grep 'got frame 320x240' test.txt")
-add_test(NAME OriginalResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=original > test.txt && grep 'got frame 640x480' test.txt")
-add_test(NAME CustomResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 > test.txt && grep 'got frame 160x120' test.txt")
-add_test(NAME CustomResolutionLoseProportionsTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 --keep-proportions=false > test.txt && grep 'got frame 160x130' test.txt")
+add_test(NAME DefaultResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 > def_res_test.txt && grep 'got frame 320x240' def_res_test.txt")
+add_test(NAME OriginalResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=original > orig_res_test.txt && grep 'got frame 640x480' orig_res_test.txt")
+add_test(NAME CustomResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 > custom_res_test.txt && grep 'got frame 160x120' custom_res_test.txt")
+add_test(NAME CustomResolutionLoseProportionsTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 --keep-proportions=false > custom_res_prop_test.txt && grep 'got frame 160x130' custom_res_prop_test.txt")
 
 
 add_video_test(avutils_test test/avutils_test.cpp)
