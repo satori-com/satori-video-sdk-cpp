@@ -9,6 +9,12 @@ namespace video {
 namespace {
 auto processing_times_millis = tele::distribution_new("vbot", "processing_times_millis");
 auto frames_processed = tele::counter_new("vbot", "frames_processed");
+auto messages_sent = tele::counter_new("vbot", "messages_sent");
+auto analysis_messages_sent = tele::counter_new("vbot", "analysis.messages_sent");
+auto debug_messages_sent = tele::counter_new("vbot", "debug.messages_sent");
+auto control_messages_sent = tele::counter_new("vbot", "control.messages_sent");
+auto control_messages_received = tele::counter_new("vbot", "control.messages_received");
+
 }  // namespace
 
 struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
@@ -127,6 +133,7 @@ void bot_instance::process_image_frame(const owned_image_frame& frame) {
 }
 
 void bot_instance::process_control_message(cbor_item_t* msg) {
+  tele::counter_inc(control_messages_received);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
   if (cbor_isa_array(msg)) {
@@ -164,7 +171,21 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
 }
 
 void bot_instance::send_messages(const frame_id& id) {
+  tele::counter_inc(messages_sent, _message_buffer.size());
+
   for (auto&& msg : _message_buffer) {
+    switch (msg.kind) {
+      case bot_message_kind::ANALYSIS:
+        tele::counter_inc(analysis_messages_sent);
+        break;
+      case bot_message_kind::DEBUG:
+        tele::counter_inc(debug_messages_sent);
+        break;
+      case bot_message_kind::CONTROL:
+        tele::counter_inc(control_messages_sent);
+        break;
+    }
+
     cbor_item_t* data = msg.data;
 
     int64_t ei1 = msg.id.i1 == 0 ? id.i1 : msg.id.i1;
