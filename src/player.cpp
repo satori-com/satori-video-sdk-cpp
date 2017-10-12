@@ -246,15 +246,12 @@ int main(int argc, char *argv[]) {
       LOG(ERROR) << "Error while playing: " << ec.message();
     }
   });
-
   std::thread([&io_service]() { io_service.run(); }).detach();
-  CHECK(when_done.resolved());
-
   run_sdl_loop();
-
   SDL_Quit();
 
   io_service.stop();
+  CHECK(when_done.resolved());
 
   LOG(INFO) << "Done";
 }
