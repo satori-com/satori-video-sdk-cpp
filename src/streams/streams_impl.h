@@ -6,6 +6,7 @@
 #include <functional>
 #include <gsl/gsl>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -344,151 +345,240 @@ struct generator_publisher : public publisher_impl<T> {
 
 // TODO: need to fix, this is a very dumb implementation of merge_op
 template <typename T>
-struct merge_publisher : public publisher_impl<T>, public subscription, observer<T> {
+struct merge_publisher : public publisher_impl<T> {
   template <typename T1>
-  struct merge_sub : public subscriber<T>, subscription {
-    merge_sub(observer<T> *parent) : parent(parent) {
-      LOG(5) << this << " merge_sub::ctor";
+  struct downstream;
+
+  template <typename T1>
+  struct upstream : public subscriber<T> {
+    upstream(downstream<T> &d) : _d(d) {
+      LOG(5) << this << " merge_publisher::upstream::ctor";
     }
 
-    ~merge_sub() override { LOG(5) << this << " merge_sub::dtor"; }
+    ~upstream() override { LOG(5) << this << " merge_publisher::upstream::dtor"; }
 
-    void on_subscribe(subscription &s) override { src = &s; }
+    void on_subscribe(subscription &s) override {
+      LOG(5) << this << " merge_publisher::upstream::on_subscribe";
+      _d.on_subscribe(this, s);
+    }
 
     void on_next(T &&t) override {
-      LOG(5) << this << " merge_sub::on_next";
-      parent->on_next(std::move(t));
+      LOG(5) << this << " merge_publisher::upstream::on_next";
+      _d.on_next(this, std::move(t));
     }
 
     void on_error(std::error_condition ec) override {
-      error = true;
-      parent->on_error(ec);
+      LOG(5) << this << " merge_publisher::upstream::on_error";
+      _d.on_error(this, ec);
     }
 
     void on_complete() override {
-      LOG(5) << this << " merge_sub::on_complete";
-      complete = true;
-      parent->on_complete();
+      LOG(5) << this << " merge_publisher::upstream::on_complete";
+      _d.on_complete(this);
+    }
+
+   private:
+    downstream<T> &_d;
+  };
+
+  template <typename T1>
+  struct downstream : subscription {
+    downstream(subscriber<T> &sink, size_t expected_number_of_upstreams)
+        : _sink(&sink), _expected_number_of_upstreams(expected_number_of_upstreams) {
+      LOG(5) << this << " merge_publisher::downstream::ctor";
+    }
+
+    ~downstream() { LOG(5) << this << " merge_publisher::downstream::dtor"; }
+
+    void on_subscribe(upstream<T> *u, subscription &s) {
+      LOG(5) << this << " merge_publisher::downstream::on_subscribe";
+      _upstreams.emplace(u, &s);
+    }
+
+    void on_next(upstream<T> *u, T &&t) {
+      LOG(5) << this << " merge_publisher::downstream::on_next";
+      _call_stack_depth++;
+
+      CHECK(_upstreams.find(u) != _upstreams.end());
+
+      _items.push_back(std::move(t));
+
+      while (_items_needed > 0 && !_items.empty()) {
+        T item = std::move(_items.front());
+        _items.pop_front();
+        _items_needed--;
+
+        if (_sink != nullptr) _sink->on_next(std::move(item));
+      }
+
+      auto maybe_destroy = gsl::finally([this]() {
+        if (is_complete())
+          destroy_if_possible({}, " merge_publisher::downstream::on_next destroy");
+      });
+
+      _call_stack_depth--;
+    }
+
+    void on_error(upstream<T> *u, std::error_condition ec) {
+      LOG(5) << this << " merge_publisher::downstream::on_error";
+      _call_stack_depth++;
+
+      disable_upstream(u);
+
+      for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
+        if (it->second != nullptr) {
+          LOG(5) << this << " merge_publisher::downstream::on_error upstream "
+                 << it->first;
+          it->second->cancel();
+          delete it->first;
+          it->second = nullptr;
+        }
+      }
+
+      auto maybe_destroy = gsl::finally([this, ec]() {
+        destroy_if_possible(ec, " merge_publisher::downstream::on_error destroy");
+      });
+
+      _call_stack_depth--;
+    }
+
+    void on_complete(upstream<T> *u) {
+      LOG(5) << this << " merge_publisher::downstream::on_complete " << u;
+      _call_stack_depth++;
+
+      disable_upstream(u);
+
+      auto maybe_destroy = gsl::finally([this]() {
+        if (is_complete())
+          destroy_if_possible({}, " merge_publisher::downstream::on_complete destroy");
+      });
+
+      _call_stack_depth--;
     }
 
     void request(int n) override {
-      LOG(5) << this << " merge_sub::request " << n << ", src = " << src;
-      if (src != nullptr) src->request(n);
+      LOG(5) << this << " merge_publisher::downstream::request " << n;
+      _call_stack_depth++;
+
+      _items_needed += n;
+
+      while (_items_needed > 0 && !_items.empty()) {
+        T item = std::move(_items.front());
+        _items.pop_front();
+        _items_needed--;
+        n--;
+
+        if (_sink != nullptr) _sink->on_next(std::move(item));
+      }
+
+      if (n > 0) {
+        // TODO: better randomization, don't always start with first upstream
+        // Maybe ring buffer would be better
+        for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
+          if (it->second != nullptr) {
+            LOG(5) << this << " merge_publisher::downstream::request _upstream "
+                   << it->first;
+            it->second->request(n);  // TODO: avoid potential over-demanding
+          }
+        }
+      }
+
+      auto maybe_destroy = gsl::finally([this]() {
+        if (is_complete())
+          destroy_if_possible({}, " merge_publisher::downstream::request destroy");
+      });
+
+      _call_stack_depth--;
     }
 
     void cancel() override {
-      if (src != nullptr) src->cancel();
+      LOG(5) << this << " merge_publisher::downstream::cancel";
+      _call_stack_depth++;
+
+      for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
+        if (it->second != nullptr) {
+          LOG(5) << this << " merge_publisher::downstream::cancel upstream " << it->first;
+          it->second->cancel();
+          delete it->first;
+          it->second = nullptr;
+        }
+      }
+
+      _sink = nullptr;
+
+      auto maybe_destroy = gsl::finally([this]() {
+        destroy_if_possible({}, " merge_publisher::downstream::cancel destroy");
+      });
+
+      _call_stack_depth--;
     }
 
-    observer<T> *parent;
-    subscription *src{nullptr};
-    bool complete{false};
-    bool error{false};
+   private:
+    bool is_complete() const noexcept {
+      if (_upstreams.size() < _expected_number_of_upstreams) return false;
+
+      size_t active_upstreams{0};
+      for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
+        if (it->second != nullptr) active_upstreams++;
+      }
+
+      return active_upstreams == 0 && _items.empty();
+    }
+
+    void destroy_if_possible(std::error_condition ec,
+                             const std::string &log_message) noexcept {
+      if (_upstreams.size() < _expected_number_of_upstreams) return;
+
+      if (_sink != nullptr) {
+        if (ec)
+          _sink->on_error(ec);
+        else
+          _sink->on_complete();
+
+        _sink = nullptr;
+      }
+
+      if (_call_stack_depth == 0) {
+        LOG(5) << this << log_message;
+        delete this;
+      }
+    }
+
+    void disable_upstream(upstream<T> *u) noexcept {
+      auto it = _upstreams.find(u);
+      CHECK(it != _upstreams.end());
+      CHECK(it->second != nullptr);
+      delete it->first;
+      it->second = nullptr;
+    }
+
+    subscriber<T> *_sink{nullptr};
+    const size_t _expected_number_of_upstreams{0};
+    std::map<upstream<T> *, subscription *> _upstreams;
+    std::deque<T> _items;
+    long _items_needed{0};
+    int _call_stack_depth{0};
   };
 
-  merge_publisher(std::vector<publisher<T>> &&publishers) {
+  merge_publisher(std::vector<publisher<T>> &&publishers)
+      : _publishers(std::move(publishers)) {
     LOG(5) << this << " merge_publisher::ctor";
-    for (auto &p : publishers) {
-      auto sub = std::make_unique<merge_sub<T>>(this);
-      p->subscribe(*sub);
-      _subscriptions.push_back(std::move(sub));
-    }
-    LOG(5) << this << " merge_publisher::ctor done";
   }
 
   void subscribe(subscriber<T> &s) override {
     LOG(5) << this << " merge_publisher::subscribe";
-    CHECK(_sink == nullptr) << "already has sink";
-    _sink = &s;
-    _sink->on_subscribe(*this);
+    CHECK(!_subscribed) << "already subscribed";
+    _subscribed = true;
+
+    downstream<T> *d = new downstream<T>(s, _publishers.size());
+    for (auto &p : _publishers) {
+      p->subscribe(*(new upstream<T>(*d)));
+    }
+    s.on_subscribe(*d);
   }
 
-  void request(int n) override {
-    LOG(5) << this << " merge_publisher::request " << n;
-    while (!_items.empty() && n > 0) {
-      LOG(5) << this << " merge_publisher::request sending from queue n = " << n;
-      n--;
-      _sink->on_next(std::move(_items.front()));
-      _items.pop_front();
-    }
-
-    if (n > 0) {
-      LOG(5) << this << " merge_publisher::request requesting " << n;
-      _requested += n;
-      for (auto &s : _subscriptions) {
-        if (!s->complete) {
-          LOG(5) << this << " merge_publisher::request requesting " << n << " from "
-                 << s.get();
-          s->request(n); // TODO: avoid potential over-demanding
-        }
-      }
-    } else if (n == 0) {
-      while (!_items.empty() && _requested > 0) {
-        LOG(5) << this << " merge_publisher::request sending from queue _requested = "
-               << _requested;
-        _requested--;
-        _sink->on_next(std::move(_items.front()));
-        _items.pop_front();
-      }
-    }
-  }
-
-  void cancel() override {
-    LOG(5) << this << " merge_publisher::cancel";
-    for (auto &s : _subscriptions) s->cancel();
-
-    delete this;
-  }
-
-  void on_next(T &&t) override {
-    LOG(5) << this << " merge_publisher::on_next";
-    while (!_items.empty() && _requested > 0) {
-      LOG(5) << this << " merge_publisher::on_next sending from queue, _requested = "
-             << _requested;
-      _requested--;
-      _sink->on_next(std::move(_items.front()));
-      _items.pop_front();
-    }
-
-    if (_requested > 0) {
-      LOG(5) << this
-             << " merge_publisher::on_next sending item, _requested = " << _requested;
-      _requested--;
-      _sink->on_next(std::move(t));
-    } else {
-      LOG(5) << this << " merge_publisher::on_next putting into queue";
-      _items.push_back(std::move(t));
-    }
-  }
-
-  void on_error(std::error_condition ec) override {
-    for (auto &s : _subscriptions) {
-      if (!s->error) s->cancel();
-    }
-
-    LOG(5) << this << " merge_publisher::on_error";
-    _sink->on_error(ec);
-
-    delete this;
-  }
-
-  void on_complete() override {
-    int completed = 0;
-    for (auto &s : _subscriptions) {
-      if (s->complete) completed++;
-    }
-
-    if (completed == _subscriptions.size()) {
-      LOG(5) << this << " merge_publisher::on_complete";
-      _sink->on_complete();
-    }
-  }
-
-  std::vector<std::unique_ptr<merge_sub<T>>> _subscriptions;
-  subscriber<T> *_sink{nullptr};
-
-  long _requested{0};
-  std::deque<T> _items;
+  std::vector<publisher<T>> _publishers;
+  bool _subscribed{false};
 };
 
 // operators -------

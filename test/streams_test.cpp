@@ -268,6 +268,37 @@ BOOST_AUTO_TEST_CASE(merge) {
   BOOST_TEST(e == strings({".", "1", "2", "3", "4", "5"}));
 }
 
+BOOST_AUTO_TEST_CASE(merge_with_take_less) {
+  auto p = streams::publishers::merge(streams::publishers::range(1, 300000000),
+                                      streams::publishers::range(1, 300000000));
+  auto e = events(std::move(p) >> streams::take(3));
+  BOOST_TEST(3 + 1 == e.size());
+}
+
+BOOST_AUTO_TEST_CASE(merge_with_take_more) {
+  auto p = streams::publishers::merge(streams::publishers::range(1, 3),
+                                      streams::publishers::range(1, 3));
+  auto e = events(std::move(p) >> streams::take(10));
+  std::sort(e.begin(), e.end());
+  BOOST_TEST(e == strings({".", "1", "1", "2", "2"}));
+}
+
+BOOST_AUTO_TEST_CASE(merge_with_one_empty) {
+  auto p = streams::publishers::merge(streams::publishers::of(std::vector<int>{}),
+                                      streams::publishers::range(1, 3));
+  auto e = events(std::move(p));
+  std::sort(e.begin(), e.end());
+  BOOST_TEST(e == strings({".", "1", "2"}));
+}
+
+BOOST_AUTO_TEST_CASE(merge_with_both_empty) {
+  auto p = streams::publishers::merge(streams::publishers::of(std::vector<int>{}),
+                                      streams::publishers::of(std::vector<int>{}));
+  auto e = events(std::move(p));
+  std::sort(e.begin(), e.end());
+  BOOST_TEST(e == strings({"."}));
+}
+
 int main(int argc, char *argv[]) {
   init_logging(argc, argv);
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
