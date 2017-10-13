@@ -72,7 +72,11 @@ struct file_source_impl {
   void generate(int count, streams::observer<encoded_packet> &observer) {
     if (_fmt_ctx == nullptr) {
       if (int ret = init()) {
-        observer.on_error(video_error::StreamInitializationError);
+        if (ret == AVERROR_EOF) {
+          observer.on_complete();
+        } else {
+          observer.on_error(video_error::StreamInitializationError);
+        }
         return;
       }
     }

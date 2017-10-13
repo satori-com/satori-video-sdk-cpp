@@ -74,14 +74,17 @@ struct image_decoder_op {
     void on_complete() override {
       LOG(4) << this << " on_complete";
       _source = nullptr;
-      int err = avcodec_send_packet(_context.get(), nullptr);
-      if (err) {
-        LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
-        deliver_on_error(video_error::FrameGenerationError);
-        return;
+      if (_context) {
+        int err = avcodec_send_packet(_context.get(), nullptr);
+        if (err) {
+              LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
+          deliver_on_error(video_error::FrameGenerationError);
+          return;
+        }
+        drain();
+      } else {
+        deliver_on_complete();
       }
-
-      drain();
     }
 
     void on_error(std::error_condition ec) override {
