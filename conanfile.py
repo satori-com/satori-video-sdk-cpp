@@ -39,7 +39,7 @@ class SatorivideoConan(ConanFile):
 
     def requirements(self):
         if self.options.with_opencv:
-            self.requires("Opencv/3.3.0_01@satorivideo/master")
+            self.requires("Opencv/3.3.0_02@satorivideo/master")
 
     def build(self):
         cmake = CMake(self)
