@@ -19,7 +19,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.6.3'
+    version = '0.6.4'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "sanitizer=", \
@@ -46,10 +46,15 @@ class SatorivideoConan(ConanFile):
         if self.options.sanitizer:
             cmake.definitions["CMAKE_CXX_SANITIZER"] = self.options.sanitizer
 
-        self.output.info('cmake . %s' % cmake.command_line)
-        self.run('cmake . %s' % cmake.command_line)
-        self.run("VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config)
-        self.run("CTEST_OUTPUT_ON_FAILURE=TRUE ctest -V -j 8 .")
+        cmake_options = []
+        cmake_options.append("-DCMAKE_VERBOSE_MAKEFILE=ON")
+
+        cmake_command = ('cmake . %s %s' %
+                         (cmake.command_line, " ".join(cmake_options)))
+        self.output.info(cmake_command)
+        self.run(cmake_command)
+        self.run("cmake --build . %s" % cmake.build_config)
+        self.run("CTEST_OUTPUT_ON_FAILURE=ON ctest -V -j 8 .")
 
     def package(self):
         excludes = None
