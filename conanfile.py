@@ -49,11 +49,14 @@ class SatorivideoConan(ConanFile):
         cmake_options = []
         cmake_options.append("-DCMAKE_VERBOSE_MAKEFILE=ON")
 
-        cmake_command = ('cmake . %s %s' %
-                         (cmake.command_line, " ".join(cmake_options)))
-        self.output.info(cmake_command)
-        self.run(cmake_command)
-        self.run("cmake --build . %s" % cmake.build_config)
+        cmake_generate_command = ('cmake . %s %s' %
+                                  (cmake.command_line, " ".join(cmake_options)))
+        self.output.info(cmake_generate_command)
+        self.run(cmake_generate_command)
+
+        cmake_build_command = "VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config
+        self.output.info(cmake_build_command)
+        self.run(cmake_build_command)
         self.run("CTEST_OUTPUT_ON_FAILURE=ON ctest -V -j 8 .")
 
     def package(self):
