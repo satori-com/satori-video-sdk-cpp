@@ -2,7 +2,7 @@
 
 #include <cbor.h>
 #include <boost/asio.hpp>
-#include "librtmvideo/tele.h"
+#include "satorivideo/tele.h"
 
 #include "rtm_client.h"
 

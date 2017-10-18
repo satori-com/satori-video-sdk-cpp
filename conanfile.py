@@ -19,7 +19,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.6.4'
+    version = '0.7.0'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "sanitizer=", \
@@ -65,7 +65,7 @@ class SatorivideoConan(ConanFile):
             excludes = "opencv"
 
         self.copy("*.h", dst="include", src="include", excludes=excludes)
-        self.copy("*.h", dst="include/librtmvideo/impl", src="src", excludes=excludes)
+        self.copy("*.h", dst="include/satorivideo/impl", src="src", excludes=excludes)
         self.copy("*.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so", dst="lib", keep_path=False)
@@ -73,4 +73,4 @@ class SatorivideoConan(ConanFile):
         self.copy("*.a", dst="lib", keep_path=False)
 
     def package_info(self):
-        self.cpp_info.libs = ["rtmvideo"]
+        self.cpp_info.libs = ["satorivideo"]

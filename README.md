@@ -1,34 +1,18 @@
-# librtmvideo
-## To use publisher cli
+# Satori Video C++ SDK
 
-To use video file as a source:
-```shell
-./bin/rtmvideo_publisher_cli --endpoint <rtm-endpoint> --port <rtm-port> --appkey <rtm-appkey> --channel <rtm-channel> --input-video-file test.mp4
-```
+## Building SDK
 
-To use replay file as a source:
-```shell
-./bin/rtmvideo_publisher_cli --endpoint <rtm-endpoint> --port <rtm-port> --appkey <rtm-appkey> --channel <rtm-channel> --input-replay-file test.replay
-```
+### Prerequisites
 
-To use camera as a source:
-```shell
-./bin/rtmvideo_publisher_cli --endpoint <rtm-endpoint> --port <rtm-port> --appkey <rtm-appkey> --channel <rtm-channel> --input-camera
-```
+* Install Docker: [https://docs.docker.com/engine/installation/](https://docs.docker.com/engine/installation/)
 
-## To use recorder cli
+* Conan, cmake and gnu make >= 3.82:
+  - (Mac) `brew install conan cmake && brew install make --with-default-names`
+  - (Linux) :wrench: _TODO_
 
-To record video from RTM stream
-```shell
-./bin/rtmvideo_recorder_cli --endpoint <rtm-endpoint> --port <rtm-port> --appkey <rtm-appkey> --channel <rtm-channel> --output-video-file ~/test.mkv
-```
+* Define `CONAN_SERVER`, `CONAN_REMOTE`, `CONAN_USER`, `CONAN_PASSWORD`, environment variables with access credentials to satori video conan server. (Shell plugins like autoenv are recommended)
 
-Or to specify index space (for improved file seeking)
-```shell
-./bin/rtmvideo_recorder_cli --endpoint <rtm-endpoint> --port <rtm-port> --appkey <rtm-appkey> --channel <rtm-channel> --output-video-file ~/test.mkv --reserved-index-space 50000
-```
+### Building
 
-In case reserved index space is not enough, one can fix index section by using `FFmpeg`:
-```shell
-ffmpeg -i ~/test.mkv -c copy -reserve_index_space 100000 ~/test_fixed.mkv
-```
+* Login to conan server: `make conan-login`
+* `mkdir build && cd build && cmake ../ && make -j 8`

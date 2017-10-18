@@ -4,7 +4,7 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru/loguru.hpp>
 
-#include "librtmvideo/base.h"
+#include "satorivideo/base.h"
 #include "logging.h"
 
 inline void init_logging(int& argc, char* argv[]) {

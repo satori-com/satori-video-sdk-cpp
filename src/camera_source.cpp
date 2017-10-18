@@ -12,7 +12,7 @@ extern "C" {
 }
 
 #include "avutils.h"
-#include "librtmvideo/base.h"
+#include "satorivideo/base.h"
 #include "streams/asio_streams.h"
 #include "video_error.h"
 #include "video_streams.h"

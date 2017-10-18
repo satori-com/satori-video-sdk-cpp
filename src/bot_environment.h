@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "data.h"
-#include "librtmvideo/video_bot.h"
+#include "satorivideo/video_bot.h"
 #include "rtm_client.h"
 #include "tele_impl.h"
 #include "video_streams.h"

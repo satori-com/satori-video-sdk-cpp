@@ -5,7 +5,7 @@
 #include <thread>
 
 #include "channel.h"
-#include "librtmvideo/tele.h"
+#include "satorivideo/tele.h"
 #include "streams.h"
 
 namespace satori {

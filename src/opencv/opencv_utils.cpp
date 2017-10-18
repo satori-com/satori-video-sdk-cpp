@@ -1,5 +1,5 @@
-#include "librtmvideo/opencv/opencv_bot.h"
-#include "librtmvideo/opencv/opencv_utils.h"
+#include "satorivideo/opencv/opencv_bot.h"
+#include "satorivideo/opencv/opencv_utils.h"
 
 namespace satori {
 namespace video {

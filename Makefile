@@ -4,7 +4,7 @@
 
 CONAN_CREATE_ARGS ?= --build=outdated
 
-DOCKER_TAG=librtmvideo
+DOCKER_TAG=satorivideo
 
 all: conan-create-in-docker
 

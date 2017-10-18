@@ -4,7 +4,7 @@
 
 #include "bot_environment.h"
 #include "data.h"
-#include "librtmvideo/video_bot.h"
+#include "satorivideo/video_bot.h"
 #include "streams/streams.h"
 
 namespace satori {

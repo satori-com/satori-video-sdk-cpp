@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.7)
-project (librtmvideo VERSION 0.1 LANGUAGES CXX)
+project (satorivideo VERSION 0.1 LANGUAGES CXX)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
   SET(CMAKE_BUILD_TYPE "Debug")
@@ -33,7 +33,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
 
-add_library(rtmvideo
+add_library(satorivideo
     src/avutils.cpp
     src/base64.cpp
     src/bot_environment.cpp
@@ -61,8 +61,8 @@ add_library(rtmvideo
     src/video_streams.cpp
     src/vp9_encoder.cpp
     )
-set_property(TARGET rtmvideo PROPERTY CXX_STANDARD 14)
-target_link_libraries(rtmvideo
+set_property(TARGET satorivideo PROPERTY CXX_STANDARD 14)
+target_link_libraries(satorivideo
     PUBLIC
         dl
         CONAN_PKG::Libcbor   # part of api interface
@@ -75,12 +75,12 @@ target_link_libraries(rtmvideo
         CONAN_PKG::Beast
         CONAN_PKG::Loguru
     )
-target_include_directories(rtmvideo PUBLIC include)
+target_include_directories(satorivideo PUBLIC include)
 
 if (CONAN_OPENCV_ROOT)
     message("** Building OpenCV variant")
-    target_link_libraries(rtmvideo PUBLIC CONAN_PKG::Opencv)
-    target_sources(rtmvideo PRIVATE
+    target_link_libraries(satorivideo PUBLIC CONAN_PKG::Opencv)
+    target_sources(satorivideo PRIVATE
             src/opencv/opencv_utils.cpp)
 endif()
 
@@ -97,10 +97,10 @@ add_executable(video_publisher_cli
         src/video_publisher_cli.cpp)
 set_property(TARGET video_publisher_cli PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(video_publisher_cli bin)
-add_dependencies(video_publisher_cli rtmvideo)
+add_dependencies(video_publisher_cli satorivideo)
 target_link_libraries(video_publisher_cli
         PRIVATE
-        rtmvideo
+        satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Loguru
@@ -112,10 +112,10 @@ add_executable(video_recorder_cli
         src/video_recorder_cli.cpp)
 set_property(TARGET video_recorder_cli PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(video_recorder_cli bin)
-add_dependencies(video_recorder_cli rtmvideo)
+add_dependencies(video_recorder_cli satorivideo)
 target_link_libraries(video_recorder_cli
         PRIVATE
-        rtmvideo
+        satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Loguru
@@ -128,10 +128,10 @@ target_link_libraries(video_recorder_cli
 add_executable(player src/player.cpp)
 set_property(TARGET player PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(player bin)
-add_dependencies(player rtmvideo)
+add_dependencies(player satorivideo)
 target_link_libraries(player
         PRIVATE
-        rtmvideo
+        satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Gsl
         CONAN_PKG::Loguru
@@ -145,11 +145,11 @@ add_executable(test_bot
     test/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(test_bot test)
-add_dependencies(test_bot rtmvideo)
+add_dependencies(test_bot satorivideo)
 target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(test_bot
         PRIVATE
-        rtmvideo
+        satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Openssl
@@ -160,17 +160,17 @@ target_link_libraries(test_bot
 add_executable(empty_bot test/empty_bot.cpp)
 set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(empty_bot test)
-target_link_libraries(empty_bot PRIVATE rtmvideo CONAN_PKG::Loguru)
+target_link_libraries(empty_bot PRIVATE satorivideo CONAN_PKG::Loguru)
 
 function(add_video_test TEST_NAME TEST_FILE)
     add_executable(${TEST_NAME} ${TEST_FILE})
     set_property(TARGET ${TEST_NAME} PROPERTY CXX_STANDARD 14)
     set_binary_output_directory(${TEST_NAME} test)
-    add_dependencies(${TEST_NAME} rtmvideo)
+    add_dependencies(${TEST_NAME} satorivideo)
     target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(${TEST_NAME}
         PRIVATE
-            rtmvideo
+            satorivideo
             CONAN_PKG::Boost
             CONAN_PKG::Loguru
             CONAN_PKG::Gsl

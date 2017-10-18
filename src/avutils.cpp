@@ -8,7 +8,7 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
-#include <librtmvideo/base.h>
+#include <satorivideo/base.h>
 #include "avutils.h"
 #include "logging.h"
 

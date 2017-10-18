@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "librtmvideo/video_bot.h"
+#include "satorivideo/video_bot.h"
 #include "satori_video.h"
 
 namespace satori {

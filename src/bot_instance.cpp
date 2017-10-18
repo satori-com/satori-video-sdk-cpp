@@ -1,7 +1,7 @@
 #include "bot_instance.h"
 
 #include "cbor_tools.h"
-#include "librtmvideo/tele.h"
+#include "satorivideo/tele.h"
 #include "stopwatch.h"
 
 namespace satori {

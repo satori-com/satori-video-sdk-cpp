@@ -1,6 +1,6 @@
 #pragma once
 
-#include <librtmvideo/video_bot.h>
+#include <satorivideo/video_bot.h>
 #include <opencv2/opencv.hpp>
 
 namespace satori {

@@ -1,1 +1,9 @@
+.env
+.out
+.idea
+.vscode
+
+cmake-build-debug
 build
+
+*.pyc
