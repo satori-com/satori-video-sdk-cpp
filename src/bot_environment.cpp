@@ -275,8 +275,7 @@ int bot_environment::main(int argc, char* argv[]) {
                 return pkt;
               });
 
-  // TODO: use merge instead of concat
-  auto bot_input = streams::publishers::concat<bot_instance_input>(
+  auto bot_input = streams::publishers::merge<bot_instance_input>(
       std::move(_control_source)
           >> streams::map([](cbor_item_t*&& t) { return bot_instance_input{t}; }),
       std::move(_source)
