@@ -17,7 +17,7 @@ po::options_description rtm_options() {
   po::options_description online("Satori RTM connection options");
   online.add_options()("endpoint", po::value<std::string>(), "app endpoint");
   online.add_options()("appkey", po::value<std::string>(), "app key");
-  online.add_options()("port", po::value<std::string>(), "port");
+  online.add_options()("port", po::value<std::string>()->default_value("443"), "port");
   online.add_options()("channel", po::value<std::string>(), "channel");
 
   return online;
@@ -88,8 +88,7 @@ po::options_description file_output_options() {
 }
 
 bool check_rtm_args_provided(const po::variables_map &vm) {
-  return vm.count("endpoint") || vm.count("port") || vm.count("appkey")
-         || vm.count("channel");
+  return vm.count("endpoint") || vm.count("appkey") || vm.count("channel");
 }
 
 bool check_file_input_args_provided(const po::variables_map &vm) {
