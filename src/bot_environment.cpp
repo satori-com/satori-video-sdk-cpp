@@ -177,22 +177,18 @@ void bot_environment::register_bot(const bot_descriptor* bot) {
   _bot_descriptor = bot;
 }
 
-void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
-  for (auto&& msg : messages) {
-    switch (msg.kind) {
-      case bot_message_kind::ANALYSIS:
-        _analysis_sink->on_next(std::move(msg.data));
-        break;
-      case bot_message_kind::CONTROL:
-        _control_sink->on_next(std::move(msg.data));
-        break;
-      case bot_message_kind::DEBUG:
-        _debug_sink->on_next(std::move(msg.data));
-        break;
-    }
+void bot_environment::on_bot_message(struct bot_message&& msg) {
+  switch (msg.kind) {
+    case bot_message_kind::ANALYSIS:
+      _analysis_sink->on_next(std::move(msg.data));
+      break;
+    case bot_message_kind::CONTROL:
+      _control_sink->on_next(std::move(msg.data));
+      break;
+    case bot_message_kind::DEBUG:
+      _debug_sink->on_next(std::move(msg.data));
+      break;
   }
-
-  messages.clear();
 }
 
 int bot_environment::main(int argc, char* argv[]) {
@@ -208,7 +204,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch");
   _bot_instance.reset(new bot_instance(
-      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this));
+      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor));
   parse_config(cmd_args.count("config")
                    ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
                    : boost::optional<std::string>{});
@@ -277,18 +273,42 @@ int bot_environment::main(int argc, char* argv[]) {
                   log_important_counters();
                 }
                 return pkt;
-              })
-            >> streams::do_finally([this, &finished]() {
-                finished = true;
-                _bot_instance->stop();
-                _tele_publisher.reset();
-                if (_rtm_client) {
-                  auto ec = _rtm_client->stop();
-                  if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
-                }
               });
 
-  _bot_instance->start(_source, _control_source);
+  // TODO: use merge instead of concat
+  auto bot_input = streams::publishers::concat<bot_instance_input>(
+      std::move(_control_source)
+          >> streams::map([](cbor_item_t*&& t) { return bot_instance_input{t}; }),
+      std::move(_source)
+          >> streams::map([](owned_image_packet&& p) { return bot_instance_input{p}; }));
+
+  auto bot_output = std::move(bot_input) >> _bot_instance->process()
+                    >> streams::do_finally([this, &finished]() {
+                        finished = true;
+                        _tele_publisher.reset();
+                        if (_rtm_client) {
+                          auto ec = _rtm_client->stop();
+                          if (ec)
+                            LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                        }
+                      });
+
+  auto when_bot_processing_done = bot_output->process([this](bot_instance_output&& r) {
+    if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&r)) {
+      // do nothing for now
+    } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&r)) {
+      // do nothing for now
+    } else if (struct bot_message* msg = boost::get<struct bot_message>(&r)) {
+      on_bot_message(std::move(*msg));
+    } else {
+      ABORT() << "Bad variant";
+    }
+  });
+  when_bot_processing_done.on([](std::error_condition ec) {
+    if (ec) {
+      LOG(ERROR) << "Error while processing bot input: " << ec.message();
+    }
+  });
 
   if (!batch_mode) {
     LOG(INFO) << "entering asio loop";

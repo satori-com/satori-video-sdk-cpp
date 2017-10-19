@@ -6,6 +6,7 @@
 #include <list>
 #include <memory>
 
+#include "bot_instance.h"
 #include "data.h"
 #include "satorivideo/video_bot.h"
 #include "rtm_client.h"
@@ -14,14 +15,6 @@
 
 namespace satori {
 namespace video {
-
-struct bot_instance;
-
-struct bot_message {
-  cbor_item_t* data;
-  bot_message_kind kind;
-  frame_id id;
-};
 
 class bot_environment : private rtm::error_callbacks {
  public:
@@ -32,11 +25,11 @@ class bot_environment : private rtm::error_callbacks {
 
   rtm::publisher& publisher() { return *_rtm_client; }
 
-  void send_messages(std::list<struct bot_message>&& messages);
-
  private:
   void parse_config(boost::optional<std::string> config_file);
   void on_error(std::error_condition ec) override;
+  void on_bot_message(struct bot_message&& msg);
+
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;

@@ -72,8 +72,18 @@ BOOST_AUTO_TEST_CASE(empty) {
   BOOST_TEST(events(std::move(p)) == strings({"."}));
 }
 
-BOOST_AUTO_TEST_CASE(of) {
+BOOST_AUTO_TEST_CASE(of_initializer_list) {
   auto p = streams::publishers::of({3, 1, 2});
+  BOOST_TEST(events(std::move(p)) == strings({"3", "1", "2", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(of_vector) {
+  auto p = streams::publishers::of(std::vector<int>{3, 1, 2});
+  BOOST_TEST(events(std::move(p)) == strings({"3", "1", "2", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(of_list) {
+  auto p = streams::publishers::of(std::list<int>{3, 1, 2});
   BOOST_TEST(events(std::move(p)) == strings({"3", "1", "2", "."}));
 }
 

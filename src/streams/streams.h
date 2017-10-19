@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <initializer_list>
+#include <list>
 #include <memory>
 #include <system_error>
 #include <vector>
@@ -78,6 +79,9 @@ struct publishers {
 
   template <typename T>
   static publisher<T> of(std::vector<T> &&values);
+
+  template <typename T>
+  static publisher<T> of(std::list<T> &&values);
 
   // Stream of values [from, to).
   template <typename T>

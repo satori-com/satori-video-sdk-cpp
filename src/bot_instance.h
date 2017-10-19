@@ -1,8 +1,8 @@
 #pragma once
 
+#include <boost/mpl/vector.hpp>
 #include <list>
 
-#include "bot_environment.h"
 #include "data.h"
 #include "satorivideo/video_bot.h"
 #include "streams/streams.h"
@@ -10,43 +10,47 @@
 namespace satori {
 namespace video {
 
-class bot_instance : public bot_context, streams::subscriber<owned_image_packet> {
+struct bot_message {
+  cbor_item_t* data;
+  bot_message_kind kind;
+  frame_id id;
+};
+
+using bot_instance_input_types =
+    boost::mpl::push_front<owned_image_packet::types, cbor_item_t*>::type;
+
+using bot_instance_input = boost::make_variant_over<bot_instance_input_types>::type;
+
+using bot_instance_output_types =
+    boost::mpl::push_front<owned_image_packet::types, struct bot_message>::type;
+
+using bot_instance_output = boost::make_variant_over<bot_instance_output_types>::type;
+
+class bot_instance : public bot_context {
  public:
   bot_instance(const std::string& bot_id, const execution_mode execmode,
-               const bot_descriptor& descriptor, bot_environment& env);
+               const bot_descriptor& descriptor);
   ~bot_instance();
 
-  void start(streams::publisher<owned_image_packet>& video_stream,
-             streams::publisher<cbor_item_t*>& control_stream);
-  void stop();
+  streams::op<bot_instance_input, bot_instance_output> process();
 
+  // TODO: maybe remove usage of this function from bot_environment.cpp
   void queue_message(const bot_message_kind kind, cbor_item_t* message,
                      const frame_id& id);
 
  private:
-  struct control_sub;
-  //  friend struct control_sub;
-
-  void on_next(owned_image_packet&& packet) override;
-  void on_error(std::error_condition ec) override;
-  void on_complete() override;
-  void on_subscribe(streams::subscription& s) override;
-
+  // TODO: turn into visitors
   void process_image_metadata(const owned_image_metadata& metadata);
   void process_image_frame(const owned_image_frame& frame);
   void process_control_message(cbor_item_t* msg);
 
-  void send_messages(const frame_id& id);
+  void prepare_messages_for_sending(const frame_id& id);
 
   const std::string _bot_id;
   const bot_descriptor _descriptor;
 
-  bot_environment& _env;
   std::list<struct bot_message> _message_buffer;
   image_metadata _image_metadata{0, 0};
-
-  streams::subscription* _video_sub{nullptr};
-  std::unique_ptr<control_sub> _control_sub;
 };
 
 }  // namespace video
