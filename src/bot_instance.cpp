@@ -25,7 +25,7 @@ struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
   }
 
   void on_next(cbor_item_t*&& t) override {
-    _bot->process_control_message(t);
+    _bot->operator()(t);
     _video_sub->request(1);
   }
 
@@ -73,13 +73,7 @@ void bot_instance::stop() {
 void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); }
 
 void bot_instance::on_next(owned_image_packet&& packet) {
-  if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&packet)) {
-    process_image_metadata(*m);
-  } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&packet)) {
-    process_image_frame(*f);
-  } else {
-    ABORT() << "Bad variant";
-  }
+  boost::apply_visitor(*this, packet);
   _video_sub->request(1);
 }
 
@@ -102,9 +96,9 @@ void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* messa
   _message_buffer.push_back(newmsg);
 }
 
-void bot_instance::process_image_metadata(const owned_image_metadata& metadata) {}
+void bot_instance::operator()(const owned_image_metadata& metadata) {}
 
-void bot_instance::process_image_frame(const owned_image_frame& frame) {
+void bot_instance::operator()(const owned_image_frame& frame) {
   LOG(1) << "process_image_frame " << frame.width << "x" << frame.height;
   stopwatch<> s;
 
@@ -132,13 +126,13 @@ void bot_instance::process_image_frame(const owned_image_frame& frame) {
   send_messages(frame.id);
 }
 
-void bot_instance::process_control_message(cbor_item_t* msg) {
+void bot_instance::operator()(cbor_item_t* msg) {
   tele::counter_inc(control_messages_received);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
   if (cbor_isa_array(msg)) {
     for (int i = 0; i < cbor_array_size(msg); ++i) {
-      process_control_message(cbor_array_get(msg, i));
+      this->operator()(cbor_array_get(msg, i));
     }
     return;
   }

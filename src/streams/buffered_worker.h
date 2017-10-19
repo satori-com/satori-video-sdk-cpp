@@ -18,7 +18,8 @@ struct buffered_worker_op {
       : _name(name), _size(buffer_size) {}
 
   template <typename T>
-  struct instance : streams::subscriber<T>, streams::subscription {
+  struct instance : streams::subscriber<T>, streams::subscription,
+                    boost::static_visitor<void> {
     using value_t = T;
 
     struct subscribe {};
@@ -91,6 +92,34 @@ struct buffered_worker_op {
       _is_active = false;
     }
 
+    void operator()(const subscribe&) {
+      LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop on_subscribe";
+      _sink.on_subscribe(*this);
+    }
+
+    void operator()(next& n) {
+      CHECK_GT(_outstanding, 0) << "too many messages in " << _name;
+      LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
+      _sink.on_next(std::move(n.t));
+      LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
+      _outstanding--;
+      tele::counter_inc(_delivered_items);
+    }
+
+    void operator()(const complete&) {
+      LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop complete";
+      _sink.on_complete();
+      // break the loop
+      _is_active = false;
+    }
+
+    void operator()(const error& e) {
+      LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop error";
+      _sink.on_error(e.ec);
+      // break the loop
+      _is_active = false;
+    }
+
    private:
     void worker_thread_loop() noexcept {
       while (_is_active) {
@@ -103,29 +132,7 @@ struct buffered_worker_op {
           break;
         }
 
-        if (boost::get<subscribe>(&m)) {
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop on_subscribe";
-          _sink.on_subscribe(*this);
-        } else if (next *n = boost::get<next>(&m)) {
-          CHECK_GT(_outstanding, 0) << "too many messages in " << _name;
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
-          _sink.on_next(std::move(n->t));
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
-          _outstanding--;
-          tele::counter_inc(_delivered_items);
-        } else if (boost::get<complete>(&m)) {
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop complete";
-          _sink.on_complete();
-          // break the loop
-          _is_active = false;
-        } else if (error *e = boost::get<error>(&m)) {
-          LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop error";
-          _sink.on_error(e->ec);
-          // break the loop
-          _is_active = false;
-        } else {
-          ABORT() << "unexpected message";
-        }
+        boost::apply_visitor(*this, m);
       }
       LOG(5) << "buffered_worker_op(" << this << ")::worker_thread_loop exit";
       _worker_thread->detach();

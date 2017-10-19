@@ -8,20 +8,15 @@
 namespace satori {
 namespace video {
 
-struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
+struct rtm_sink_impl : public streams::subscriber<encoded_packet>,
+                       boost::static_visitor<void> {
   rtm_sink_impl(std::shared_ptr<rtm::publisher> client, const std::string &rtm_channel)
       : _client(client),
         _frames_channel(rtm_channel),
         _metadata_channel(rtm_channel + metadata_channel_suffix) {}
 
   void on_next(encoded_packet &&packet) override {
-    if (const encoded_metadata *m = boost::get<encoded_metadata>(&packet)) {
-      on_metadata(*m);
-    } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
-      on_image_frame(*f);
-    } else {
-      ABORT() << "Bad variant";
-    }
+    boost::apply_visitor(*this, packet);
     _src->request(1);
   }
 
@@ -34,12 +29,12 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet> {
     _src->request(1);
   }
 
-  void on_metadata(const encoded_metadata &m) {
+  void operator()(const encoded_metadata &m) {
     cbor_item_t *packet = m.to_network().to_cbor();
     _client->publish(_metadata_channel, cbor_move(packet), nullptr);
   }
 
-  void on_image_frame(const encoded_frame &f) {
+  void operator()(const encoded_frame &f) {
     std::vector<network_frame> network_frames =
         f.to_network(std::chrono::system_clock::now());
 

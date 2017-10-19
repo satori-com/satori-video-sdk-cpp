@@ -10,7 +10,8 @@
 namespace satori {
 namespace video {
 
-class bot_instance : public bot_context, streams::subscriber<owned_image_packet> {
+class bot_instance : public bot_context, streams::subscriber<owned_image_packet>,
+                     boost::static_visitor<void> {
  public:
   bot_instance(const std::string& bot_id, const execution_mode execmode,
                const bot_descriptor& descriptor, bot_environment& env);
@@ -23,7 +24,11 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
   void queue_message(const bot_message_kind kind, cbor_item_t* message,
                      const frame_id& id);
 
- private:
+  void operator()(const owned_image_metadata& metadata);
+  void operator()(const owned_image_frame& frame);
+  void operator()(cbor_item_t* msg);
+
+private:
   struct control_sub;
   //  friend struct control_sub;
 
@@ -31,10 +36,6 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
   void on_error(std::error_condition ec) override;
   void on_complete() override;
   void on_subscribe(streams::subscription& s) override;
-
-  void process_image_metadata(const owned_image_metadata& metadata);
-  void process_image_frame(const owned_image_frame& frame);
-  void process_control_message(cbor_item_t* msg);
 
   void send_messages(const frame_id& id);
 

@@ -11,7 +11,8 @@ namespace satori {
 namespace video {
 
 // TODO: use AVMEDIA_TYPE_DATA
-struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
+struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
+                       boost::static_visitor<void> {
   mkv_sink_impl(const std::string &filename, const mkv::format_options &format_options)
       : _filename(filename), _format_options(format_options) {
     avutils::init();
@@ -31,13 +32,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
   }
 
   void on_next(encoded_packet &&packet) override {
-    if (const encoded_metadata *m = boost::get<encoded_metadata>(&packet)) {
-      on_encoded_metadata(*m);
-    } else if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
-      on_encoded_frame(*f);
-    } else {
-      ABORT() << "Bad variant";
-    }
+    boost::apply_visitor(*this, packet);
     _src->request(1);
   }
 
@@ -53,7 +48,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
     _src->request(1);
   }
 
-  void on_encoded_metadata(const encoded_metadata &metadata) {
+  void operator()(const encoded_metadata &metadata) {
     CHECK(metadata.image_size);
 
     if (!_initialized) {
@@ -106,7 +101,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet> {
     }
   }
 
-  void on_encoded_frame(const encoded_frame &f) {
+  void operator()(const encoded_frame &f) {
     if (!_initialized) return;
 
     if (!_first_frame_ts) {

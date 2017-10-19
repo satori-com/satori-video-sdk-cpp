@@ -28,7 +28,8 @@ struct image_decoder_op {
 
   template <typename T>
   struct instance : streams::subscriber<encoded_packet>,
-                    streams::impl::drain_source_impl<owned_image_packet> {
+                    streams::impl::drain_source_impl<owned_image_packet>,
+                    boost::static_visitor<void> {
     static_assert(std::is_same<T, encoded_packet>::value, "types mismatch");
     using value_t = owned_image_packet;
 
@@ -60,14 +61,7 @@ struct image_decoder_op {
 
     void on_next(encoded_packet &&pkt) override {
       LOG(4) << this << " on_next";
-      if (const encoded_metadata *m = boost::get<encoded_metadata>(&pkt)) {
-        on_metadata(*m);
-      } else if (const encoded_frame *f = boost::get<encoded_frame>(&pkt)) {
-        on_image_frame(*f);
-      } else {
-        ABORT_S() << "Bad variant";
-      }
-
+      boost::apply_visitor(*this, pkt);
       drain();
     }
 
@@ -92,7 +86,7 @@ struct image_decoder_op {
       deliver_on_error(ec);
     }
 
-    void on_metadata(const encoded_metadata &m) {
+    void operator()(const encoded_metadata &m) {
       LOG(1) << this << "received stream metadata";
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
         return;
@@ -110,7 +104,7 @@ struct image_decoder_op {
       LOG(INFO) << _metadata.codec_name << " video decoder initialized";
     }
 
-    void on_image_frame(const encoded_frame &f) {
+    void operator()(const encoded_frame &f) {
       LOG(4) << this << " on_image_frame";
       tele::counter_inc(messages_received);
       tele::counter_inc(bytes_received, f.data.size());
