@@ -1,7 +1,5 @@
 #include "bot_instance.h"
 
-#include <vector>
-
 #include "cbor_tools.h"
 #include "satorivideo/tele.h"
 #include "stopwatch.h"
@@ -19,13 +17,81 @@ auto control_messages_received = tele::counter_new("vbot", "control.messages_rec
 
 }  // namespace
 
+struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
+  explicit control_sub(bot_instance* const bot) : _bot(bot) {}
+
+  ~control_sub() {
+    if (_video_sub) _video_sub->cancel();
+  }
+
+  void on_next(cbor_item_t*&& t) override {
+    _bot->process_control_message(t);
+    _video_sub->request(1);
+  }
+
+  void on_error(std::error_condition ec) override {
+    ABORT() << "Error in control stream: " << ec.message();
+  }
+
+  void on_complete() override { _video_sub = nullptr; }
+
+  void on_subscribe(streams::subscription& s) override {
+    _video_sub = &s;
+    _video_sub->request(1);
+  }
+
+  bot_instance* const _bot;
+  streams::subscription* _video_sub{nullptr};
+};
+
 bot_instance::bot_instance(const std::string& bot_id, const execution_mode execmode,
-                           const bot_descriptor& descriptor)
+                           const bot_descriptor& descriptor,
+                           satori::video::bot_environment& env)
     : _bot_id(bot_id),
       _descriptor(descriptor),
+      _env(env),
       bot_context{nullptr, &_image_metadata, execmode} {}
 
 bot_instance::~bot_instance() {}
+
+void bot_instance::start(streams::publisher<owned_image_packet>& video_stream,
+                         streams::publisher<cbor_item_t*>& control_stream) {
+  _control_sub.reset(new control_sub(this));
+  control_stream->subscribe(*_control_sub);
+  // this will drain the stream in batch mode, should be last.
+  video_stream->subscribe(*this);
+}
+
+void bot_instance::stop() {
+  if (_video_sub) {
+    _video_sub->cancel();
+    _video_sub = nullptr;
+  }
+  _control_sub.reset();
+}
+
+void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); }
+
+void bot_instance::on_next(owned_image_packet&& packet) {
+  if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&packet)) {
+    process_image_metadata(*m);
+  } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&packet)) {
+    process_image_frame(*f);
+  } else {
+    ABORT() << "Bad variant";
+  }
+  _video_sub->request(1);
+}
+
+void bot_instance::on_complete() {
+  LOG(INFO) << "processing complete";
+  _video_sub = nullptr;
+}
+
+void bot_instance::on_subscribe(streams::subscription& s) {
+  _video_sub = &s;
+  _video_sub->request(1);
+}
 
 void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
                                  const frame_id& id) {
@@ -63,7 +129,7 @@ void bot_instance::process_image_frame(const owned_image_frame& frame) {
   tele::distribution_add(processing_times_millis, s.millis());
   tele::counter_inc(frames_processed);
 
-  prepare_messages_for_sending(frame.id);
+  send_messages(frame.id);
 }
 
 void bot_instance::process_control_message(cbor_item_t* msg) {
@@ -99,10 +165,12 @@ void bot_instance::process_control_message(cbor_item_t* msg) {
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
   }
 
-  prepare_messages_for_sending(frame_id{-1, -1});
+  cbor_decref(&msg);
+
+  send_messages(frame_id{-1, -1});
 }
 
-void bot_instance::prepare_messages_for_sending(const frame_id& id) {
+void bot_instance::send_messages(const frame_id& id) {
   tele::counter_inc(messages_sent, _message_buffer.size());
 
   for (auto&& msg : _message_buffer) {
@@ -119,7 +187,6 @@ void bot_instance::prepare_messages_for_sending(const frame_id& id) {
     }
 
     cbor_item_t* data = msg.data;
-    CHECK(cbor_isa_map(data)) << "message data is not a map: " << data;
 
     int64_t ei1 = msg.id.i1 == 0 ? id.i1 : msg.id.i1;
     int64_t ei2 = msg.id.i2 == 0 ? id.i1 : msg.id.i2;
@@ -136,46 +203,7 @@ void bot_instance::prepare_messages_for_sending(const frame_id& id) {
                           cbor_move(cbor_build_string(_bot_id.c_str()))});
     }
   }
-}
-
-streams::op<bot_instance_input, bot_instance_output> bot_instance::process() {
-  return [this](streams::publisher<bot_instance_input>&& src) {
-    return std::move(src) >> streams::flat_map([this](bot_instance_input&& p) {
-             auto message_buffer_cleaner =
-                 gsl::finally([this]() { _message_buffer.clear(); });
-
-             if (const owned_image_metadata* m = boost::get<owned_image_metadata>(&p)) {
-               process_image_metadata(*m);
-
-               return streams::publishers::concat<bot_instance_output>(
-                   streams::publishers::of<bot_instance_output>({*m}),
-                   streams::publishers::of<bot_instance_output>(
-                       std::vector<bot_instance_output>{
-                           std::make_move_iterator(std::begin(_message_buffer)),
-                           std::make_move_iterator(std::end(_message_buffer))}));
-
-             } else if (const owned_image_frame* f = boost::get<owned_image_frame>(&p)) {
-               process_image_frame(*f);
-
-               return streams::publishers::concat<bot_instance_output>(
-                   streams::publishers::of<bot_instance_output>({*f}),
-                   streams::publishers::of<bot_instance_output>(
-                       std::vector<bot_instance_output>{
-                           std::make_move_iterator(std::begin(_message_buffer)),
-                           std::make_move_iterator(std::end(_message_buffer))}));
-
-             } else if (cbor_item_t** t = boost::get<cbor_item_t*>(&p)) {
-               process_control_message(*t);
-
-               return streams::publishers::of<bot_instance_output>(
-                   std::vector<bot_instance_output>{
-                       std::make_move_iterator(std::begin(_message_buffer)),
-                       std::make_move_iterator(std::end(_message_buffer))});
-             } else {
-               ABORT() << "Bad variant";
-             }
-           });
-  };
+  _env.send_messages(std::move(_message_buffer));
 }
 
 }  // namespace video
