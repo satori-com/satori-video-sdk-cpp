@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.7)
-project (satorivideo VERSION 0.1 LANGUAGES CXX)
+project (satori-video-sdk-cpp VERSION 0.1 LANGUAGES CXX)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
   SET(CMAKE_BUILD_TYPE "Debug")
