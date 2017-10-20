@@ -158,7 +158,7 @@ struct distribution : public cell<std::vector<int64_t>> {
     std::lock_guard<std::mutex> guard(_mutex);
     cbor_item_t *result = cbor_new_definite_array(_value.size());
     for (size_t i = 0; i < _value.size(); ++i) {
-      cbor_array_set(result, i, int64_to_cbor(_value[i]));
+      cbor_array_set(result, i, cbor_move(int64_to_cbor(_value[i])));
     }
     return result;
   }
@@ -183,7 +183,7 @@ EXPORT void distribution_add(distribution *distribution, int64_t value) noexcept
 }
 
 template <typename Cell>
-cbor_item_t *tele_sereialize_cells(std::unordered_map<std::string, Cell *> &cells) {
+cbor_item_t *tele_serialize_cells(std::unordered_map<std::string, Cell *> &cells) {
   cbor_item_t *cells_map = cbor_new_definite_map(cells.size());
   for (const auto &kv : cells) {
     Cell *cell = kv.second;
@@ -202,13 +202,13 @@ cbor_item_t *tele_serialize(
                       cbor_move(cbor_build_string(get_node_id().c_str()))});
 
   cbor_map_add(root, {cbor_move(cbor_build_string("counters")),
-                      cbor_move(tele_sereialize_cells(counters))});
+                      cbor_move(tele_serialize_cells(counters))});
 
   cbor_map_add(root, {cbor_move(cbor_build_string("gauges")),
-                      cbor_move(tele_sereialize_cells(gauges))});
+                      cbor_move(tele_serialize_cells(gauges))});
 
   cbor_map_add(root, {cbor_move(cbor_build_string("distributions")),
-                      cbor_move(tele_sereialize_cells(distributions))});
+                      cbor_move(tele_serialize_cells(distributions))});
   for (auto kv : distributions) {
     kv.second->clear();
   }

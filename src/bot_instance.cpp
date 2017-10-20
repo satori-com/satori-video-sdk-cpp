@@ -128,6 +128,7 @@ void bot_instance::operator()(const owned_image_frame& frame) {
 
 void bot_instance::operator()(cbor_item_t* msg) {
   tele::counter_inc(control_messages_received);
+  cbor_incref(msg);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
   if (cbor_isa_array(msg)) {

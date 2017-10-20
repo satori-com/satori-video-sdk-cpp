@@ -18,7 +18,7 @@ void process_image(bot_context &context, const image_frame &frame) {
   cbor_item_t *msg = cbor_new_indefinite_map();
   cbor_map_add(
       msg, {cbor_move(cbor_build_string("msg")), cbor_move(cbor_build_string("hello"))});
-  bot_message(context, bot_message_kind::ANALYSIS, msg);
+  bot_message(context, bot_message_kind::ANALYSIS, cbor_move(msg));
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) { return nullptr; }
 

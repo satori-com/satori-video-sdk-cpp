@@ -19,16 +19,18 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
   if (d.IsDouble()) return cbor_build_float8(d.GetDouble());
   if (d.IsArray()) {
     cbor_item_t* message = cbor_new_definite_array(d.Size());
-    for (auto& m : d.GetArray())
-      if (!cbor_array_push(message, cbor_move(json_to_cbor(m))))
-        std::cerr << "ERROR: Failed to push to array\n";
+    for (auto& m : d.GetArray()) {
+      cbor_item_t* item = json_to_cbor(m);
+      CHECK(cbor_array_push(message, cbor_move(item)));
+    }
     return message;
   }
   if (d.IsObject()) {
     cbor_item_t* message = cbor_new_definite_map(d.MemberCount());
     for (auto& m : d.GetObject()) {
-      cbor_map_add(message,
-                   {cbor_move(json_to_cbor(m.name)), cbor_move(json_to_cbor(m.value))});
+      cbor_item_t* key = json_to_cbor(m.name);
+      cbor_item_t* value = json_to_cbor(m.value);
+      cbor_map_add(message, {cbor_move(key), cbor_move(value)});
     }
     return message;
   }

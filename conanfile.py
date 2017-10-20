@@ -19,7 +19,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
     license = "proprietary"
-    version = '0.7.0'
+    version = '0.7.1'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "sanitizer=", \

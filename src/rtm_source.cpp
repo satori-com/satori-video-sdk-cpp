@@ -7,6 +7,7 @@ namespace satori {
 namespace video {
 
 network_packet parse_network_metadata(cbor_item_t *item) {
+  cbor_incref(item);
   auto decref = gsl::finally([&item]() { cbor_decref(&item); });
   auto msg = cbor::map(item);
 
@@ -17,6 +18,7 @@ network_packet parse_network_metadata(cbor_item_t *item) {
 }
 
 network_packet parse_network_frame(cbor_item_t *item) {
+  cbor_incref(item);
   auto decref = gsl::finally([&item]() { cbor_decref(&item); });
   auto msg = cbor::map(item);
 
