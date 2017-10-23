@@ -17,9 +17,10 @@ class SatorivideoConan(ConanFile):
                "Rapidjson/1.1.0@satorivideo/master", \
                "Ffmpeg/3.3.3_07@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
-               "SDL/2.0.5@satorivideo/master"
+               "SDL/2.0.5@satorivideo/master", \
+               "GPerfTools/2017.10.16@satorivideo/master"
     license = "proprietary"
-    version = '0.7.1'
+    version = '0.7.2'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "sanitizer=", \
@@ -32,7 +33,8 @@ class SatorivideoConan(ConanFile):
                       "Ffmpeg:shared=False", \
                       "Ffmpeg:fPIC=True", \
                       "SDL:shared=False", \
-                      "SDL:fPIC=True"
+                      "SDL:fPIC=True", \
+                      "GPerfTools:shared=False"
 
     generators = "cmake"
     exports_sources = "*"

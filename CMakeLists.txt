@@ -74,6 +74,7 @@ target_link_libraries(satorivideo
         CONAN_PKG::Gsl
         CONAN_PKG::Beast
         CONAN_PKG::Loguru
+        CONAN_PKG::GPerfTools
     )
 target_include_directories(satorivideo PUBLIC include)
 
