@@ -24,5 +24,5 @@ conan-login:
 
 ## FIXME: had to duplicate it for now
 conan-upload:
-> conan upload --confirm --remote ${CONAN_REMOTE} --all '*@satorivideo/*'
+> conan upload --confirm --all --remote ${CONAN_REMOTE} '*@satorivideo/*'
 > conan remove -r ${CONAN_REMOTE} -f --outdated '*@satorivideo/*'
