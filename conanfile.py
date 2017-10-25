@@ -19,6 +19,7 @@ class SatorivideoConan(ConanFile):
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master", \
                "GPerfTools/2017.10.16@satorivideo/master"
+                
     license = "proprietary"
     version = '0.7.2'
     settings = "os", "compiler", "build_type", "arch"
@@ -34,7 +35,8 @@ class SatorivideoConan(ConanFile):
                       "Ffmpeg:fPIC=True", \
                       "SDL:shared=False", \
                       "SDL:fPIC=True", \
-                      "GPerfTools:shared=False"
+                      "GPerfTools:shared=False", \
+                      "GPerfTools:fPIC=True"
 
     generators = "cmake"
     exports_sources = "*"
