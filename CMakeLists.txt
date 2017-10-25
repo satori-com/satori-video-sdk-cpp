@@ -29,6 +29,8 @@ endif()
 if (DEFINED CMAKE_CXX_SANITIZER)
     message("** Using ${CMAKE_CXX_SANITIZER} sanitizer")
     set(CMAKE_CXX_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_EXE_LINKER_FLAGS}")
+    set(CMAKE_SHARED_LINKER_FLAGS "-fsanitize=${CMAKE_CXX_SANITIZER} ${CMAKE_SHARED_LINKER_FLAGS}")
 endif()
 
 set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
