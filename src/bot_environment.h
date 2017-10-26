@@ -9,7 +9,6 @@
 #include "data.h"
 #include "satorivideo/video_bot.h"
 #include "rtm_client.h"
-#include "tele_impl.h"
 #include "video_streams.h"
 
 namespace satori {
@@ -40,7 +39,6 @@ class bot_environment : private rtm::error_callbacks {
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;
-  std::unique_ptr<tele::publisher> _tele_publisher;
 
   streams::observer<cbor_item_t*>* _analysis_sink;
   streams::observer<cbor_item_t*>* _debug_sink;

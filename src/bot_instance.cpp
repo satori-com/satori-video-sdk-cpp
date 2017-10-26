@@ -1,19 +1,26 @@
 #include "bot_instance.h"
 
 #include "cbor_tools.h"
-#include "satorivideo/tele.h"
+#include "metrics.h"
 #include "stopwatch.h"
 
 namespace satori {
 namespace video {
 namespace {
-auto processing_times_millis = tele::distribution_new("vbot", "processing_times_millis");
-auto frames_processed = tele::counter_new("vbot", "frames_processed");
-auto messages_sent = tele::counter_new("vbot", "messages_sent");
-auto analysis_messages_sent = tele::counter_new("vbot", "analysis.messages_sent");
-auto debug_messages_sent = tele::counter_new("vbot", "debug.messages_sent");
-auto control_messages_sent = tele::counter_new("vbot", "control.messages_sent");
-auto control_messages_received = tele::counter_new("vbot", "control.messages_received");
+auto& processing_times_millis =
+    prometheus::BuildHistogram()
+        .Name("frame_processing_times_millis")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
+                                     60, 70, 80, 90, 100, 200, 300, 400, 500, 750});
+auto& frames_processed = prometheus::BuildCounter()
+                             .Name("frames_processed")
+                             .Register(metrics_registry())
+                             .Add({});
+auto& messages_sent =
+    prometheus::BuildCounter().Name("messages_sent").Register(metrics_registry());
+auto& messages_received =
+    prometheus::BuildCounter().Name("messages_received").Register(metrics_registry());
 
 }  // namespace
 
@@ -50,7 +57,8 @@ bot_instance::bot_instance(const std::string& bot_id, const execution_mode execm
     : _bot_id(bot_id),
       _descriptor(descriptor),
       _env(env),
-      bot_context{nullptr, &_image_metadata, execmode} {}
+      bot_context{nullptr, &_image_metadata, execmode,
+                  satori::video::metrics_registry()} {}
 
 bot_instance::~bot_instance() {}
 
@@ -120,14 +128,14 @@ void bot_instance::operator()(const owned_image_frame& frame) {
   }
 
   _descriptor.img_callback(*this, bframe);
-  tele::distribution_add(processing_times_millis, s.millis());
-  tele::counter_inc(frames_processed);
+  processing_times_millis.Observe(s.millis());
+  frames_processed.Increment();
 
   send_messages(frame.id);
 }
 
 void bot_instance::operator()(cbor_item_t* msg) {
-  tele::counter_inc(control_messages_received);
+  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
@@ -166,18 +174,16 @@ void bot_instance::operator()(cbor_item_t* msg) {
 }
 
 void bot_instance::send_messages(const frame_id& id) {
-  tele::counter_inc(messages_sent, _message_buffer.size());
-
   for (auto&& msg : _message_buffer) {
     switch (msg.kind) {
       case bot_message_kind::ANALYSIS:
-        tele::counter_inc(analysis_messages_sent);
+        messages_sent.Add({{"message_type", "analysis"}}).Increment();
         break;
       case bot_message_kind::DEBUG:
-        tele::counter_inc(debug_messages_sent);
+        messages_sent.Add({{"message_type", "debug"}}).Increment();
         break;
       case bot_message_kind::CONTROL:
-        tele::counter_inc(control_messages_sent);
+        messages_sent.Add({{"message_type", "control"}}).Increment();
         break;
     }
 

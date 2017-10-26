@@ -4,8 +4,9 @@
 #include <functional>
 #include <thread>
 
+#include "../metrics.h"
+
 #include "channel.h"
-#include "satorivideo/tele.h"
 #include "streams.h"
 
 namespace satori {
@@ -13,6 +14,14 @@ namespace video {
 namespace streams {
 
 namespace impl {
+
+static prometheus::Family<prometheus::Counter> &dropped_items_family =
+    prometheus::BuildCounter().Name("dropped_items").Register(metrics_registry());
+static prometheus::Family<prometheus::Counter> &delivered_items_family =
+    prometheus::BuildCounter().Name("delivered_items").Register(metrics_registry());
+static prometheus::Family<prometheus::Gauge> &buffer_size_family =
+    prometheus::BuildGauge().Name("buffer_size").Register(metrics_registry());
+
 struct buffered_worker_op {
   buffered_worker_op(const std::string &name, size_t buffer_size)
       : _name(name), _size(buffer_size) {}
@@ -40,27 +49,23 @@ struct buffered_worker_op {
     }
 
     instance(buffered_worker_op &&op, streams::subscriber<T> &sink)
-        : _name(op._name), _sink(sink), _channel(op._size) {
+        : _name(op._name),
+          _sink(sink),
+          _channel(op._size),
+          _dropped_items(dropped_items_family.Add({{"buffer_name", _name}})),
+          _delivered_items(delivered_items_family.Add({{"buffer_name", _name}})),
+          _buffer_size(buffer_size_family.Add({{"buffer_name", _name}})) {
       _worker_thread = std::make_unique<std::thread>(&instance::worker_thread_loop, this);
-      _dropped_items = tele::counter_new(_name.c_str(), "dropped");
-      _delivered_items = tele::counter_new(_name.c_str(), "delivered");
-      _buffer_size = tele::gauge_new(_name.c_str(), "size");
-      LOG(5) << "buffered_worker_op(" << this << ")::buffered_worker_op";
     }
 
-    ~instance() {
-      LOG(5) << "buffered_worker_op(" << this << ")::~buffered_worker_op";
-      tele::counter_delete(_dropped_items);
-      tele::counter_delete(_delivered_items);
-      tele::gauge_delete(_buffer_size);
-    }
+    ~instance() { LOG(5) << "buffered_worker_op(" << this << ")::~buffered_worker_op"; }
 
     void on_next(T &&t) override {
       LOG(5) << "buffered_worker_op(" << this << ")::on_next";
       if (!_channel.try_send(next{std::move(t)})) {
-        tele::counter_inc(_dropped_items);
+        _dropped_items.Increment();
       }
-      tele::gauge_set(_buffer_size, _channel.size());
+      _buffer_size.Set(_channel.size());
       _source_sub->request(1);
     };
 
@@ -92,28 +97,28 @@ struct buffered_worker_op {
       _is_active = false;
     }
 
-    void operator()(const subscribe&) {
+    void operator()(const subscribe &) {
       LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop on_subscribe";
       _sink.on_subscribe(*this);
     }
 
-    void operator()(next& n) {
+    void operator()(next &n) {
       CHECK_GT(_outstanding, 0) << "too many messages in " << _name;
       LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop >on_next";
       _sink.on_next(std::move(n.t));
       LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop <on_next";
       _outstanding--;
-      tele::counter_inc(_delivered_items);
+      _delivered_items.Increment();
     }
 
-    void operator()(const complete&) {
+    void operator()(const complete &) {
       LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop complete";
       _sink.on_complete();
       // break the loop
       _is_active = false;
     }
 
-    void operator()(const error& e) {
+    void operator()(const error &e) {
       LOG(6) << "buffered_worker_op(" << this << ")::worker_thread_loop error";
       _sink.on_error(e.ec);
       // break the loop
@@ -145,9 +150,9 @@ struct buffered_worker_op {
     channel<msg> _channel;
     std::unique_ptr<std::thread> _worker_thread;
 
-    tele::counter *_dropped_items;
-    tele::counter *_delivered_items;
-    tele::gauge *_buffer_size;
+    prometheus::Counter &_dropped_items;
+    prometheus::Counter &_delivered_items;
+    prometheus::Gauge &_buffer_size;
 
     streams::subscription *_source_sub;
     std::atomic<long> _outstanding{0};

@@ -1,5 +1,6 @@
+
 #include "avutils.h"
-#include "satorivideo/tele.h"
+#include "metrics.h"
 #include "stopwatch.h"
 #include "video_error.h"
 #include "video_streams.h"
@@ -11,12 +12,31 @@ namespace {
 
 constexpr double epsilon = .000001;
 
-auto frames_received = tele::counter_new("decoder", "frames_received");
-auto messages_received = tele::counter_new("decoder", "messages_received");
-auto messages_dropped = tele::counter_new("decoder", "messages_dropped");
-auto bytes_received = tele::counter_new("decoder", "bytes_received");
-auto send_packet_millis = tele::distribution_new("decoder", "send_packet_millis");
-auto receive_frame_millis = tele::distribution_new("decoder", "receive_frame_millis");
+auto &frames_received = prometheus::BuildCounter()
+                            .Name("decoder_frames_received")
+                            .Register(metrics_registry())
+                            .Add({});
+auto &messages_received = prometheus::BuildCounter()
+                              .Name("decoder_messages_received")
+                              .Register(metrics_registry())
+                              .Add({});
+auto &messages_dropped = prometheus::BuildCounter()
+                             .Name("decoder_messages_dropped")
+                             .Register(metrics_registry())
+                             .Add({});
+auto &bytes_received = prometheus::BuildCounter()
+                           .Name("decoder_bytes_received")
+                           .Register(metrics_registry())
+                           .Add({});
+auto &send_packet_millis = prometheus::BuildHistogram()
+                               .Name("decoder_send_packet_millis")
+                               .Register(metrics_registry())
+                               .Add({}, std::vector<double>{0, 1, 2, 5, 10, 20, 50, 100});
+auto &receive_frame_millis =
+    prometheus::BuildHistogram()
+        .Name("decoder_receive_frame_millis")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0, 1, 2, 5, 10, 20, 50, 100});
 
 struct image_decoder_op {
   image_decoder_op(image_pixel_format pixel_format, int bounding_width,
@@ -71,7 +91,7 @@ struct image_decoder_op {
       if (_context) {
         int err = avcodec_send_packet(_context.get(), nullptr);
         if (err) {
-              LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
+          LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
           deliver_on_error(video_error::FrameGenerationError);
           return;
         }
@@ -106,11 +126,11 @@ struct image_decoder_op {
 
     void operator()(const encoded_frame &f) {
       LOG(4) << this << " on_image_frame";
-      tele::counter_inc(messages_received);
-      tele::counter_inc(bytes_received, f.data.size());
+      messages_received.Increment();
+      bytes_received.Increment(f.data.size());
 
       if (!_context) {
-        tele::counter_inc(messages_dropped);
+        messages_dropped.Increment();
       }
 
       {
@@ -132,7 +152,7 @@ struct image_decoder_op {
           LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
           return;
         }
-        tele::distribution_add(send_packet_millis, s.millis());
+        send_packet_millis.Observe(s.millis());
       }
     }
 
@@ -178,8 +198,7 @@ struct image_decoder_op {
             return video_error::FrameGenerationError;
         }
       }
-
-      tele::distribution_add(receive_frame_millis, s.millis());
+      receive_frame_millis.Observe(s.millis());
       deliver_frame();
       return {};
     }
@@ -215,7 +234,7 @@ struct image_decoder_op {
         }
       }
 
-      tele::counter_inc(frames_received);
+      frames_received.Increment();
       deliver_on_next(owned_image_packet{frame});
     }
 

@@ -46,20 +46,33 @@ add_library(satorivideo
     src/cli_streams.cpp
     src/data.cpp
     src/decode_image_frames.cpp
-    src/video_error.cpp
     src/file_source.cpp
+    src/logging.h
+    src/logging_impl.h
+    src/metrics.cpp
+    src/mkv_options.h
     src/mkv_sink.cpp
     src/replay_source.cpp
+    src/rtm_client.cpp
     src/rtm_sink.cpp
     src/rtm_source.cpp
     src/rtm_streams.cpp
-    src/rtm_client.cpp
+    src/satori_video.h
+    src/stopwatch.h
+    src/streams/asio_streams.h
+    src/streams/asio_streams_impl.h
+    src/streams/buffered_worker.h
+    src/streams/channel.h
+    src/streams/deferred.h
+    src/streams/error_or.h
     src/streams/signal_breaker.cpp
-    src/streams/streams.cpp
     src/streams/stream_error.cpp
-    src/tele.cpp
+    src/streams/streams.cpp
+    src/streams/streams_impl.h
+    src/type_traits.h
     src/url_source.cpp
     src/video_bot.cpp
+    src/video_error.cpp
     src/video_streams.cpp
     src/vp9_encoder.cpp
     )
@@ -69,13 +82,14 @@ target_link_libraries(satorivideo
         dl
         CONAN_PKG::Libcbor   # part of api interface
     PRIVATE
-        CONAN_PKG::Openssl
-        CONAN_PKG::Rapidjson
-        CONAN_PKG::Ffmpeg
-        CONAN_PKG::Boost
-        CONAN_PKG::Gsl
         CONAN_PKG::Beast
+        CONAN_PKG::Boost
+        CONAN_PKG::Ffmpeg
+        CONAN_PKG::Gsl
         CONAN_PKG::Loguru
+        CONAN_PKG::Openssl
+        CONAN_PKG::PrometheusCpp
+        CONAN_PKG::Rapidjson
         CONAN_PKG::GPerfTools
     )
 target_include_directories(satorivideo PUBLIC include)
@@ -109,7 +123,9 @@ target_link_libraries(video_publisher_cli
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl)
+        CONAN_PKG::Gsl
+        CONAN_PKG::PrometheusCpp
+        )
 
 add_executable(video_recorder_cli
         src/video_recorder_cli.cpp)
@@ -126,6 +142,7 @@ target_link_libraries(video_recorder_cli
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl
         CONAN_PKG::Loguru
+        CONAN_PKG::PrometheusCpp
         )
 
 add_executable(player src/player.cpp)
@@ -142,6 +159,7 @@ target_link_libraries(player
         CONAN_PKG::Openssl
         CONAN_PKG::SDL
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::PrometheusCpp
         )
 
 add_executable(test_bot
@@ -179,6 +197,7 @@ function(add_video_test TEST_NAME TEST_FILE)
             CONAN_PKG::Gsl
             CONAN_PKG::Rapidjson
             CONAN_PKG::Openssl
+            CONAN_PKG::PrometheusCpp
             CONAN_PKG::Ffmpeg
         )
     add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME})

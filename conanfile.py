@@ -18,10 +18,11 @@ class SatorivideoConan(ConanFile):
                "Ffmpeg/3.3.3_07@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master", \
-               "GPerfTools/2017.10.16@satorivideo/master"
-                
+               "GPerfTools/2017.10.16@satorivideo/master", \
+               "PrometheusCpp/2017.09.28@satorivideo/master"
+
     license = "proprietary"
-    version = '0.7.2'
+    version = '0.8.0'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "sanitizer=", \
@@ -35,6 +36,8 @@ class SatorivideoConan(ConanFile):
                       "Ffmpeg:fPIC=True", \
                       "SDL:shared=False", \
                       "SDL:fPIC=True", \
+                      "PrometheusCpp:shared=False", \
+                      "PrometheusCpp:fPIC=True", \
                       "GPerfTools:shared=False", \
                       "GPerfTools:fPIC=True"
 
@@ -45,7 +48,7 @@ class SatorivideoConan(ConanFile):
         if self.options.with_opencv:
             self.requires("Opencv/3.3.0_02@satorivideo/master")
             self.options["Opencv"].shared = False
-            self.options["Opencv"].fPIC = True            
+            self.options["Opencv"].fPIC = True
 
     def build(self):
         cmake = CMake(self)

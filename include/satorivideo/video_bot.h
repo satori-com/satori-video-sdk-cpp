@@ -16,7 +16,13 @@
 
 #include "base.h"
 
+// libcbor declarations
 struct cbor_item_t;
+
+// prometheus-cpp declarations
+namespace prometheus {
+class Registry;
+}
 
 namespace satori {
 namespace video {
@@ -59,6 +65,7 @@ EXPORT struct bot_context {
   // image_metadata contains frame size information
   const image_metadata *frame_metadata;
   const execution_mode mode;
+  prometheus::Registry &metrics_registry;
 };
 
 // API for image handler callback

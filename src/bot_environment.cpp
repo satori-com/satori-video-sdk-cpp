@@ -34,6 +34,9 @@ variables_map parse_command_line(int argc, char* argv[],
   generic.add_options()("help", "produce help message");
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
+  generic.add_options()("metrics_bind_address",
+                        po::value<std::string>()->default_value(""),
+                        "socket bind address:port for metrics server");
 
   po::options_description bot_configuration_options("Bot configuration options");
   bot_configuration_options.add_options()(
@@ -100,26 +103,28 @@ cbor_item_t* configure_command(cbor_item_t* config) {
 }
 
 void log_important_counters() {
-  LOG(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
-            << tele::counter_get("input.network_buffer.delivered")
-            << "  input.network_buffer.dropped = " << std::setw(5) << std::left
-            << tele::counter_get("input.network_buffer.dropped")
-            << "  input.network_buffer.size = " << std::setw(2) << std::left
-            << tele::gauge_get("input.network_buffer.size");
+  /*
+    LOG(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.network_buffer.delivered")
+              << "  input.network_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.network_buffer.dropped")
+              << "  input.network_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.network_buffer.size");
 
-  LOG(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
-            << tele::counter_get("input.encoded_buffer.delivered")
-            << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
-            << tele::counter_get("input.encoded_buffer.dropped")
-            << "  input.encoded_buffer.size = " << std::setw(2) << std::left
-            << tele::gauge_get("input.encoded_buffer.size");
+    LOG(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.encoded_buffer.delivered")
+              << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.encoded_buffer.dropped")
+              << "  input.encoded_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.encoded_buffer.size");
 
-  LOG(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
-            << tele::counter_get("input.image_buffer.delivered")
-            << "    input.image_buffer.dropped = " << std::setw(5) << std::left
-            << tele::counter_get("input.image_buffer.dropped")
-            << "    input.image_buffer.size = " << std::setw(2) << std::left
-            << tele::gauge_get("input.image_buffer.size");
+    LOG(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
+              << tele::counter_get("input.image_buffer.delivered")
+              << "    input.image_buffer.dropped = " << std::setw(5) << std::left
+              << tele::counter_get("input.image_buffer.dropped")
+              << "    input.image_buffer.size = " << std::setw(2) << std::left
+              << tele::gauge_get("input.image_buffer.size");
+  */
 }
 
 }  // namespace
@@ -204,6 +209,9 @@ int bot_environment::main(int argc, char* argv[]) {
 
   auto cmd_args = parse_command_line(argc, argv, cli_cfg);
   init_logging(argc, argv);
+  std::string metrics_bind_address = cmd_args["metrics_bind_address"].as<std::string>();
+  if (!metrics_bind_address.empty())
+    expose_metrics(metrics_bind_address);
 
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch");
@@ -221,7 +229,6 @@ int bot_environment::main(int argc, char* argv[]) {
     if (auto ec = _rtm_client->start()) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
-    _tele_publisher.reset(new tele::publisher(*_rtm_client, io_service));
   }
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
@@ -281,7 +288,6 @@ int bot_environment::main(int argc, char* argv[]) {
             >> streams::do_finally([this, &finished]() {
                 finished = true;
                 _bot_instance->stop();
-                _tele_publisher.reset();
                 if (_rtm_client) {
                   auto ec = _rtm_client->stop();
                   if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
