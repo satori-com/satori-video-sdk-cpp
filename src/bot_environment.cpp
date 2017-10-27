@@ -34,7 +34,7 @@ variables_map parse_command_line(int argc, char* argv[],
   generic.add_options()("help", "produce help message");
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
-  generic.add_options()("metrics_bind_address",
+  generic.add_options()("metrics-bind-address",
                         po::value<std::string>()->default_value(""),
                         "socket bind address:port for metrics server");
 
@@ -46,10 +46,10 @@ variables_map parse_command_line(int argc, char* argv[],
 
   po::options_description bot_execution_options("Bot execution options");
   bot_execution_options.add_options()(
-      "analysis_file", po::value<std::string>(),
+      "analysis-file", po::value<std::string>(),
       "saves analysis messages to a file instead of sending to a channel");
   bot_execution_options.add_options()(
-      "debug_file", po::value<std::string>(),
+      "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
 
   po::options_description cli_options = cli_cfg.to_boost();
@@ -209,7 +209,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   auto cmd_args = parse_command_line(argc, argv, cli_cfg);
   init_logging(argc, argv);
-  std::string metrics_bind_address = cmd_args["metrics_bind_address"].as<std::string>();
+  std::string metrics_bind_address = cmd_args["metrics-bind-address"].as<std::string>();
   if (!metrics_bind_address.empty())
     expose_metrics(metrics_bind_address);
 
@@ -241,8 +241,8 @@ int bot_environment::main(int argc, char* argv[]) {
               >> streams::buffered_worker("input.image_buffer", image_buffer_size);
   }
 
-  if (cmd_args.count("analysis_file")) {
-    std::string analysis_file = cmd_args["analysis_file"].as<std::string>();
+  if (cmd_args.count("analysis-file")) {
+    std::string analysis_file = cmd_args["analysis-file"].as<std::string>();
     LOG(INFO) << "saving analysis output to " << analysis_file;
     _analysis_file.reset(new std::ofstream(analysis_file.c_str()));
     _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
@@ -252,8 +252,8 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_sink = new file_cbor_dump_observer(std::cout);
   }
 
-  if (cmd_args.count("debug_file")) {
-    std::string debug_file = cmd_args["debug_file"].as<std::string>();
+  if (cmd_args.count("debug-file")) {
+    std::string debug_file = cmd_args["debug-file"].as<std::string>();
     LOG(INFO) << "saving debug output to " << debug_file;
     _debug_file.reset(new std::ofstream(debug_file.c_str()));
     _debug_sink = new file_cbor_dump_observer(*_debug_file);
