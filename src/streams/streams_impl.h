@@ -7,6 +7,7 @@
 #include <gsl/gsl>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -171,56 +172,64 @@ struct drain_source_impl : public subscription {
 };
 
 template <typename T, typename State>
-struct async_publisher_impl : public publisher_impl<T> {
+struct async_publisher_impl : public publisher_impl<std::queue<T>> {
   using init_fn_t = std::function<State *(observer<T> &observer)>;
   using cancel_fn_t = std::function<void(State *)>;
 
   explicit async_publisher_impl(init_fn_t init_fn, cancel_fn_t cancel_fn)
       : _init_fn(init_fn), _cancel_fn(cancel_fn) {}
 
-  struct sub : subscription, public observer<T> {
-    subscriber<T> &_sink;
-    std::atomic<long> _requested{0};
+  using sub_base_t = drain_source_impl<std::queue<T>>;
+
+  struct sub : sub_base_t, observer<T> {
+    std::mutex _mutex;
+    std::queue<T> _queue;
     init_fn_t _init_fn;
     cancel_fn_t _cancel_fn;
     State *_state{nullptr};
 
-    explicit sub(subscriber<T> &sink, init_fn_t init_fn, cancel_fn_t cancel_fn)
-        : _sink(sink), _init_fn(init_fn), _cancel_fn(cancel_fn) {}
+    sub(subscriber<std::queue<T>> &sink, init_fn_t init_fn, cancel_fn_t cancel_fn)
+        : sub_base_t(sink), _init_fn(init_fn), _cancel_fn(cancel_fn) {}
+
+    virtual ~sub() { _cancel_fn(_state); }
 
     void init() { _state = _init_fn(*this); }
 
-    void request(int n) override { _requested += n; }
-
-    void cancel() override {
-      LOG(5) << "async_publisher_impl::sub::cancel";
-      _cancel_fn(_state);
-      _state = nullptr;
-    }
-
     void on_next(T &&t) override {
-      LOG(5) << "async_publisher_impl::sub::on_next";
-      if (_requested.fetch_sub(1) <= 0) {
-        LOG(1) << "dropping frame from async_publisher";
-        _requested++;
-        return;
+      {
+        LOG(5) << "async_publisher_impl::sub::on_next";
+        std::lock_guard<std::mutex> guard(_mutex);
+        _queue.emplace(std::move(t));
       }
-
-      _sink.on_next(std::move(t));
+      sub_base_t::drain();
     }
 
     void on_error(std::error_condition err) override {
-      _sink.on_error(err);
-      delete this;
+      sub_base_t::deliver_on_error(err);
     }
 
-    void on_complete() override {
-      _sink.on_complete();
-      delete this;
+    void on_complete() override { sub_base_t::deliver_on_complete(); }
+
+    bool drain_impl() override {
+      std::queue<T> tmp;
+      {
+        std::lock_guard<std::mutex> guard(_mutex);
+        if (_queue.empty()) {
+          LOG(5) << "async_publisher_impl::sub::drain_impl empty queue";
+          return false;
+        }
+
+        _queue.swap(tmp);
+        LOG(5) << "async_publisher_impl::sub::drain_impl sending " << tmp.size()
+               << " elements";
+      }
+
+      sub_base_t::deliver_on_next(std::move(tmp));
+      return true;
     }
   };
 
-  virtual void subscribe(subscriber<T> &s) {
+  virtual void subscribe(subscriber<std::queue<T>> &s) {
     LOG(5) << "async_publisher_impl::subscribe";
     auto inst = new sub(s, _init_fn, _cancel_fn);
     s.on_subscribe(*inst);
@@ -267,8 +276,7 @@ publisher<T> of_impl(std::vector<T> &&values) {
   return generators<T>::stateful(
       [data = std::move(values)]() mutable { return new state{std::move(data)}; },
       [](state *s, observer<T> &sink) {
-        LOG(5) << "of_impl generate "
-               << " got " << s->data.size() << " idx " << s->idx;
+        LOG(5) << "of_impl generate  got " << s->data.size() << " idx " << s->idx;
         if (s->idx == s->data.size()) {
           sink.on_complete();
           return;
@@ -1036,6 +1044,16 @@ struct pipe_impl<T, op<T, U>> {
   }
 };
 
+struct flatten_op {
+  template <typename T>
+  struct instance {
+    static auto apply(publisher<T> &&publisher, flatten_op &&) {
+      return std::move(publisher)
+             >> flat_map([](T &&t) { return publishers::of(std::move(t)); });
+    }
+  };
+};
+
 }  // namespace impl
 
 template <typename T>
@@ -1046,6 +1064,19 @@ publisher<T> publishers::of(std::initializer_list<T> values) {
 template <typename T>
 publisher<T> publishers::of(std::vector<T> &&values) {
   return impl::of_impl(std::move(values));
+}
+
+template <typename T>
+publisher<T> publishers::of(std::queue<T> &&values) {
+  // todo: more efficient implementation
+  std::vector<T> v;
+  v.reserve(values.size());
+  while (!values.empty()) {
+    v.emplace_back(std::move(values.front()));
+    values.pop();
+  }
+
+  return impl::of_impl(std::move(v));
 }
 
 template <typename T>
@@ -1065,9 +1096,11 @@ publisher<T> publishers::error(std::error_condition ec) {
 
 template <typename T>
 template <typename State>
-publisher<T> generators<T>::async(std::function<State *(observer<T> &observer)> init_fn,
-                                  std::function<void(State *)> cancel_fn) {
-  return publisher<T>(new impl::async_publisher_impl<T, State>(init_fn, cancel_fn));
+publisher<std::queue<T>> generators<T>::async(
+    std::function<State *(observer<T> &observer)> init_fn,
+    std::function<void(State *)> cancel_fn) {
+  return publisher<std::queue<T>>(
+      new impl::async_publisher_impl<T, State>(init_fn, cancel_fn));
 }
 
 template <typename T>
@@ -1119,6 +1152,8 @@ template <typename Fn>
 auto do_finally(Fn &&fn) {
   return impl::do_finally_op<Fn>{std::move(fn)};
 }
+
+inline auto flatten() { return impl::flatten_op(); }
 
 }  // namespace streams
 }  // namespace video

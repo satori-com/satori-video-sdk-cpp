@@ -258,10 +258,6 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     streams::publisher<network_packet> source =
         satori::video::rtm_source(client, channel);
 
-    if (network_buffer)
-      source = std::move(source)
-               >> streams::buffered_worker("input.network_buffer", network_buffer_size);
-
     return std::move(source) >> satori::video::decode_network_stream()
            >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
   } else if (has_input_file_args) {

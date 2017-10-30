@@ -34,7 +34,7 @@ if (DEFINED CMAKE_CXX_SANITIZER)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_CXX_SANITIZER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
 endif()
 
-set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=0 ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=99 ${CMAKE_CXX_FLAGS}")
 
 add_library(satorivideo
     src/avutils.cpp

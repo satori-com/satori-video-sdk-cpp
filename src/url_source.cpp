@@ -112,10 +112,11 @@ struct url_source_impl {
 
 streams::publisher<encoded_packet> url_source(std::string url) {
   return streams::generators<encoded_packet>::async<url_source_impl>(
-      [url](streams::observer<encoded_packet> &sink) {
-        return new url_source_impl(url, sink);
-      },
-      [](url_source_impl *impl) { delete impl; });
+             [url](streams::observer<encoded_packet> &sink) {
+               return new url_source_impl(url, sink);
+             },
+             [](url_source_impl *impl) { delete impl; })
+         >> streams::flatten();
 }
 }  // namespace video
 }  // namespace satori

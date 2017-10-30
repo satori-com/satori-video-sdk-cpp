@@ -4,6 +4,7 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <queue>
 #include <system_error>
 #include <vector>
 
@@ -79,6 +80,9 @@ struct publishers {
   template <typename T>
   static publisher<T> of(std::vector<T> &&values);
 
+  template <typename T>
+  static publisher<T> of(std::queue<T> &&values);
+
   // Stream of values [from, to).
   template <typename T>
   static publisher<T> range(T from, T to);
@@ -117,10 +121,13 @@ struct generators {
   template <typename CreateFn, typename GenFn>
   static publisher<T> stateful(CreateFn &&create_fn, GenFn &&gen_fn);
 
-  // Creates a stream from extern asynchronous process.
+  // Creates a stream from external asynchronous process.
+  // Since asynchronous process can't cooperate with stream control,
+  // its values are accumulated into the queue.
   template <typename State>
-  static publisher<T> async(std::function<State *(observer<T> &observer)> init_fn,
-                            std::function<void(State *)> cancel_fn);
+  static publisher<std::queue<T>> async(
+      std::function<State *(observer<T> &observer)> init_fn,
+      std::function<void(State *)> stop_fn);
 };
 
 // read file line by line.
@@ -146,6 +153,9 @@ auto map(Fn &&fn);
 // consequently.
 template <typename Fn>
 auto flat_map(Fn &&fn);
+
+// flatten takes a stream of collection<T> and emits each element separately
+auto flatten();
 
 // do_finally operation creates a new stream that calls fn when underlying stream is
 // either signals on_complete, on_error or gets cancelled by downstream

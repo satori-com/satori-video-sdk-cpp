@@ -166,19 +166,22 @@ BOOST_AUTO_TEST_CASE(buffered_worker) {
 }
 
 BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
-  LOG_SCOPE_FUNCTION(ERROR);
+  LOG_SCOPE_FUNCTION(0);
   auto p = streams::publishers::range(1, 5) >> streams::buffered_worker("test", 10)
            >> streams::take(3);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }
 
 BOOST_AUTO_TEST_CASE(async_cancel) {
+  LOG_SCOPE_FUNCTION(0);
   struct async_source {
     void start(streams::observer<int> *s) {
       std::thread{[this, s]() {
         int counter = 1;
         while (_active) {
-          s->on_next(counter++);
+          int i = counter++;
+          LOG(1) << "on_next " << i;
+          s->on_next(std::move(i));
           std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         delete this;
@@ -198,7 +201,7 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
                  return src;
                },
                [](async_source *src) { src->stop(); })
-           >> streams::take(3);
+           >> streams::flatten() >> streams::take(3);
 
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }

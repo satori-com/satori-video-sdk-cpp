@@ -62,10 +62,11 @@ streams::publisher<cbor_item_t *> cbor_channel(
     std::shared_ptr<rtm::subscriber> subscriber, const std::string &channel,
     const rtm::subscription_options &options) {
   return streams::generators<cbor_item_t *>::async<rtm_channel_impl>(
-      [subscriber, channel, options](streams::observer<cbor_item_t *> &observer) {
-        return new rtm_channel_impl(subscriber, channel, options, observer);
-      },
-      [](rtm_channel_impl *impl) { delete impl; });
+             [subscriber, channel, options](streams::observer<cbor_item_t *> &observer) {
+               return new rtm_channel_impl(subscriber, channel, options, observer);
+             },
+             [](rtm_channel_impl *impl) { delete impl; })
+         >> streams::flatten();
   ;
 }
 
