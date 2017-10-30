@@ -4,6 +4,7 @@
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
@@ -14,16 +15,21 @@
 #include "cbor_tools.h"
 #include "cli_streams.h"
 #include "logging_impl.h"
+#include "metrics.h"
 #include "rtm_streams.h"
 #include "streams/asio_streams.h"
-#include "streams/buffered_worker.h"
 #include "streams/signal_breaker.h"
+#include "streams/threaded_worker.h"
 
 namespace satori {
 namespace video {
 namespace {
 
-constexpr size_t image_buffer_size = 2;
+auto& frames_dropped = prometheus::BuildCounter()
+                           .Name("frames_dropped")
+                           .Register(metrics_registry())
+                           .Add({});
+
 using variables_map = boost::program_options::variables_map;
 
 variables_map parse_command_line(int argc, char* argv[],
@@ -103,28 +109,7 @@ cbor_item_t* configure_command(cbor_item_t* config) {
 }
 
 void log_important_counters() {
-  /*
-    LOG(INFO) << "  input.network_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.network_buffer.delivered")
-              << "  input.network_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.network_buffer.dropped")
-              << "  input.network_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.network_buffer.size");
-
-    LOG(INFO) << "  input.encoded_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.encoded_buffer.delivered")
-              << "  input.encoded_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.encoded_buffer.dropped")
-              << "  input.encoded_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.encoded_buffer.size");
-
-    LOG(INFO) << "    input.image_buffer.delivered = " << std::setw(5) << std::left
-              << tele::counter_get("input.image_buffer.delivered")
-              << "    input.image_buffer.dropped = " << std::setw(5) << std::left
-              << tele::counter_get("input.image_buffer.dropped")
-              << "    input.image_buffer.size = " << std::setw(2) << std::left
-              << tele::gauge_get("input.image_buffer.size");
-  */
+  LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
 }
 
 }  // namespace
@@ -237,8 +222,20 @@ int bot_environment::main(int argc, char* argv[]) {
                                       _bot_descriptor->pixel_format);
 
   if (!batch_mode) {
-    _source = std::move(_source)
-              >> streams::buffered_worker("input.image_buffer", image_buffer_size);
+    _source = std::move(_source) >> streams::threaded_worker("processing_worker")
+              >> streams::map([](std::queue<owned_image_packet>&& pkts) {
+                  const size_t frames_to_drop = pkts.size() > 0 ? pkts.size() - 1 : 0;
+                  for (size_t i = 0; i < frames_to_drop; ++i) {
+                    pkts.pop();
+                  }
+                  if (frames_to_drop > 0) {
+                    LOG(1) << "dropped " << frames_to_drop << " frames";
+                    frames_dropped.Increment(frames_to_drop);
+                  }
+                  CHECK_EQ(pkts.size(), 1);
+                  return std::move(pkts);
+                })
+              >> streams::flatten();
   }
 
   if (cmd_args.count("analysis-file")) {

@@ -71,7 +71,6 @@ struct publishers {
   // Creates stream in error state.
   template <typename T>
   static publisher<T> error(std::error_condition ec);
-  // Stateful stream generator.
 
   // Stream of given values.
   template <typename T>
@@ -124,10 +123,10 @@ struct generators {
   // Creates a stream from external asynchronous process.
   // Since asynchronous process can't cooperate with stream control,
   // its values are accumulated into the queue.
-  template <typename State>
-  static publisher<std::queue<T>> async(
-      std::function<State *(observer<T> &observer)> init_fn,
-      std::function<void(State *)> stop_fn);
+  // start_fn - State*(observer<T>&) - starts the asynchronous process
+  // stop_fn - void(State*) - stops the asynchronous proces
+  template <typename State, typename StartFn, typename StopFn>
+  static publisher<std::queue<T>> async(StartFn &&init_fn, StopFn &&stop_fn);
 };
 
 // read file line by line.

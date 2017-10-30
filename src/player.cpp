@@ -8,8 +8,8 @@
 #include "avutils.h"
 #include "cli_streams.h"
 #include "data.h"
-#include "streams/buffered_worker.h"
 #include "streams/streams.h"
+#include "streams/threaded_worker.h"
 #include "video_error.h"
 #include "video_streams.h"
 
@@ -224,11 +224,10 @@ int main(int argc, char *argv[]) {
   streams::publisher<std::shared_ptr<SDL_Texture>> source =
       cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
                                 image_pixel_format::BGR)
-      >> streams::buffered_worker("input.image_buffer", images_buffer_size)
-      >> image_to_surface()
-      >> streams::buffered_worker("player.surface_buffer", surfaces_max_buffer_size)
-      >> surface_to_texture(renderer)
-      >> streams::buffered_worker("player.texture_buffer", textures_max_buffer_size)
+      >> streams::threaded_worker("player.image_buffer") >> streams::flatten()
+      >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
+      >> streams::flatten() >> surface_to_texture(renderer)
+      >> streams::threaded_worker("player.texture_buffer") >> streams::flatten()
       >> streams::do_finally([&rtm_client]() {
           if (rtm_client) {
             auto ec = rtm_client->stop();

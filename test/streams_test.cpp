@@ -12,8 +12,8 @@
 
 #include "logging_impl.h"
 #include "streams/asio_streams.h"
-#include "streams/buffered_worker.h"
 #include "streams/streams.h"
+#include "streams/threaded_worker.h"
 
 using namespace satori::video;
 
@@ -161,14 +161,16 @@ BOOST_AUTO_TEST_CASE(lift_square) {
 }
 
 BOOST_AUTO_TEST_CASE(buffered_worker) {
-  auto p = streams::publishers::range(1, 5) >> streams::buffered_worker("test", 10);
+  LOG_SCOPE_FUNCTION(0);
+  auto p = streams::publishers::range(1, 5) >> streams::threaded_worker("test")
+           >> streams::flatten();
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "."}));
 }
 
 BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
   LOG_SCOPE_FUNCTION(0);
-  auto p = streams::publishers::range(1, 5) >> streams::buffered_worker("test", 10)
-           >> streams::take(3);
+  auto p = streams::publishers::range(1, 5) >> streams::threaded_worker("test")
+           >> streams::flatten() >> streams::take(3);
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "."}));
 }
 

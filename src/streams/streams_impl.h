@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <deque>
 #include <functional>
 #include <gsl/gsl>
@@ -32,7 +33,6 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
 
     void on_next(T &&t) override {
       _on_next(std::move(t));
-      _source->request(1);
     }
 
     void on_complete() override {
@@ -48,7 +48,7 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
     void on_subscribe(subscription &s) override {
       CHECK(!_source);
       _source = &s;
-      _source->request(1);
+      _source->request(INT_MAX);
     }
   };
 
@@ -80,6 +80,8 @@ struct drain_source_impl : public subscription {
   // return false if you need to break drain loop b/c you are waiting for async event.
   virtual bool drain_impl() = 0;
 
+  virtual void die() { delete this; }
+
   void drain() {
     if (_in_drain.load()) {
       _drain_requested = true;
@@ -91,7 +93,7 @@ struct drain_source_impl : public subscription {
     auto exit_drain = gsl::finally([this]() {
       LOG(5) << this << " <- drain needs=" << needs() << " _die=" << _die;
       if (_die) {
-        delete this;
+        die();
       } else {
         _in_drain = false;
       }
@@ -116,7 +118,7 @@ struct drain_source_impl : public subscription {
   }
 
   void deliver_on_next(T &&t) {
-    LOG(5) << this << " drain_source_impl::deliver_on_next " << &_sink;
+    LOG(5) << this << " drain_source_impl::deliver_on_next to " << &_sink;
     _delivered++;
     CHECK(!_die);
     CHECK(_delivered <= _requested);
@@ -128,7 +130,7 @@ struct drain_source_impl : public subscription {
     CHECK(!_die);
     _sink.on_error(ec);
     if (!_in_drain) {
-      delete this;
+      die();
     } else {
       _die = true;
     }
@@ -139,7 +141,17 @@ struct drain_source_impl : public subscription {
     CHECK(!_die);
     _sink.on_complete();
     if (!_in_drain) {
-      delete this;
+      die();
+    } else {
+      _die = true;
+    }
+  }
+
+  void cancel() override {
+    LOG(4) << this << " drain_source_impl::cancel in_drain=" << _in_drain;
+    CHECK(!_die);
+    if (!_in_drain) {
+      die();
     } else {
       _die = true;
     }
@@ -153,16 +165,6 @@ struct drain_source_impl : public subscription {
     drain();
   }
 
-  void cancel() override final {
-    LOG(4) << this << " drain_source_impl::cancel";
-    CHECK(!_die);
-    if (!_in_drain) {
-      delete this;
-    } else {
-      _die = true;
-    }
-  }
-
   streams::subscriber<T> &_sink;
   std::atomic<bool> _in_drain{false};
   std::atomic<long> _requested{0};
@@ -171,29 +173,39 @@ struct drain_source_impl : public subscription {
   std::atomic<bool> _drain_requested{false};
 };
 
-template <typename T, typename State>
-struct async_publisher_impl : public publisher_impl<std::queue<T>> {
-  using init_fn_t = std::function<State *(observer<T> &observer)>;
-  using cancel_fn_t = std::function<void(State *)>;
+template <typename StartFn, typename StopFn>
+struct async_generator_impl {
+  async_generator_impl(StartFn &&start_fn, StopFn &&stop_fn)
+      : _start_fn(std::move(start_fn)), _stop_fn(std::move(stop_fn)) {}
+  async_generator_impl(const async_generator_impl &) = delete;
+  async_generator_impl(async_generator_impl &&) = default;
 
-  explicit async_publisher_impl(init_fn_t init_fn, cancel_fn_t cancel_fn)
-      : _init_fn(init_fn), _cancel_fn(cancel_fn) {}
+  StartFn _start_fn;
+  StopFn _stop_fn;
+};
+
+template <typename T, typename State, typename AsyncGeneratorImpl>
+struct async_publisher_impl : public publisher_impl<std::queue<T>> {
+  explicit async_publisher_impl(AsyncGeneratorImpl &&generator)
+      : _generator(std::move(generator)) {}
 
   using sub_base_t = drain_source_impl<std::queue<T>>;
 
   struct sub : sub_base_t, observer<T> {
+    AsyncGeneratorImpl _generator;
     std::mutex _mutex;
     std::queue<T> _queue;
-    init_fn_t _init_fn;
-    cancel_fn_t _cancel_fn;
     State *_state{nullptr};
 
-    sub(subscriber<std::queue<T>> &sink, init_fn_t init_fn, cancel_fn_t cancel_fn)
-        : sub_base_t(sink), _init_fn(init_fn), _cancel_fn(cancel_fn) {}
+    sub(subscriber<std::queue<T>> &sink, AsyncGeneratorImpl &&generator)
+        : sub_base_t(sink), _generator(std::move(generator)) {}
 
-    virtual ~sub() { _cancel_fn(_state); }
+    virtual ~sub() {
+      _generator._stop_fn(_state);
+      _state = nullptr;
+    }
 
-    void init() { _state = _init_fn(*this); }
+    void init() { _state = _generator._start_fn(*this); }
 
     void on_next(T &&t) override {
       {
@@ -231,13 +243,12 @@ struct async_publisher_impl : public publisher_impl<std::queue<T>> {
 
   virtual void subscribe(subscriber<std::queue<T>> &s) {
     LOG(5) << "async_publisher_impl::subscribe";
-    auto inst = new sub(s, _init_fn, _cancel_fn);
+    auto inst = new sub(s, std::move(_generator));
     s.on_subscribe(*inst);
     inst->init();
   }
 
-  init_fn_t _init_fn;
-  cancel_fn_t _cancel_fn;
+  AsyncGeneratorImpl _generator;
 };
 
 template <typename T>
@@ -276,13 +287,14 @@ publisher<T> of_impl(std::vector<T> &&values) {
   return generators<T>::stateful(
       [data = std::move(values)]() mutable { return new state{std::move(data)}; },
       [](state *s, observer<T> &sink) {
-        LOG(5) << "of_impl generate  got " << s->data.size() << " idx " << s->idx;
         if (s->idx == s->data.size()) {
           sink.on_complete();
-          return;
+          return false;
         }
+
         sink.on_next(std::move(s->data[s->idx]));
         ++s->idx;
+        return true;
       });
 }
 
@@ -292,10 +304,12 @@ publisher<T> range_impl(T from, T to) {
                                  [to](T *t, observer<T> &sink) {
                                    if (*t == to) {
                                      sink.on_complete();
-                                     return;
+                                     return false;
                                    }
+
                                    sink.on_next(std::move(*t));
                                    ++*t;
+                                   return true;
                                  });
 }
 
@@ -738,7 +752,7 @@ struct flat_map_op {
     bool drain_impl() override {
       LOG(5) << "flat_map_op(" << this << ")::drain_impl fwd_sub=" << _fwd_sub
              << " needs=" << drain_source_impl<T>::needs()
-             << "_requested_next=" << _requested_next
+             << " _requested_next=" << _requested_next
              << " _source_complete=" << _source_complete;
 
       if (_fwd_sub) {
@@ -1095,12 +1109,11 @@ publisher<T> publishers::error(std::error_condition ec) {
 }
 
 template <typename T>
-template <typename State>
-publisher<std::queue<T>> generators<T>::async(
-    std::function<State *(observer<T> &observer)> init_fn,
-    std::function<void(State *)> cancel_fn) {
-  return publisher<std::queue<T>>(
-      new impl::async_publisher_impl<T, State>(init_fn, cancel_fn));
+template <typename State, typename StartFn, typename StopFn>
+publisher<std::queue<T>> generators<T>::async(StartFn &&start_fn, StopFn &&stop_fn) {
+  using generator_t = impl::async_generator_impl<StartFn, StopFn>;
+  return publisher<std::queue<T>>(new impl::async_publisher_impl<T, State, generator_t>(
+      generator_t(std::move(start_fn), std::move(stop_fn))));
 }
 
 template <typename T>

@@ -4,7 +4,7 @@
 #include "cli_streams.h"
 #include "mkv_options.h"
 #include "streams/asio_streams.h"
-#include "streams/buffered_worker.h"
+#include "streams/threaded_worker.h"
 #include "video_streams.h"
 
 namespace satori {
@@ -259,7 +259,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
         satori::video::rtm_source(client, channel);
 
     return std::move(source) >> satori::video::decode_network_stream()
-           >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
+           >> streams::threaded_worker("decoder_worker") >> streams::flatten();
   } else if (has_input_file_args) {
     const bool batch = enable_file_batch_mode && vm.count("batch");
 
@@ -276,8 +276,8 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     if (batch) {
       return std::move(source);
     } else {
-      return std::move(source)
-             >> streams::buffered_worker("input.encoded_buffer", encoded_buffer_size);
+      return std::move(source) >> streams::threaded_worker("input.encoded_buffer")
+             >> streams::flatten();
     }
   } else if (has_input_camera_args) {
     return satori::video::camera_source(io_service,

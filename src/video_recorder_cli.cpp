@@ -8,8 +8,8 @@
 #include "data.h"
 #include "logging_impl.h"
 #include "rtm_client.h"
-#include "streams/buffered_worker.h"
 #include "streams/signal_breaker.h"
+#include "streams/threaded_worker.h"
 #include "video_streams.h"
 #include "vp9_encoder.h"
 
@@ -69,11 +69,9 @@ int main(int argc, char* argv[]) {
                                 image_pixel_format::RGB0)
       >> streams::signal_breaker<satori::video::owned_image_packet>(
              {SIGINT, SIGTERM, SIGQUIT})
-      >> streams::buffered_worker("input.buffer_size", image_buffer_size)
-      >> satori::video::encode_vp9(25)
-      >> streams::buffered_worker("recorder.vp9_encoded_buffer",
-                                  outgoing_encoded_frames_max_buffer_size)
-      >> streams::do_finally([&rtm_client]() {
+      >> streams::threaded_worker("input_buffer") >> streams::flatten()
+      >> satori::video::encode_vp9(25) >> streams::threaded_worker("vp9_encoded_buffer")
+      >> streams::flatten() >> streams::do_finally([&rtm_client]() {
           if (rtm_client) {
             if (auto ec = rtm_client->stop()) {
               LOG(ERROR) << "error stopping rtm client: " << ec.message();

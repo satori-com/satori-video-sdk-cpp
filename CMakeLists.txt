@@ -62,7 +62,6 @@ add_library(satorivideo
     src/stopwatch.h
     src/streams/asio_streams.h
     src/streams/asio_streams_impl.h
-    src/streams/buffered_worker.h
     src/streams/channel.h
     src/streams/deferred.h
     src/streams/error_or.h
@@ -70,6 +69,7 @@ add_library(satorivideo
     src/streams/stream_error.cpp
     src/streams/streams.cpp
     src/streams/streams_impl.h
+        src/streams/threaded_worker.h
     src/type_traits.h
     src/url_source.cpp
     src/video_bot.cpp
@@ -163,13 +163,13 @@ target_link_libraries(player
         CONAN_PKG::PrometheusCpp
         )
 
-add_executable(test_bot
-    test/test_bot.cpp)
-set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(test_bot test)
-add_dependencies(test_bot satorivideo)
-target_include_directories(test_bot PRIVATE ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(test_bot
+add_executable(test_configure_bot
+        test/test_configure_bot.cpp)
+set_property(TARGET test_configure_bot PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(test_configure_bot test)
+add_dependencies(test_configure_bot satorivideo)
+target_include_directories(test_configure_bot PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(test_configure_bot
         PRIVATE
         satorivideo
         CONAN_PKG::Boost
@@ -178,6 +178,12 @@ target_link_libraries(test_bot
         CONAN_PKG::Rapidjson
         CONAN_PKG::Gsl
         CONAN_PKG::Loguru)
+
+
+add_executable(test_bot test/test_bot.cpp)
+set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(test_bot test)
+target_link_libraries(test_bot PRIVATE satorivideo CONAN_PKG::Loguru)
 
 add_executable(empty_bot test/empty_bot.cpp)
 set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
@@ -207,14 +213,14 @@ endfunction()
 enable_testing()
 
 file(COPY test_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis-file=a1.txt --debug=d1.txt -v 9 && grep test_analysis_message a1.txt && grep test_debug_message d1.txt")
-add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis-file=a2.txt --debug=d2.txt && grep test_analysis_message a2.txt && grep test_debug_message d2.txt")
-add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis-file=a3.txt --debug=d3.txt && grep test_analysis_message a3.txt && grep test_debug_message d3.txt")
-add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --batch --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis-file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
-add_test(NAME DefaultResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 | tee /dev/tty | grep 'got frame 320x240'")
-add_test(NAME OriginalResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=original | tee /dev/tty | grep 'got frame 640x480'")
-add_test(NAME CustomResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 | tee /dev/tty | grep 'got frame 160x120'")
-add_test(NAME CustomResolutionLoseProportionsTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 --keep-proportions=false | tee /dev/tty | grep 'got frame 160x130'")
+add_test(NAME ReplayTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_configure_bot --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis-file=a1.txt --debug=d1.txt -v 9 && grep test_analysis_message a1.txt && grep test_debug_message d1.txt")
+add_test(NAME VideoTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_configure_bot --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis-file=a2.txt --debug=d2.txt && grep test_analysis_message a2.txt && grep test_debug_message d2.txt")
+add_test(NAME ReplayBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_configure_bot --batch --input-replay-file=test_data/test.replay --config=test_data/config.json --analysis-file=a3.txt --debug=d3.txt && grep test_analysis_message a3.txt && grep test_debug_message d3.txt")
+add_test(NAME VideoBatchTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_configure_bot --batch --input-video-file=test_data/test.mp4 --config=test_data/config.json  --analysis-file=a4.txt --debug=d4.txt && grep test_analysis_message a4.txt && grep test_debug_message d4.txt")
+add_test(NAME DefaultResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 | tee /dev/tty | grep 'got frame 320x240'")
+add_test(NAME OriginalResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 --input-resolution=original | tee /dev/tty | grep 'got frame 640x480'")
+add_test(NAME CustomResolutionTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 | tee /dev/tty | grep 'got frame 160x120'")
+add_test(NAME CustomResolutionLoseProportionsTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/test_bot --input-video-file=test_data/test.mp4 --input-resolution=160x130 --keep-proportions=false | tee /dev/tty | grep 'got frame 160x130'")
 
 # flaky test
 # add_test(NAME FramesLimitTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --frames-limit=5 | tee /dev/tty | grep -o 'got frame 320x240' | wc -l | tee /dev/tty | grep '5'")

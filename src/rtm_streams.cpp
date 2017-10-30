@@ -67,7 +67,6 @@ streams::publisher<cbor_item_t *> cbor_channel(
              },
              [](rtm_channel_impl *impl) { delete impl; })
          >> streams::flatten();
-  ;
 }
 
 }  // namespace rtm

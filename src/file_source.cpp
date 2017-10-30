@@ -120,6 +120,8 @@ struct file_source_impl {
       observer.on_next(frame);
       _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
     }
+
+    return;
   }
 
   void send_metadata(streams::observer<encoded_packet> &observer) {
