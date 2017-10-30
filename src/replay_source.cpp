@@ -14,10 +14,6 @@
 #include "streams/asio_streams.h"
 #include "video_streams.h"
 
-extern "C" {
-#include <libavutil/error.h>
-}
-
 namespace satori {
 namespace video {
 
@@ -25,27 +21,24 @@ struct read_json_impl {
   explicit read_json_impl(const std::string &filename)
       : _filename(filename), _input(filename) {}
 
-  void generate(int count, streams::observer<cbor_item_t *> &observer) {
+  void generate_one(streams::observer<cbor_item_t *> &observer) {
     if (!_input.good()) {
       LOG(ERROR) << "replay file not found: " << _filename;
       observer.on_error(std::make_error_condition(std::errc::no_such_file_or_directory));
       return;
     }
 
-    for (int sent = 0; sent < count; ++sent) {
-      std::string line;
-      if (!std::getline(_input, line)) {
-        LOG(4) << "end of file";
-        observer.on_complete();
-        return;
-      }
-      LOG(4) << "line=" << line;
-
-      rapidjson::Document data;
-      data.Parse<0>(line.c_str()).HasParseError();
-      CHECK(data.IsObject());
-      observer.on_next(cbor_move(json_to_cbor(data)));
+    std::string line;
+    if (!std::getline(_input, line)) {
+      LOG(4) << "end of file";
+      observer.on_complete();
+      return;
     }
+    LOG(4) << "line=" << line;
+    rapidjson::Document data;
+    data.Parse<0>(line.c_str()).HasParseError();
+    CHECK(data.IsObject());
+    observer.on_next(cbor_move(json_to_cbor(data)));
   }
 
   const std::string _filename;
@@ -55,8 +48,8 @@ struct read_json_impl {
 streams::publisher<cbor_item_t *> read_json(const std::string &filename) {
   return streams::generators<cbor_item_t *>::stateful(
       [filename]() { return new read_json_impl(filename); },
-      [](read_json_impl *impl, int count, streams::observer<cbor_item_t *> &sink) {
-        return impl->generate(count, sink);
+      [](read_json_impl *impl, streams::observer<cbor_item_t *> &sink) {
+        return impl->generate_one(sink);
       });
 }
 

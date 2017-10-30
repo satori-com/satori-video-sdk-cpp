@@ -112,8 +112,8 @@ template <typename T>
 struct generators {
   // Stateful stream generator.
   // create_fn - State*() - creates new state object
-  // gen_fn - void(State* state, int n, observer<T>) - called periodically. Should
-  // generate no more than n objects. Less is OK.
+  // gen_fn - bool(State* state, observer<T>) - called periodically. Should
+  // generate 1 object.
   template <typename CreateFn, typename GenFn>
   static publisher<T> stateful(CreateFn &&create_fn, GenFn &&gen_fn);
 

@@ -69,7 +69,7 @@ struct file_source_impl {
     return 0;
   }
 
-  void generate(int count, streams::observer<encoded_packet> &observer) {
+  void generate_one(streams::observer<encoded_packet> &observer) {
     if (_fmt_ctx == nullptr) {
       if (int ret = init()) {
         if (ret == AVERROR_EOF) {
@@ -81,49 +81,44 @@ struct file_source_impl {
       }
     }
 
-    int packets = 0;
-    while (packets < count) {
-      if (!_metadata_sent) {
-        send_metadata(observer);
-        ++packets;
-        continue;
-      }
+    if (!_metadata_sent) {
+      send_metadata(observer);
+      return;
+    }
 
-      av_init_packet(&_pkt);
-      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
+    av_init_packet(&_pkt);
+    auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
 
-      int ret = av_read_frame(_fmt_ctx, &_pkt);
-      if (ret < 0) {
-        if (ret == AVERROR_EOF) {
-          if (_loop) {
-            LOG(4) << "restarting " << _filename;
-            av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
-                          AVSEEK_FLAG_BACKWARD);
-            continue;
-          } else {
-            LOG(4) << "eof in " << _filename;
-            observer.on_complete();
-            return;
-          }
+    int ret = av_read_frame(_fmt_ctx, &_pkt);
+    if (ret < 0) {
+      if (ret == AVERROR_EOF) {
+        if (_loop) {
+          LOG(4) << "restarting " << _filename;
+          av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
+                        AVSEEK_FLAG_BACKWARD);
+          return;
         } else {
-          observer.on_error(video_error::FrameGenerationError);
+          LOG(4) << "eof in " << _filename;
+          observer.on_complete();
           return;
         }
+      } else {
+        observer.on_error(video_error::FrameGenerationError);
+        return;
       }
+    }
 
-      if (_pkt.stream_index == _stream_idx) {
-        LOG(4) << "packet from file " << _filename;
-        encoded_frame frame;
-        frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
-        frame.id = {_last_pos, _pkt.pos};
-        auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
-        frame.timestamp =
-            std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
-        frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
-        observer.on_next(frame);
-        _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
-        packets++;
-      }
+    if (_pkt.stream_index == _stream_idx) {
+      LOG(4) << "packet from file " << _filename;
+      encoded_frame frame;
+      frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
+      frame.id = {_last_pos, _pkt.pos};
+      auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
+      frame.timestamp =
+          std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
+      frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
+      observer.on_next(frame);
+      _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
     }
   }
 
@@ -155,8 +150,8 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
   streams::publisher<encoded_packet> result =
       streams::generators<encoded_packet>::stateful(
           [filename, loop]() { return new file_source_impl(filename, loop); },
-          [](file_source_impl *impl, int count, streams::observer<encoded_packet> &sink) {
-            return impl->generate(count, sink);
+          [](file_source_impl *impl, streams::observer<encoded_packet> &sink) {
+            impl->generate_one(sink);
           });
 
   if (!batch) {

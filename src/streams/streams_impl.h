@@ -115,15 +115,16 @@ struct drain_source_impl : public subscription {
   }
 
   void deliver_on_next(T &&t) {
-    LOG(5) << this << " drain_source_impl::deliver_on_next";
+    LOG(5) << this << " drain_source_impl::deliver_on_next " << &_sink;
     _delivered++;
+    CHECK(!_die);
     CHECK(_delivered <= _requested);
-    LOG(5) << this << " drain_source_impl sending to sink " << &_sink;
     _sink.on_next(std::move(t));
   }
 
   void deliver_on_error(std::error_condition ec) {
     LOG(5) << this << " drain_source_impl::deliver_on_error";
+    CHECK(!_die);
     _sink.on_error(ec);
     if (!_in_drain) {
       delete this;
@@ -134,6 +135,7 @@ struct drain_source_impl : public subscription {
 
   void deliver_on_complete() {
     LOG(5) << this << " drain_source_impl::deliver_on_complete";
+    CHECK(!_die);
     _sink.on_complete();
     if (!_in_drain) {
       delete this;
@@ -145,12 +147,14 @@ struct drain_source_impl : public subscription {
  private:
   void request(int n) override final {
     LOG(4) << this << " drain_source_impl::request " << n;
+    CHECK(!_die);
     _requested += n;
     drain();
   }
 
   void cancel() override final {
     LOG(4) << this << " drain_source_impl::cancel";
+    CHECK(!_die);
     if (!_in_drain) {
       delete this;
     } else {
@@ -262,28 +266,28 @@ publisher<T> of_impl(std::vector<T> &&values) {
 
   return generators<T>::stateful(
       [data = std::move(values)]() mutable { return new state{std::move(data)}; },
-      [](state *s, long n, observer<T> &sink) {
-        for (long i = 0; i < n && s->idx < s->data.size(); ++i, ++s->idx) {
-          sink.on_next(std::move(s->data[s->idx]));
-        }
-
+      [](state *s, observer<T> &sink) {
+        LOG(5) << "of_impl generate "
+               << " got " << s->data.size() << " idx " << s->idx;
         if (s->idx == s->data.size()) {
           sink.on_complete();
+          return;
         }
+        sink.on_next(std::move(s->data[s->idx]));
+        ++s->idx;
       });
 }
 
 template <typename T>
 publisher<T> range_impl(T from, T to) {
   return generators<T>::stateful([from]() { return new T{from}; },
-                                 [to](T *t, long n, observer<T> &sink) {
-                                   for (int i = 0; i < n && *t < to; ++i, ++*t) {
-                                     sink.on_next(std::move(*t));
-                                   }
-
+                                 [to](T *t, observer<T> &sink) {
                                    if (*t == to) {
                                      sink.on_complete();
+                                     return;
                                    }
+                                   sink.on_next(std::move(*t));
+                                   ++*t;
                                  });
 }
 
@@ -312,8 +316,8 @@ struct generator_publisher : public publisher_impl<T> {
     ~sub() { LOG(5) << "generator(" << this << ")::~generator"; }
 
     bool drain_impl() override {
-      _gen._gen_fn(_state.get(), drain_source_impl<T>::needs(), *this);
-      return false;
+      _gen._gen_fn(_state.get(), *this);
+      return true;
     }
 
     void on_next(T &&t) override { drain_source_impl<T>::deliver_on_next(std::move(t)); }

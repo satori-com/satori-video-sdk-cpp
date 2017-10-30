@@ -93,6 +93,7 @@ struct buffered_worker_op {
       LOG(5) << "buffered_worker_op(" << this << ")::cancel";
       if (_source_sub) {
         _source_sub->cancel();
+        _source_sub = nullptr;
       }
       _is_active = false;
     }

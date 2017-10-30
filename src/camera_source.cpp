@@ -160,7 +160,7 @@ struct camera_source_impl {
     }
   }
 
-  void generate(int count, streams::observer<encoded_packet> &observer) {
+  void generate_one(streams::observer<encoded_packet> &observer) {
     if (!_fmt_ctx) {
       if (init()) {
         observer.on_error(video_error::StreamInitializationError);
@@ -168,52 +168,46 @@ struct camera_source_impl {
       }
     }
 
-    int packets = 0;
-    while (packets < count) {
-      int ret = av_read_frame(_fmt_ctx, &_dec_pkt);
-      if (ret < 0) {
-        std::cerr << "*** Failed to read frame:" << avutils::error_msg(ret) << "\n";
-        observer.on_error(video_error::FrameGenerationError);
-        return;
-      }
-
-      if ((ret = avcodec_send_packet(_dec_ctx, &_dec_pkt)) != 0) {
-        std::cerr << "*** avcodec_send_packet error:" << avutils::error_msg(ret) << "\n";
-        observer.on_error(video_error::FrameGenerationError);
-        return;
-      }
-
-      if ((ret = avcodec_receive_frame(_dec_ctx, _dec_frame)) != 0) {
-        std::cerr << "*** avcodec_receive_frame error:" << avutils::error_msg(ret)
-                  << "\n";
-        observer.on_error(video_error::FrameGenerationError);
-        return;
-      }
-
-      sws_scale(_sws_ctx, _dec_frame->data, _dec_frame->linesize, 0, _enc_frame->height,
-                _enc_frame->data, _enc_frame->linesize);
-
-      if ((ret = avcodec_send_frame(_enc_ctx, _enc_frame)) != 0) {
-        std::cerr << "*** avcodec_send_frame error:" << avutils::error_msg(ret) << "\n";
-        observer.on_error(video_error::FrameGenerationError);
-        return;
-      }
-
-      if ((ret = avcodec_receive_packet(_enc_ctx, &_enc_pkt)) != 0) {
-        std::cerr << "*** avcodec_receive_packet error:" << avutils::error_msg(ret)
-                  << "\n";
-        observer.on_error(video_error::FrameGenerationError);
-        return;
-      }
-
-      auto release = gsl::finally([this]() {
-        av_packet_unref(&_dec_pkt);
-        av_packet_unref(&_enc_pkt);
-      });
-      observer.on_next(encoded_packet{
-          encoded_frame{std::string{_enc_pkt.data, _enc_pkt.data + _enc_pkt.size}}});
-      packets++;
+    int ret = av_read_frame(_fmt_ctx, &_dec_pkt);
+    if (ret < 0) {
+      std::cerr << "*** Failed to read frame:" << avutils::error_msg(ret) << "\n";
+      observer.on_error(video_error::FrameGenerationError);
+      return;
     }
+
+    if ((ret = avcodec_send_packet(_dec_ctx, &_dec_pkt)) != 0) {
+      std::cerr << "*** avcodec_send_packet error:" << avutils::error_msg(ret) << "\n";
+      observer.on_error(video_error::FrameGenerationError);
+      return;
+    }
+
+    if ((ret = avcodec_receive_frame(_dec_ctx, _dec_frame)) != 0) {
+      std::cerr << "*** avcodec_receive_frame error:" << avutils::error_msg(ret) << "\n";
+      observer.on_error(video_error::FrameGenerationError);
+      return;
+    }
+
+    sws_scale(_sws_ctx, _dec_frame->data, _dec_frame->linesize, 0, _enc_frame->height,
+              _enc_frame->data, _enc_frame->linesize);
+
+    if ((ret = avcodec_send_frame(_enc_ctx, _enc_frame)) != 0) {
+      std::cerr << "*** avcodec_send_frame error:" << avutils::error_msg(ret) << "\n";
+      observer.on_error(video_error::FrameGenerationError);
+      return;
+    }
+
+    if ((ret = avcodec_receive_packet(_enc_ctx, &_enc_pkt)) != 0) {
+      std::cerr << "*** avcodec_receive_packet error:" << avutils::error_msg(ret) << "\n";
+      observer.on_error(video_error::FrameGenerationError);
+      return;
+    }
+
+    auto release = gsl::finally([this]() {
+      av_packet_unref(&_dec_pkt);
+      av_packet_unref(&_enc_pkt);
+    });
+    observer.on_next(encoded_packet{
+        encoded_frame{std::string{_enc_pkt.data, _enc_pkt.data + _enc_pkt.size}}});
   }
 
   std::string _dimensions;
@@ -242,9 +236,8 @@ streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
                                                  const std::string &dimensions) {
   return streams::generators<encoded_packet>::stateful(
              [dimensions]() { return new camera_source_impl(dimensions); },
-             [](camera_source_impl *impl, int count,
-                streams::observer<encoded_packet> &sink) {
-               return impl->generate(count, sink);
+             [](camera_source_impl *impl, streams::observer<encoded_packet> &sink) {
+               impl->generate_one(sink);
              })
          >> streams::asio::interval<encoded_packet>(io,
                                                     std::chrono::milliseconds(1000 / 25));
