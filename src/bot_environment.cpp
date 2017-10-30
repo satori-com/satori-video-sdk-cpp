@@ -194,9 +194,14 @@ int bot_environment::main(int argc, char* argv[]) {
 
   auto cmd_args = parse_command_line(argc, argv, cli_cfg);
   init_logging(argc, argv);
+
+  boost::asio::io_service io_service;
+
   std::string metrics_bind_address = cmd_args["metrics-bind-address"].as<std::string>();
-  if (!metrics_bind_address.empty())
+  if (!metrics_bind_address.empty()) {
     expose_metrics(metrics_bind_address);
+    report_process_metrics(io_service);
+  }
 
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch");
@@ -206,7 +211,6 @@ int bot_environment::main(int argc, char* argv[]) {
                    ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
                    : boost::optional<std::string>{});
 
-  boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
   _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, ssl_context, *this);

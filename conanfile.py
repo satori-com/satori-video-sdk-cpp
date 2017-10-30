@@ -6,7 +6,7 @@ class SatorivideoConan(ConanFile):
     url = "https://bitbucket.addsrv.com/projects/PLATFORM/repos/video/browse"
     description = "Satori Video Client Library"
 
-    options = {"with_opencv": [True, False], "sanitizer": ["", "address"]}
+    options = {"with_opencv": [True, False]}
 
 
     requires = "Libcbor/0.5.0@satorivideo/master", \
@@ -22,10 +22,9 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.09.28@satorivideo/master"
 
     license = "proprietary"
-    version = '0.8.2'
+    version = '0.8.3'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
-                      "sanitizer=", \
                       "Libcbor:fPIC=True", \
                       "Libcbor:shared=False", \
                       "Boost:fPIC=True", \
@@ -52,9 +51,6 @@ class SatorivideoConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
-        if self.options.sanitizer:
-            cmake.definitions["CMAKE_CXX_SANITIZER"] = self.options.sanitizer
-
         cmake_options = []
         cmake_options.append("-DCMAKE_VERBOSE_MAKEFILE=ON")
 
