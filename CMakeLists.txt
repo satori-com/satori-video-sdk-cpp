@@ -69,7 +69,7 @@ add_library(satorivideo
     src/streams/stream_error.cpp
     src/streams/streams.cpp
     src/streams/streams_impl.h
-        src/streams/threaded_worker.h
+    src/streams/threaded_worker.h
     src/type_traits.h
     src/url_source.cpp
     src/video_bot.cpp
@@ -163,8 +163,7 @@ target_link_libraries(player
         CONAN_PKG::PrometheusCpp
         )
 
-add_executable(test_configure_bot
-        test/test_configure_bot.cpp)
+add_executable(test_configure_bot test/bots/test_configure_bot.cpp)
 set_property(TARGET test_configure_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(test_configure_bot test)
 add_dependencies(test_configure_bot satorivideo)
@@ -180,12 +179,12 @@ target_link_libraries(test_configure_bot
         CONAN_PKG::Loguru)
 
 
-add_executable(test_bot test/test_bot.cpp)
+add_executable(test_bot test/bots/test_bot.cpp)
 set_property(TARGET test_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(test_bot test)
 target_link_libraries(test_bot PRIVATE satorivideo CONAN_PKG::Loguru)
 
-add_executable(empty_bot test/empty_bot.cpp)
+add_executable(empty_bot test/bots/empty_bot.cpp)
 set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(empty_bot test)
 target_link_libraries(empty_bot PRIVATE satorivideo CONAN_PKG::Loguru)
