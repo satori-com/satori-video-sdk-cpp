@@ -15,6 +15,7 @@
 
 #include "cbor_json.h"
 #include "logging.h"
+#include "metrics.h"
 #include "rtm_client.h"
 
 namespace asio = boost::asio;
@@ -60,6 +61,29 @@ std::error_condition make_error_condition(client_error e) {
 namespace {
 
 constexpr int READ_BUFFER_SIZE = 100000;
+
+
+auto& rtm_messages_received = prometheus::BuildCounter()
+    .Name("rtm_messages_received")
+    .Register(metrics_registry())
+    .Add({});
+
+auto& rtm_bytes_received = prometheus::BuildCounter()
+    .Name("rtm_bytes_received")
+    .Register(metrics_registry())
+    .Add({});
+
+auto& rtm_messages_sent = prometheus::BuildCounter()
+    .Name("rtm_messages_sent")
+    .Register(metrics_registry())
+    .Add({});
+
+auto& rtm_bytes_sent = prometheus::BuildCounter()
+    .Name("rtm_bytes_sent")
+    .Register(metrics_registry())
+    .Add({});
+
+
 
 static std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -220,6 +244,8 @@ class secure_client : public client {
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
+    rtm_messages_sent.Increment();
+    rtm_bytes_sent.Increment(buf.GetSize());
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -303,6 +329,9 @@ class secure_client : public client {
 
       std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
       _read_buffer.consume(_read_buffer.size());
+
+      rtm_messages_received.Increment();
+      rtm_bytes_received.Increment(input.size());
 
       rapidjson::StringStream s(input.c_str());
       rapidjson::Document d;
