@@ -22,7 +22,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.09.28@satorivideo/master"
 
     license = "proprietary"
-    version = '0.8.4'
+    version = '0.8.5'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "Libcbor:fPIC=True", \
