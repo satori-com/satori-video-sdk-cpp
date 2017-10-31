@@ -13,12 +13,13 @@ namespace video {
 class bot_instance : public bot_context, streams::subscriber<owned_image_packet>,
                      boost::static_visitor<void> {
  public:
-  bot_instance(const std::string& bot_id, execution_mode execmode,
+  bot_instance(const std::string& bot_id, execution_mode exec_mode,
                const bot_descriptor& descriptor, bot_environment& env);
   ~bot_instance() override;
 
-  void start(streams::publisher<owned_image_packet>& video_stream,
-             streams::publisher<cbor_item_t*>& control_stream);
+  void start(streams::publisher<owned_image_packet>&& video_stream,
+             streams::publisher<cbor_item_t*>&& control_stream);
+
   void stop();
 
   void queue_message(bot_message_kind kind, cbor_item_t* message, const frame_id& id);

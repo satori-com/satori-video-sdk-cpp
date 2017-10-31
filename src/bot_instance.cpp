@@ -3,24 +3,37 @@
 #include "cbor_tools.h"
 #include "metrics.h"
 #include "stopwatch.h"
+#include "streams/threaded_worker.h"
 
 namespace satori {
 namespace video {
 namespace {
+
+auto& frames_dropped = prometheus::BuildCounter()
+    .Name("bot_frames_dropped_total")
+    .Register(metrics_registry())
+    .Add({});
+
 auto& processing_times_millis =
     prometheus::BuildHistogram()
-        .Name("frame_processing_times_millis")
+        .Name("bot_frame_processing_times_millis")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
                                      60, 70, 80, 90, 100, 200, 300, 400, 500, 750});
+
 auto& frames_processed = prometheus::BuildCounter()
-                             .Name("frames_processed")
+                             .Name("bot_frames_processed_total")
                              .Register(metrics_registry())
                              .Add({});
 auto& messages_sent =
-    prometheus::BuildCounter().Name("messages_sent").Register(metrics_registry());
+    prometheus::BuildCounter().Name("bot_messages_sent_total").Register(metrics_registry());
 auto& messages_received =
-    prometheus::BuildCounter().Name("messages_received").Register(metrics_registry());
+    prometheus::BuildCounter().Name("bot_messages_received_total").Register(metrics_registry());
+
+void log_important_counters() {
+  LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
+  LOG(INFO) << "  frames_processed=" << (size_t)frames_processed.Value();
+}
 
 }  // namespace
 
@@ -64,10 +77,28 @@ bot_instance::bot_instance(const std::string& bot_id, const execution_mode execm
 
 bot_instance::~bot_instance() = default;
 
-void bot_instance::start(streams::publisher<owned_image_packet>& video_stream,
-                         streams::publisher<cbor_item_t*>& control_stream) {
+void bot_instance::start(streams::publisher<owned_image_packet>&& video_stream,
+                         streams::publisher<cbor_item_t*>&& control_stream) {
   _control_sub = std::make_unique<control_sub>(this);
   control_stream->subscribe(*_control_sub);
+
+  if (mode == execution_mode::LIVE) {
+    video_stream = std::move(video_stream) >> streams::threaded_worker("processing_worker")
+        >> streams::map([](std::queue<owned_image_packet>&& pkts) {
+          const size_t frames_to_drop = pkts.size() > 0 ? pkts.size() - 1 : 0;
+          for (size_t i = 0; i < frames_to_drop; ++i) {
+            pkts.pop();
+          }
+          if (frames_to_drop > 0) {
+            LOG(1) << "dropped " << frames_to_drop << " frames";
+            frames_dropped.Increment(frames_to_drop);
+          }
+          CHECK_EQ(pkts.size(), 1);
+          return std::move(pkts);
+        })
+        >> streams::flatten();
+  }
+
   // this will drain the stream in batch mode, should be last.
   video_stream->subscribe(*this);
 }
@@ -132,6 +163,12 @@ void bot_instance::operator()(const owned_image_frame& frame) {
   _descriptor.img_callback(*this, bframe);
   processing_times_millis.Observe(s.millis());
   frames_processed.Increment();
+
+  constexpr int period = 100;
+  if (!(static_cast<int>(frames_processed.Value()) % period)) {
+    LOG(INFO) << "Processed " << period << " frames";
+    log_important_counters();
+  }
 
   send_messages(frame.id);
 }

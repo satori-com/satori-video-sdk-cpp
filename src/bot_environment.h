@@ -46,8 +46,6 @@ class bot_environment : private rtm::error_callbacks {
   std::unique_ptr<std::ofstream> _analysis_file;
   std::unique_ptr<std::ofstream> _debug_file;
 
-  streams::publisher<owned_image_packet> _source;
-  streams::publisher<cbor_item_t*> _control_source;
 };
 
 }  // namespace video

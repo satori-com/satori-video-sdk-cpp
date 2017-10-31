@@ -20,16 +20,10 @@
 #include "rtm_streams.h"
 #include "streams/asio_streams.h"
 #include "streams/signal_breaker.h"
-#include "streams/threaded_worker.h"
 
 namespace satori {
 namespace video {
 namespace {
-
-auto& frames_dropped = prometheus::BuildCounter()
-                           .Name("frames_dropped")
-                           .Register(metrics_registry())
-                           .Add({});
 
 using variables_map = boost::program_options::variables_map;
 
@@ -116,10 +110,6 @@ cbor_item_t* configure_command(cbor_item_t* config) {
                      cbor_move(cbor_build_string("configure"))});
   cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
   return cmd;
-}
-
-void log_important_counters() {
-  LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
 }
 
 }  // namespace
@@ -250,25 +240,6 @@ int bot_environment::main(int argc, char* argv[]) {
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
-  _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
-                                      _bot_descriptor.pixel_format);
-
-  if (!batch_mode) {
-    _source = std::move(_source) >> streams::threaded_worker("processing_worker")
-              >> streams::map([](std::queue<owned_image_packet>&& pkts) {
-                  const size_t frames_to_drop = !pkts.empty() ? pkts.size() - 1 : 0;
-                  for (size_t i = 0; i < frames_to_drop; ++i) {
-                    pkts.pop();
-                  }
-                  if (frames_to_drop > 0) {
-                    LOG(1) << "dropped " << frames_to_drop << " frames";
-                    frames_dropped.Increment(frames_to_drop);
-                  }
-                  CHECK_EQ(pkts.size(), 1);
-                  return std::move(pkts);
-                })
-              >> streams::flatten();
-  }
 
   if (cmd_args.count("analysis-file") > 0) {
     std::string analysis_file = cmd_args["analysis-file"].as<std::string>();
@@ -292,28 +263,21 @@ int bot_environment::main(int argc, char* argv[]) {
     _debug_sink = new file_cbor_dump_observer(std::cerr);
   }
 
+  streams::publisher<cbor_item_t*> control_source;
+
   if (_rtm_client) {
     _control_sink = &rtm::cbor_sink(_rtm_client, control_channel);
-    _control_source = rtm::cbor_channel(_rtm_client, control_channel, {});
+    control_source = rtm::cbor_channel(_rtm_client, control_channel, {});
   } else {
     _control_sink = new file_cbor_dump_observer(std::cout);
-    _control_source = streams::publishers::empty<cbor_item_t*>();
+    control_source = streams::publishers::empty<cbor_item_t*>();
   }
 
   bool finished{false};
   int frames_count = 0;
 
-  _source = std::move(_source)
+  streams::publisher<owned_image_packet> video_source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel, true, _bot_descriptor->pixel_format)
             >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
-            >> streams::map([frames_count](owned_image_packet&& pkt) mutable {
-                frames_count++;
-                constexpr int period = 100;
-                if ((frames_count % period) == 0) {
-                  LOG(INFO) << "Processed " << period << " frames";
-                  log_important_counters();
-                }
-                return pkt;
-              })
             >> streams::do_finally([this, &finished]() {
                 finished = true;
                 _bot_instance->stop();
@@ -325,7 +289,7 @@ int bot_environment::main(int argc, char* argv[]) {
                 }
               });
 
-  _bot_instance->start(_source, _control_source);
+  _bot_instance->start(std::move(video_source), std::move(control_source));
 
   if (!batch_mode) {
     LOG(INFO) << "entering asio loop";
