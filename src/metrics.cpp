@@ -23,18 +23,18 @@ auto& process_heap_size = prometheus::BuildGauge()
     .Register(metrics_registry())
     .Add({});
 
-auto& process_cpu_wall_time_msec = prometheus::BuildCounter()
-    .Name("process_cpu_wall_time_msec")
+auto& process_cpu_wall_time_sec = prometheus::BuildCounter()
+    .Name("process_cpu_wall_time_sec")
     .Register(metrics_registry())
     .Add({});
 
-auto& process_cpu_user_time_msec = prometheus::BuildCounter()
-    .Name("process_cpu_user_time_msec")
+auto& process_cpu_user_time_sec = prometheus::BuildCounter()
+    .Name("process_cpu_user_time_sec")
     .Register(metrics_registry())
     .Add({});
 
-auto& process_cpu_system_time_msec = prometheus::BuildCounter()
-    .Name("process_cpu_system_time_msec")
+auto& process_cpu_system_time_sec = prometheus::BuildCounter()
+    .Name("process_cpu_system_time_sec")
     .Register(metrics_registry())
     .Add({});
 
@@ -65,14 +65,14 @@ void report_process_metrics_impl(boost::asio::deadline_timer *timer, boost::time
   
   // scrape cpu timer
   const boost::timer::cpu_times &times = cpu_timer->elapsed();
-  process_cpu_system_time_msec.Increment(
-      times.system - process_cpu_system_time_msec.Value()
+  process_cpu_system_time_sec.Increment(
+      times.system * 1e9 - process_cpu_system_time_sec.Value()
   );
-  process_cpu_user_time_msec.Increment(
-      times.system - process_cpu_user_time_msec.Value()
+  process_cpu_user_time_sec.Increment(
+      times.user * 1e9 - process_cpu_user_time_sec.Value()
   );
-  process_cpu_wall_time_msec.Increment(
-      times.system - process_cpu_wall_time_msec.Value()
+  process_cpu_wall_time_sec.Increment(
+      times.wall * 1e9 - process_cpu_wall_time_sec.Value()
   );
 }
 
