@@ -12,20 +12,16 @@ namespace {
 
 constexpr double epsilon = .000001;
 
-auto &frames_received = prometheus::BuildCounter()
-                            .Name("decoder_frames_received")
+auto &frames_decoded = prometheus::BuildCounter()
+                            .Name("decoder_frames_decoded_total")
                             .Register(metrics_registry())
                             .Add({});
 auto &messages_received = prometheus::BuildCounter()
-                              .Name("decoder_messages_received")
+                              .Name("decoder_messages_received_total")
                               .Register(metrics_registry())
                               .Add({});
-auto &messages_dropped = prometheus::BuildCounter()
-                             .Name("decoder_messages_dropped")
-                             .Register(metrics_registry())
-                             .Add({});
 auto &bytes_received = prometheus::BuildCounter()
-                           .Name("decoder_bytes_received")
+                           .Name("decoder_bytes_received_total")
                            .Register(metrics_registry())
                            .Add({});
 auto &send_packet_millis = prometheus::BuildHistogram()
@@ -129,10 +125,6 @@ struct image_decoder_op {
       messages_received.Increment();
       bytes_received.Increment(f.data.size());
 
-      if (!_context) {
-        messages_dropped.Increment();
-      }
-
       {
         stopwatch<> s;
         av_init_packet(_packet.get());
@@ -234,7 +226,7 @@ struct image_decoder_op {
         }
       }
 
-      frames_received.Increment();
+      frames_decoded.Increment();
       deliver_on_next(owned_image_packet{frame});
     }
 
