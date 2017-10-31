@@ -66,13 +66,13 @@ void report_process_metrics_impl(boost::asio::deadline_timer *timer, boost::time
   // scrape cpu timer
   const boost::timer::cpu_times &times = cpu_timer->elapsed();
   process_cpu_system_time_sec.Increment(
-      times.system * 1e9 - process_cpu_system_time_sec.Value()
+      times.system / 1e9 - process_cpu_system_time_sec.Value()
   );
   process_cpu_user_time_sec.Increment(
-      times.user * 1e9 - process_cpu_user_time_sec.Value()
+      times.user / 1e9 - process_cpu_user_time_sec.Value()
   );
   process_cpu_wall_time_sec.Increment(
-      times.wall * 1e9 - process_cpu_wall_time_sec.Value()
+      times.wall / 1e9 - process_cpu_wall_time_sec.Value()
   );
 }
 
