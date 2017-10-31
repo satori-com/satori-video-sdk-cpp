@@ -276,18 +276,20 @@ int bot_environment::main(int argc, char* argv[]) {
   bool finished{false};
   int frames_count = 0;
 
-  streams::publisher<owned_image_packet> video_source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel, true, _bot_descriptor->pixel_format)
-            >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
-            >> streams::do_finally([this, &finished]() {
-                finished = true;
-                _bot_instance->stop();
-                if (_rtm_client) {
-                  auto ec = _rtm_client->stop();
-                  if (ec) {
-                    LOG(ERROR) << "error stopping rtm client: " << ec.message();
-                  }
-                }
-              });
+  streams::publisher<owned_image_packet> video_source =
+      cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
+                                _bot_descriptor.pixel_format)
+      >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
+      >> streams::do_finally([this, &finished]() {
+          finished = true;
+          _bot_instance->stop();
+          if (_rtm_client) {
+            auto ec = _rtm_client->stop();
+            if (ec) {
+              LOG(ERROR) << "error stopping rtm client: " << ec.message();
+            }
+          }
+        });
 
   _bot_instance->start(std::move(video_source), std::move(control_source));
 

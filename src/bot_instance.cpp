@@ -10,9 +10,9 @@ namespace video {
 namespace {
 
 auto& frames_dropped = prometheus::BuildCounter()
-    .Name("bot_frames_dropped_total")
-    .Register(metrics_registry())
-    .Add({});
+                           .Name("bot_frames_dropped_total")
+                           .Register(metrics_registry())
+                           .Add({});
 
 auto& processing_times_millis =
     prometheus::BuildHistogram()
@@ -25,10 +25,12 @@ auto& frames_processed = prometheus::BuildCounter()
                              .Name("bot_frames_processed_total")
                              .Register(metrics_registry())
                              .Add({});
-auto& messages_sent =
-    prometheus::BuildCounter().Name("bot_messages_sent_total").Register(metrics_registry());
-auto& messages_received =
-    prometheus::BuildCounter().Name("bot_messages_received_total").Register(metrics_registry());
+auto& messages_sent = prometheus::BuildCounter()
+                          .Name("bot_messages_sent_total")
+                          .Register(metrics_registry());
+auto& messages_received = prometheus::BuildCounter()
+                              .Name("bot_messages_received_total")
+                              .Register(metrics_registry());
 
 void log_important_counters() {
   LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
@@ -83,19 +85,20 @@ void bot_instance::start(streams::publisher<owned_image_packet>&& video_stream,
   control_stream->subscribe(*_control_sub);
 
   if (mode == execution_mode::LIVE) {
-    video_stream = std::move(video_stream) >> streams::threaded_worker("processing_worker")
+    video_stream =
+        std::move(video_stream) >> streams::threaded_worker("processing_worker")
         >> streams::map([](std::queue<owned_image_packet>&& pkts) {
-          const size_t frames_to_drop = pkts.size() > 0 ? pkts.size() - 1 : 0;
-          for (size_t i = 0; i < frames_to_drop; ++i) {
-            pkts.pop();
-          }
-          if (frames_to_drop > 0) {
-            LOG(1) << "dropped " << frames_to_drop << " frames";
-            frames_dropped.Increment(frames_to_drop);
-          }
-          CHECK_EQ(pkts.size(), 1);
-          return std::move(pkts);
-        })
+            const size_t frames_to_drop = pkts.size() > 0 ? pkts.size() - 1 : 0;
+            for (size_t i = 0; i < frames_to_drop; ++i) {
+              pkts.pop();
+            }
+            if (frames_to_drop > 0) {
+              LOG(1) << "dropped " << frames_to_drop << " frames";
+              frames_dropped.Increment(frames_to_drop);
+            }
+            CHECK_EQ(pkts.size(), 1);
+            return std::move(pkts);
+          })
         >> streams::flatten();
   }
 

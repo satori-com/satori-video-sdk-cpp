@@ -13,9 +13,9 @@ namespace {
 constexpr double epsilon = .000001;
 
 auto &frames_decoded = prometheus::BuildCounter()
-                            .Name("decoder_frames_decoded_total")
-                            .Register(metrics_registry())
-                            .Add({});
+                           .Name("decoder_frames_decoded_total")
+                           .Register(metrics_registry())
+                           .Add({});
 auto &messages_received = prometheus::BuildCounter()
                               .Name("decoder_messages_received_total")
                               .Register(metrics_registry())
