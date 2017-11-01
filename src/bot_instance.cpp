@@ -135,7 +135,8 @@ void bot_instance::operator()(const owned_image_frame& frame) {
 }
 
 void bot_instance::operator()(cbor_item_t* msg) {
-  messages_received.Add({{"message_type", "control"}}).Increment();
+  // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
+//  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
@@ -175,6 +176,8 @@ void bot_instance::operator()(cbor_item_t* msg) {
 
 void bot_instance::send_messages(const frame_id& id) {
   for (auto&& msg : _message_buffer) {
+    // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
+/*
     switch (msg.kind) {
       case bot_message_kind::ANALYSIS:
         messages_sent.Add({{"message_type", "analysis"}}).Increment();
@@ -186,6 +189,7 @@ void bot_instance::send_messages(const frame_id& id) {
         messages_sent.Add({{"message_type", "control"}}).Increment();
         break;
     }
+*/
 
     cbor_item_t* data = msg.data;
 
