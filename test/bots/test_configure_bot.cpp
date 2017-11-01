@@ -23,9 +23,8 @@ void process_image(bot_context &context, const image_frame &frame) {
             << context.frame_metadata->height << ", BGR stride "
             << context.frame_metadata->plane_strides[0] << "\n";
   bot_message(context, bot_message_kind::ANALYSIS,
-              cbor_move(build_message("test_analysis_message")));
-  bot_message(context, bot_message_kind::DEBUG,
-              cbor_move(build_message("test_debug_message")));
+              build_message("test_analysis_message"));
+  bot_message(context, bot_message_kind::DEBUG, build_message("test_debug_message"));
 }
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   if (cbor::map_has_str_value(config, "action", "configure")) {
