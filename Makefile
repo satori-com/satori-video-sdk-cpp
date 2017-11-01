@@ -1,3 +1,4 @@
+DOCKER_BUILD_OPTIONS?=
 .RECIPEPREFIX = >
 
 .PHONY: all conan-create conan-create-in-docker conan-upload-from-docker conan-login conan-upload
@@ -12,7 +13,7 @@ conan-create:
 > conan create satorivideo/master ${CONAN_CREATE_ARGS}
 
 conan-create-in-docker:
-> docker build -t ${DOCKER_TAG} .
+> docker build ${DOCKER_BUILD_OPTIONS} -t ${DOCKER_TAG} .
 
 conan-upload-from-docker:
 > docker run --rm ${DOCKER_TAG} bash -c "CONAN_REMOTE=${CONAN_REMOTE} CONAN_SERVER=${CONAN_SERVER} CONAN_USER=${CONAN_USER} CONAN_PASSWORD=${CONAN_PASSWORD} make conan-login conan-upload"
