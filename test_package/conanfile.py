@@ -1,14 +1,9 @@
 from conans import ConanFile, CMake, RunEnvironment, tools
 import os
 
-channel = os.getenv("CONAN_CHANNEL", "master")
-username = os.getenv("CONAN_USERNAME", "satorivideo")
 
-
-class LibcborTestConan(ConanFile):
+class SatoriVideoTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    version = '0.1.11'
-    requires = "SatoriVideo/" + version + "@%s/%s" % (username, channel)
     generators = "cmake"
 
     def build(self):
