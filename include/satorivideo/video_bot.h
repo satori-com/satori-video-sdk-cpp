@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "base.h"
 
@@ -97,8 +97,8 @@ EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 // Sends bot implementation output to RTM subchannel.
 // id parameter is used to bind a message to a frame, by default a message is
 // bound to the current frame that is received by the callback function
-EXPORT void bot_message(bot_context &context, const bot_message_kind kind,
-                        cbor_item_t *message, const frame_id &id = frame_id{0, 0});
+EXPORT void bot_message(bot_context &context, bot_message_kind kind, cbor_item_t *message,
+                        const frame_id &id = frame_id{0, 0});
 
 // Registers a bot.
 // Should be called by bot implementation before starting a bot.

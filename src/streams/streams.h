@@ -31,7 +31,7 @@ struct observer {
 
 template <typename T>
 struct subscriber : public observer<T> {
-  virtual ~subscriber() = default;
+  ~subscriber() override = default;
   // subscriber instance should be kept alive until on_error/on_complete or
   // cancel() call.
   virtual void on_subscribe(subscription &s) = 0;
@@ -126,7 +126,7 @@ struct generators {
   // start_fn - State*(observer<T>&) - starts the asynchronous process
   // stop_fn - void(State*) - stops the asynchronous proces
   template <typename State, typename StartFn, typename StopFn>
-  static publisher<std::queue<T>> async(StartFn &&init_fn, StopFn &&stop_fn);
+  static publisher<std::queue<T>> async(StartFn &&start_fn, StopFn &&stop_fn);
 };
 
 // read file line by line.

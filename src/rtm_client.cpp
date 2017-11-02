@@ -1,3 +1,5 @@
+#include "rtm_client.h"
+
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <boost/asio.hpp>
@@ -16,7 +18,6 @@
 #include "cbor_json.h"
 #include "logging.h"
 #include "metrics.h"
-#include "rtm_client.h"
 
 namespace asio = boost::asio;
 
@@ -55,7 +56,7 @@ struct client_error_category : std::error_category {
 
 std::error_condition make_error_condition(client_error e) {
   static client_error_category category;
-  return std::error_condition(static_cast<int>(e), category);
+  return {static_cast<int>(e), category};
 }
 
 namespace {
@@ -83,9 +84,7 @@ auto& rtm_bytes_sent = prometheus::BuildCounter()
     .Register(metrics_registry())
     .Add({});
 
-
-
-static std::string to_string(const rapidjson::Value &d) {
+std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   d.Accept(writer);
@@ -114,8 +113,12 @@ struct subscribe_request {
 
     if (age || count) {
       rapidjson::Value history(rapidjson::kObjectType);
-      if (age) history.AddMember("age", *age, document.GetAllocator());
-      if (count) history.AddMember("count", *count, document.GetAllocator());
+      if (age) {
+        history.AddMember("age", *age, document.GetAllocator());
+      }
+      if (count) {
+        history.AddMember("count", *count, document.GetAllocator());
+      }
 
       body.AddMember("history", history, document.GetAllocator());
     }
@@ -155,9 +158,10 @@ struct subscription_impl {
 
 class secure_client : public client {
  public:
-  explicit secure_client(std::string host, std::string port, std::string appkey,
-                         uint64_t client_id, error_callbacks &callbacks,
-                         asio::io_service &io_service, asio::ssl::context &ssl_ctx)
+  explicit secure_client(const std::string &host, const std::string &port,
+                         const std::string &appkey, uint64_t client_id,
+                         error_callbacks &callbacks, asio::io_service &io_service,
+                         asio::ssl::context &ssl_ctx)
       : _host(host),
         _port(port),
         _appkey(appkey),
@@ -176,7 +180,7 @@ class secure_client : public client {
     boost::system::error_code ec;
 
     auto endpoints = _tcp_resolver.resolve({_host, _port}, ec);
-    if (ec) {
+    if (ec.value() != 0) {
       LOG(ERROR) << "can't resolve endpoint: " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
@@ -185,7 +189,7 @@ class secure_client : public client {
 
     // tcp connect
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
-    if (ec) {
+    if (ec.value() != 0) {
       LOG(ERROR) << "can't connect: " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
@@ -195,7 +199,7 @@ class secure_client : public client {
 
     // upgrade to ws.
     _ws.handshake(_host, "/v2?appkey=" + _appkey, ec);
-    if (ec) {
+    if (ec.value() != 0) {
       LOG(ERROR) << "can't upgrade to websocket protocol: " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
@@ -213,7 +217,7 @@ class secure_client : public client {
     _client_state = client_state::PendingStopped;
     boost::system::error_code ec;
     _ws.next_layer().next_layer().close(ec);
-    if (ec) {
+    if (ec.value() != 0) {
       LOG(ERROR) << "can't close: " << ec.message();
       return make_error_condition(client_error::AsioError);
 
@@ -258,7 +262,7 @@ class secure_client : public client {
 
     rapidjson::Document document;
     subscribe_request req{_request_id, channel};
-    if (options) {
+    if (options != nullptr) {
       req.age = options->history.age;
       req.count = options->history.count;
     }
@@ -271,18 +275,20 @@ class secure_client : public client {
            << std::string(buf.GetString());
   }
 
-  void subscribe_filter(const std::string &filter, const subscription &sub,
-                        subscription_callbacks &callbacks,
-                        const subscription_options *options) override {
+  void subscribe_filter(const std::string & /*filter*/, const subscription & /*sub*/,
+                        subscription_callbacks & /*callbacks*/,
+                        const subscription_options * /*options*/) override {
     ABORT() << "NOT IMPLEMENTED";
   }
 
   void unsubscribe(const subscription &sub_to_delete) override {
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
-    for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
-      const std::string &sub_id = it->first;
-      subscription_impl &sub = it->second;
-      if (&sub.sub != &sub_to_delete) continue;
+    for (auto &it : _subscriptions) {
+      const std::string &sub_id = it.first;
+      subscription_impl &sub = it.second;
+      if (&sub.sub != &sub_to_delete) {
+        continue;
+      }
 
       rapidjson::Document document;
       unsubscribe_request req{++_request_id, sub_id};
@@ -300,12 +306,12 @@ class secure_client : public client {
     ABORT() << "didn't find subscription";
   }
 
-  channel_position position(const subscription &sub) override {
+  channel_position position(const subscription & /*sub*/) override {
     ABORT() << "NOT IMPLEMENTED";
     return {0, 0};
   }
 
-  bool is_up(const subscription &sub) override {
+  bool is_up(const subscription & /*sub*/) override {
     ABORT() << "NOT IMPLEMENTED";
     return false;
   }
@@ -321,7 +327,7 @@ class secure_client : public client {
         _subscriptions.clear();
         return;
       }
-      if (ec) {
+      if (ec.value() != 0) {
         LOG(ERROR) << "asio error: " << ec.message();
         _callbacks.on_error(client_error::AsioError);
         return;
@@ -366,9 +372,9 @@ class secure_client : public client {
       }
     } else if (action == "rtm/subscribe/ok") {
       const uint64_t id = d["id"].GetInt64();
-      for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
-        const std::string &sub_id = it->first;
-        subscription_impl &sub = it->second;
+      for (auto &it : _subscriptions) {
+        const std::string &sub_id = it.first;
+        subscription_impl &sub = it.second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got subscribe confirmation for subscription " << sub_id
                  << " in status " << std::to_string((int)sub.status) << ": "
@@ -485,10 +491,10 @@ void resilient_client::subscribe_channel(const std::string &channel,
   _client->subscribe_channel(channel, sub, callbacks, options);
 }
 
-void resilient_client::subscribe_filter(const std::string &filter,
-                                        const subscription &sub,
-                                        subscription_callbacks &callbacks,
-                                        const subscription_options *options) {
+void resilient_client::subscribe_filter(const std::string & /*filter*/,
+                                        const subscription & /*sub*/,
+                                        subscription_callbacks & /*callbacks*/,
+                                        const subscription_options * /*options*/) {
   ABORT() << "not implemented";
 }
 
@@ -525,7 +531,9 @@ void resilient_client::restart() {
   std::lock_guard<std::mutex> guard(_client_mutex);
 
   _client = _factory(*this);
-  if (!_started) return;
+  if (!_started) {
+    return;
+  }
 
   auto ec = _client->start();
   if (ec) {

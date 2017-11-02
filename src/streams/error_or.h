@@ -36,37 +36,44 @@ constexpr bool is_error_or() {
 template <typename T>
 class error_or {
  public:
-  error_or() : _ec{} { ::new (dataptr()) T(); }
+  error_or() { ::new (dataptr()) T(); }
 
   // Universal reference constructor has to be disabled for errors
   // and for error_or itself.
   // For latter: https://akrzemi1.wordpress.com/2013/10/10/too-perfect-forwarding/
-  template <typename X,
-            typename std::enable_if<!is_error_condition<X>()>::type * = nullptr,
-            typename std::enable_if<!is_error_or<X>()>::type * = nullptr>
-  error_or(X &&t) : _ec{} {
+  template <typename X, typename IF1 = std::enable_if_t<!is_error_condition<X>()>,
+            typename IF2 = std::enable_if_t<!is_error_or<X>()>>
+  error_or(X &&t) {
     ::new (dataptr()) T(std::forward<X>(t));
   }
 
-  error_or(T t) : _ec{} { ::new (dataptr()) T(std::move(t)); }
+  error_or(T t) { ::new (dataptr()) T(std::move(t)); }
 
   error_or(std::error_condition ec) : _ec(ec) { check_not_ok(); }
 
   error_or(const error_or<T> &other) : _ec(other._ec) {
-    if (ok()) ::new (dataptr()) T(other._s.t);
+    if (ok()) {
+      ::new (dataptr()) T(other._s.t);
+    }
   }
 
-  error_or(error_or<T> &&other) : _ec(other._ec) {
-    if (ok()) ::new (dataptr()) T(std::move(other._s.t));
+  error_or(error_or<T> &&other) noexcept : _ec(other._ec) {
+    if (ok()) {
+      ::new (dataptr()) T(std::move(other._s.t));
+    }
   }
 
   ~error_or() {
-    if (ok()) _s.t.~T();
+    if (ok()) {
+      _s.t.~T();
+    }
   }
 
   error_or<T> &operator=(const error_or<T> &other) {
     _ec = other._ec;
-    if (ok()) ::new (dataptr()) T(other._s.t);
+    if (ok()) {
+      ::new (dataptr()) T(other._s.t);
+    }
     return *this;
   }
 

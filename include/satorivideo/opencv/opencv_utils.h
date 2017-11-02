@@ -15,30 +15,30 @@ struct Vector {
 };
 
 // Drawing functions
-void draw(cv::Mat image, cv::RotatedRect rect, cv::Scalar color);
-void draw(cv::Mat image, cv::Rect rect, cv::Scalar color);
+void draw(cv::Mat &image, const cv::RotatedRect &rect, const cv::Scalar &color);
+void draw(cv::Mat &image, const cv::Rect &rect, const cv::Scalar &color);
 template <typename A>
-void draw_move(cv::Mat image, A a, A b, cv::Scalar color);
+void draw_move(cv::Mat &image, const A &a, const A &b, const cv::Scalar &color);
 
 // Debugging functions
-void log_image(cv::Mat image);
-
+void log_image(const cv::Mat &image);
 
 // Geometry-ordering functions
-inline double distance(cv::Rect a, cv::Rect b);
-inline double distance(cv::Point a, cv::Point b);
-inline double distance(cv::Point2f a, cv::Point2f b);
-inline double distance(cv::Point2d a, cv::Point2d b);
-inline double distance(cv::RotatedRect a, cv::RotatedRect b);
-inline cv::Point center(cv::Rect a);
-inline cv::Point center(cv::RotatedRect a);
-inline double ordering_value(cv::Rect a);
-inline double ordering_value(cv::RotatedRect a);
+inline double distance(const cv::Rect &a, const cv::Rect &b);
+inline double distance(const cv::Point &a, const cv::Point &b);
+inline double distance(const cv::Point2f &a, const cv::Point2f &b);
+inline double distance(const cv::Point2d &a, const cv::Point2d &b);
+inline double distance(const cv::RotatedRect &a, const cv::RotatedRect &b);
+inline cv::Point center(const cv::Rect &a);
+inline cv::Point center(const cv::RotatedRect &a);
+inline double ordering_value(const cv::Rect &a);
+inline double ordering_value(const cv::RotatedRect &a);
 
-bool collinear(Vector a, Vector b, double precision);
+bool collinear(const Vector &a, const Vector &b, double precision);
 
 template <typename A>
-int closest(std::vector<A> h1, int e2, std::vector<A> h2, double MAX_DISTANCE);
+int closest(const std::vector<A> &h1, int e2, const std::vector<A> &h2,
+            double MAX_DISTANCE);
 
 template <typename A>
 std::function<bool(A, A)> ordering_function();
@@ -54,8 +54,8 @@ class debug_logger {
 public:
   debug_logger(bot_context *ctx);
   void set_image(cv::Mat *img);
-  void add(std::vector<cv::Point2d> points, uint32_t groupId, std::string caption,
-           uint32_t thickness = 1);
+  void add(const std::vector<cv::Point2d> &points, uint32_t groupId,
+           const std::string &caption, uint32_t thickness = 1);
   ~debug_logger();
 
 private:

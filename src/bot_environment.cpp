@@ -72,12 +72,14 @@ variables_map parse_command_line(int argc, char* argv[],
     exit(1);
   }
 
-  if (argc == 1 || vm.count("help")) {
+  if (argc == 1 || vm.count("help") > 0) {
     std::cerr << cli_options << std::endl;
     exit(1);
   }
 
-  if (!cli_cfg.validate(vm)) exit(1);
+  if (!cli_cfg.validate(vm)) {
+    exit(1);
+  }
 
   return vm;
 }
@@ -115,12 +117,12 @@ void log_important_counters() {
 }  // namespace
 
 void bot_environment::parse_config(boost::optional<std::string> config_file) {
-  if (!_bot_descriptor->ctrl_callback && config_file.is_initialized()) {
+  if (_bot_descriptor->ctrl_callback == nullptr && config_file.is_initialized()) {
     std::cerr << "Config specified but there is no control method set\n";
     exit(1);
   }
 
-  if (!_bot_descriptor->ctrl_callback) {
+  if (_bot_descriptor->ctrl_callback == nullptr) {
     return;
   }
 
@@ -128,7 +130,7 @@ void bot_environment::parse_config(boost::optional<std::string> config_file) {
 
   if (config_file.is_initialized()) {
     FILE* fp = fopen(config_file.get().c_str(), "r");
-    if (!fp) {
+    if (fp == nullptr) {
       std::cerr << "Can't read config file " << config_file.get() << ": "
                 << strerror(errno) << "\n";
       exit(1);
@@ -204,10 +206,10 @@ int bot_environment::main(int argc, char* argv[]) {
   }
 
   const std::string id = cmd_args["id"].as<std::string>();
-  const bool batch = cmd_args.count("batch");
-  _bot_instance.reset(new bot_instance(
-      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this));
-  parse_config(cmd_args.count("config")
+  const bool batch = cmd_args.count("batch") > 0;
+  _bot_instance = std::make_shared<bot_instance>(
+      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this);
+  parse_config(cmd_args.count("config") > 0
                    ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
                    : boost::optional<std::string>{});
 
@@ -222,13 +224,13 @@ int bot_environment::main(int argc, char* argv[]) {
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
-  _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel, true,
+  _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
                                       _bot_descriptor->pixel_format);
 
   if (!batch_mode) {
     _source = std::move(_source) >> streams::threaded_worker("processing_worker")
               >> streams::map([](std::queue<owned_image_packet>&& pkts) {
-                  const size_t frames_to_drop = pkts.size() > 0 ? pkts.size() - 1 : 0;
+                  const size_t frames_to_drop = !pkts.empty() ? pkts.size() - 1 : 0;
                   for (size_t i = 0; i < frames_to_drop; ++i) {
                     pkts.pop();
                   }
@@ -242,10 +244,10 @@ int bot_environment::main(int argc, char* argv[]) {
               >> streams::flatten();
   }
 
-  if (cmd_args.count("analysis-file")) {
+  if (cmd_args.count("analysis-file") > 0) {
     std::string analysis_file = cmd_args["analysis-file"].as<std::string>();
     LOG(INFO) << "saving analysis output to " << analysis_file;
-    _analysis_file.reset(new std::ofstream(analysis_file.c_str()));
+    _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
     _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
   } else if (_rtm_client) {
     _analysis_sink = &rtm::cbor_sink(_rtm_client, channel + analysis_channel_suffix);
@@ -253,10 +255,10 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_sink = new file_cbor_dump_observer(std::cout);
   }
 
-  if (cmd_args.count("debug-file")) {
+  if (cmd_args.count("debug-file") > 0) {
     std::string debug_file = cmd_args["debug-file"].as<std::string>();
     LOG(INFO) << "saving debug output to " << debug_file;
-    _debug_file.reset(new std::ofstream(debug_file.c_str()));
+    _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
     _debug_sink = new file_cbor_dump_observer(*_debug_file);
   } else if (_rtm_client) {
     _debug_sink = &rtm::cbor_sink(_rtm_client, channel + debug_channel_suffix);
@@ -280,7 +282,7 @@ int bot_environment::main(int argc, char* argv[]) {
             >> streams::map([frames_count](owned_image_packet&& pkt) mutable {
                 frames_count++;
                 constexpr int period = 100;
-                if (!(frames_count % period)) {
+                if ((frames_count % period) == 0) {
                   LOG(INFO) << "Processed " << period << " frames";
                   log_important_counters();
                 }
@@ -291,7 +293,9 @@ int bot_environment::main(int argc, char* argv[]) {
                 _bot_instance->stop();
                 if (_rtm_client) {
                   auto ec = _rtm_client->stop();
-                  if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                  if (ec) {
+                    LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                  }
                 }
               });
 

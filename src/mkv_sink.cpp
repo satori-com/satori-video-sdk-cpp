@@ -58,7 +58,7 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
       if (encoder_context == nullptr) {
         throw std::runtime_error{"could not allocate encoder context for " + _filename};
       }
-      if (_format_context->oformat->flags & AVFMT_GLOBALHEADER) {
+      if ((_format_context->oformat->flags & AVFMT_GLOBALHEADER) != 0) {
         encoder_context->flags |= CODEC_FLAG_GLOBAL_HEADER;
       }
       encoder_context->width = metadata.image_size->width;
@@ -102,7 +102,9 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
   }
 
   void operator()(const encoded_frame &f) {
-    if (!_initialized) return;
+    if (!_initialized) {
+      return;
+    }
 
     if (!_first_frame_ts) {
       _first_frame_ts = f.timestamp;

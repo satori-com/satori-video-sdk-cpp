@@ -24,11 +24,21 @@ struct camera_source_impl {
   explicit camera_source_impl(const std::string &dimensions) : _dimensions(dimensions) {}
 
   ~camera_source_impl() {
-    if (_dec_frame) av_frame_free(&_dec_frame);
-    if (_enc_frame) av_frame_free(&_enc_frame);
-    if (_sws_ctx) sws_freeContext(_sws_ctx);
-    if (_dec_ctx) avcodec_free_context(&_dec_ctx);
-    if (_fmt_ctx) avformat_close_input(&_fmt_ctx);
+    if (_dec_frame != nullptr) {
+      av_frame_free(&_dec_frame);
+    }
+    if (_enc_frame != nullptr) {
+      av_frame_free(&_enc_frame);
+    }
+    if (_sws_ctx != nullptr) {
+      sws_freeContext(_sws_ctx);
+    }
+    if (_dec_ctx != nullptr) {
+      avcodec_free_context(&_dec_ctx);
+    }
+    if (_fmt_ctx != nullptr) {
+      avformat_close_input(&_fmt_ctx);
+    }
   }
 
   int init() {
@@ -39,7 +49,7 @@ struct camera_source_impl {
 
     std::cout << "*** Looking for decoder \"" << avcodec_get_name(_dec_id) << "\"...\n";
     _dec = avcodec_find_decoder(_dec_id);
-    if (!_dec) {
+    if (_dec == nullptr) {
       std::cerr << "*** Decoder was not found\n";
       return -1;
     }
@@ -65,7 +75,7 @@ struct camera_source_impl {
 
     std::cout << "*** Allocating codec context...\n";
     _dec_ctx = avcodec_alloc_context3(_dec);
-    if (!_dec_ctx) {
+    if (_dec_ctx == nullptr) {
       std::cerr << "*** Failed to allocate codec context\n";
       return -1;
     }
@@ -88,7 +98,7 @@ struct camera_source_impl {
 
     std::cout << "*** Looking for encoder \"" << avcodec_get_name(_enc_id) << "\"...\n";
     _enc = avcodec_find_encoder(_enc_id);
-    if (!_enc) {
+    if (_enc == nullptr) {
       std::cerr << "*** Encoder was not found\n";
       return -1;
     }
@@ -96,7 +106,7 @@ struct camera_source_impl {
 
     std::cout << "*** Allocating encoder context...\n";
     _enc_ctx = avcodec_alloc_context3(_enc);
-    if (!_enc_ctx) {
+    if (_enc_ctx == nullptr) {
       std::cerr << "*** Failed to allocate encoder context\n";
       return -1;
     }
@@ -119,8 +129,8 @@ struct camera_source_impl {
     std::cout << "*** Opening sws...\n";
     _sws_ctx = sws_getContext(_dec_ctx->width, _dec_ctx->height, _dec_ctx->pix_fmt,
                               _enc_ctx->width, _enc_ctx->height, _enc_ctx->pix_fmt,
-                              SWS_BICUBIC, NULL, NULL, NULL);
-    if (!_sws_ctx) {
+                              SWS_BICUBIC, nullptr, nullptr, nullptr);
+    if (_sws_ctx == nullptr) {
       std::cerr << "*** Failed to open sws\n";
       return -1;
     }
@@ -129,7 +139,7 @@ struct camera_source_impl {
     std::cout << "*** Allocating frames...\n";
     _dec_frame = av_frame_alloc();
     _enc_frame = av_frame_alloc();
-    if (!_dec_frame || !_enc_frame) {
+    if (_dec_frame == nullptr || _enc_frame == nullptr) {
       std::cerr << "*** Failed to allocate frames\n";
       return -1;
     }
@@ -161,8 +171,8 @@ struct camera_source_impl {
   }
 
   void generate_one(streams::observer<encoded_packet> &observer) {
-    if (!_fmt_ctx) {
-      if (init()) {
+    if (_fmt_ctx == nullptr) {
+      if (init() < 0) {
         observer.on_error(video_error::StreamInitializationError);
         return;
       }
@@ -219,7 +229,7 @@ struct camera_source_impl {
   AVCodecID _dec_id{AV_CODEC_ID_RAWVIDEO};
   AVCodec *_dec{nullptr};  // TODO: deallocate?
   AVCodecContext *_dec_ctx{nullptr};
-  AVPacket _dec_pkt{0};
+  AVPacket _dec_pkt{nullptr};
   AVFrame *_dec_frame{nullptr};
   // mjpeg: yuvj420p yuvj422p yuvj444p
   // jpeg2000: rgb24 yuv444p gray yuv420p yuv422p yuv410p yuv411p
@@ -227,7 +237,7 @@ struct camera_source_impl {
   AVCodecID _enc_id{AV_CODEC_ID_MJPEG};
   AVCodec *_enc{nullptr};  // TODO: deallocate?
   AVCodecContext *_enc_ctx{nullptr};
-  AVPacket _enc_pkt{0};
+  AVPacket _enc_pkt{nullptr};
   AVFrame *_enc_frame{nullptr};
   SwsContext *_sws_ctx{nullptr};
 };

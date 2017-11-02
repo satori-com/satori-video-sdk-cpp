@@ -78,7 +78,7 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
   auto metadata = read_metadata(filename + ".metadata");
   streams::publisher<cbor_item_t *> items = read_json(filename);
   if (!batch) {
-    double *last_time = new double{-1.0};
+    auto last_time = new double{-1.0};
     items = std::move(items)
             >> streams::asio::delay(
                    io,
@@ -87,7 +87,7 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
                        return std::chrono::milliseconds(0);
                      }
 
-                     int delay_ms = (int)((get_timestamp(item) - *last_time) * 1000);
+                     auto delay_ms = (int)((get_timestamp(item) - *last_time) * 1000);
                      return std::chrono::milliseconds(delay_ms);
                    })
             >> streams::map([last_time](cbor_item_t *&&item) {

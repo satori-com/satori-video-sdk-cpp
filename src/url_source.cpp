@@ -11,7 +11,7 @@ namespace satori {
 namespace video {
 
 struct url_source_impl {
-  url_source_impl(std::string url, const std::string &options,
+  url_source_impl(const std::string &url, const std::string &options,
                   streams::observer<encoded_packet> &sink)
       : _url(url), _sink(sink) {
     avutils::init();
@@ -32,9 +32,9 @@ struct url_source_impl {
   ~url_source_impl() {
     if (_reader_thread_id == std::this_thread::get_id()) {
       return;
-    } else {
-      ABORT_S() << "should not happen";
     }
+
+    ABORT_S() << "should not happen";
   }
 
   std::error_condition start(const std::string &options) {
@@ -110,14 +110,14 @@ struct url_source_impl {
   streams::observer<encoded_packet> &_sink;
   std::shared_ptr<AVFormatContext> _input_context;
   AVCodec *_decoder{nullptr};
-  AVPacket _pkt{0};
+  AVPacket _pkt{nullptr};
   std::shared_ptr<AVCodecContext> _decoder_context;
   std::thread::id _reader_thread_id;
-  std::atomic<long> _active{true};
+  std::atomic<bool> _active{true};
   int _stream_idx{-1};
 };
 
-streams::publisher<encoded_packet> url_source(std::string url,
+streams::publisher<encoded_packet> url_source(const std::string &url,
                                               const std::string &options) {
   return streams::generators<encoded_packet>::async<url_source_impl>(
              [url, options](streams::observer<encoded_packet> &sink) {

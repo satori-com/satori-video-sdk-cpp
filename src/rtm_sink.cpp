@@ -10,7 +10,8 @@ namespace video {
 
 struct rtm_sink_impl : public streams::subscriber<encoded_packet>,
                        boost::static_visitor<void> {
-  rtm_sink_impl(std::shared_ptr<rtm::publisher> client, const std::string &rtm_channel)
+  rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
+                const std::string &rtm_channel)
       : _client(client),
         _frames_channel(rtm_channel),
         _metadata_channel(rtm_channel + metadata_channel_suffix) {}
@@ -56,8 +57,8 @@ struct rtm_sink_impl : public streams::subscriber<encoded_packet>,
   uint64_t _frames_counter{0};
 };
 
-streams::subscriber<encoded_packet> &rtm_sink(std::shared_ptr<rtm::publisher> client,
-                                              const std::string &rtm_channel) {
+streams::subscriber<encoded_packet> &rtm_sink(
+    const std::shared_ptr<rtm::publisher> &client, const std::string &rtm_channel) {
   return *(new rtm_sink_impl(client, rtm_channel));
 }
 

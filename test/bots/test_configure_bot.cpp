@@ -16,7 +16,7 @@ cbor_item_t *build_message(const std::string &text) {
                          cbor_move(cbor_build_string(text.c_str()))});
   return cbor_move(message);
 }
-void process_image(bot_context &context, const image_frame &frame) {
+void process_image(bot_context &context, const image_frame & /*frame*/) {
   CHECK(context.instance_data != nullptr);  // Make sure initialization passed
   CHECK(context.frame_metadata->width != 0);
   std::cout << "got frame " << context.frame_metadata->width << "x"
@@ -29,7 +29,7 @@ void process_image(bot_context &context, const image_frame &frame) {
 cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
   if (cbor::map_has_str_value(config, "action", "configure")) {
     CHECK(ctx.instance_data == nullptr);  // Make sure is has initialized once
-    State *state = new State;
+    auto state = new State;
     std::cout << "bot is initializing, libraries are ok" << '\n';
     std::string p = cbor::map(config).get_map("body").get_str("myparam", "");
     CHECK_EQ(p, "myvalue");

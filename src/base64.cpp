@@ -12,7 +12,7 @@ std::string decode64(const std::string &val) {
   using namespace boost::archive::iterators;
   using It = transform_width<binary_from_base64<std::string::const_iterator>, 8, 6>;
   auto decoded = std::string(It(std::begin(val)), It(std::end(val)));
-  auto padding = val.find("=");
+  auto padding = val.find('=');
   if (padding == std::string::npos) {
     return decoded;
   }

@@ -28,7 +28,7 @@ network_packet parse_network_frame(cbor_item_t *item) {
 
   std::chrono::system_clock::time_point timestamp;
   const cbor_item_t *t = msg.get("t");
-  if (t) {
+  if (t != nullptr) {
     std::chrono::duration<double, std::nano> double_duration(cbor::get_double(t));
     std::chrono::system_clock::duration normal_duration =
         std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
@@ -40,7 +40,7 @@ network_packet parse_network_frame(cbor_item_t *item) {
 
   uint32_t chunk = 1, chunks = 1;
   const cbor_item_t *c = msg.get("c");
-  if (c) {
+  if (c != nullptr) {
     chunk = cbor_get_uint32(c);
     chunks = cbor_get_uint32(msg.get("l"));
   }
@@ -55,8 +55,8 @@ network_packet parse_network_frame(cbor_item_t *item) {
   return frame;
 }
 
-streams::publisher<network_packet> rtm_source(std::shared_ptr<rtm::subscriber> client,
-                                              const std::string &channel_name) {
+streams::publisher<network_packet> rtm_source(
+    const std::shared_ptr<rtm::subscriber> &client, const std::string &channel_name) {
   rtm::subscription_options metadata_options;
   metadata_options.history.count = 1;
 

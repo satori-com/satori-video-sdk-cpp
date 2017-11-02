@@ -47,12 +47,14 @@ int main(int argc, char* argv[]) {
   po::store(po::parse_command_line(argc, argv, cli_options), vm);
   po::notify(vm);
 
-  if (argc == 1 || vm.count("help")) {
+  if (argc == 1 || vm.count("help") > 0) {
     std::cerr << cli_options << "\n";
     exit(1);
   }
 
-  if (!cli_cfg.validate(vm)) return -1;
+  if (!cli_cfg.validate(vm)) {
+    return -1;
+  }
 
   init_logging(argc, argv);
 
@@ -65,7 +67,7 @@ int main(int argc, char* argv[]) {
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<satori::video::encoded_packet> source =
-      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
+      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
                                 image_pixel_format::RGB0)
       >> streams::signal_breaker<satori::video::owned_image_packet>(
              {SIGINT, SIGTERM, SIGQUIT})

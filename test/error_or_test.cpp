@@ -43,10 +43,12 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
 
     foo() { constructor++; }
     foo(const foo &) = delete;
-    foo(foo &&other) { other.active = false; }
+    foo(foo &&other) noexcept { other.active = false; }
 
     ~foo() {
-      if (active) destructor++;
+      if (active) {
+        destructor++;
+      }
     }
   };
 
@@ -61,7 +63,7 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 0);
 
-  ptr.reset(new error_or<foo>(std::move(f)));
+  ptr = std::make_unique<error_or<foo>>(std::move(f));
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 0);
 
@@ -69,7 +71,8 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 
-  ptr.reset(new error_or<foo>(std::error_condition(stream_error::NotInitialized)));
+  ptr =
+      std::make_unique<error_or<foo>>(std::error_condition(stream_error::NotInitialized));
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 

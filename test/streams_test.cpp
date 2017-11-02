@@ -46,7 +46,7 @@ std::vector<std::string> events(streams::publisher<T> &&p,
     if (ec) {
       events.push_back("error:" + ec.message());
     } else {
-      events.push_back(".");
+      events.emplace_back(".");
     }
   });
 
@@ -228,7 +228,7 @@ struct collector_sink : public streams::subscriber<T> {
     src->request(1);
   }
 
-  void on_error(std::error_condition ec) override { error = true; }
+  void on_error(std::error_condition /*ec*/) override { error = true; }
 
   void on_complete() override { complete = true; }
 
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE(collector_asio) {
            >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
            >> streams::take_while([](auto i) { return i < 10; })
            >> streams::do_finally([&terminated]() { terminated = true; });
-  collector_sink<int> *s = new ::collector_sink<int>();
+  auto *s = new ::collector_sink<int>();
   BOOST_TEST(!terminated);
 
   p->subscribe(*s);

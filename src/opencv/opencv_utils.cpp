@@ -13,15 +13,17 @@ cv::Mat get_image(const bot_context &context, const image_frame &frame) {
                  (void *)buffer, linesize);
 }
 
-void log_image(cv::Mat image) {
+void log_image(const cv::Mat &image) {
   static int counter = 1;
   std::string filename = "logs/frame" + std::to_string(counter++) + ".jpg";
   cv::imwrite(filename, image);
   std::cout << "logged: " << filename << "\n";
 }
 
-bool collinear(Vector a, Vector b, double precision) {
-  if (distance(a.start, a.end) == 0.0 || distance(b.start, b.end) == 0.0) return false;
+bool collinear(const Vector &a, const Vector &b, double precision) {
+  if (distance(a.start, a.end) == 0.0 || distance(b.start, b.end) == 0.0) {
+    return false;
+  }
   cv::Point2f an(((double)a.end.x - a.start.x) / distance(a.start, a.end),
                  ((double)a.end.y - a.start.y) / distance(a.start, a.end));
   cv::Point2f bn(((double)b.end.x - b.start.x) / distance(b.start, b.end),
@@ -61,7 +63,7 @@ cv::Point2d point_from_cbor(cbor_item_t *item) {
   return cv::Point2d(x, y);
 }
 
-void draw(cv::Mat image, cv::RotatedRect rect, cv::Scalar color) {
+void draw(cv::Mat &image, const cv::RotatedRect &rect, cv::Scalar const &color) {
   cv::Point2f rect_points[4];
   rect.points(rect_points);
   for (size_t j = 0; j < 4; j++) {
@@ -69,7 +71,7 @@ void draw(cv::Mat image, cv::RotatedRect rect, cv::Scalar color) {
   }
 }
 
-void draw(cv::Mat image, cv::Rect rect, cv::Scalar color) {
+void draw(cv::Mat &image, const cv::Rect &rect, const cv::Scalar &color) {
   cv::rectangle(image, rect, color);
 }
 
@@ -91,17 +93,17 @@ cv::Rect2d convert_from_fractional(const cv::Rect2d &p, const cv::Size &view) {
 
 debug_logger::debug_logger(bot_context *ctx) : context{ctx} {}
 void debug_logger::set_image(cv::Mat *img) { image = img; }
-void debug_logger::add(std::vector<cv::Point2d> points, uint32_t groupId,
-                       std::string caption, uint32_t thickness) {
+void debug_logger::add(const std::vector<cv::Point2d> &points, uint32_t groupId,
+                       const std::string &caption, uint32_t thickness) {
   records.push_back(LogRecord{points, groupId, caption, thickness});
 }
 
-cbor_pair kv_pair(const std::string key, cbor_item_t *value) {
+cbor_pair kv_pair(const std::string &key, cbor_item_t *value) {
   return {cbor_move(cbor_build_string(key.c_str())),
       cbor_move(value)};
 }
 
-cbor_item_t *points(std::vector<cv::Point2d> plist) {
+cbor_item_t *points(const std::vector<cv::Point2d> &plist) {
   cbor_item_t *cbarray = cbor_new_definite_array(plist.size() * 2);
   for (cv::Point p : plist) {
     cbor_array_push(cbarray, cbor_move(cbor_build_float8(p.x)));
@@ -111,7 +113,8 @@ cbor_item_t *points(std::vector<cv::Point2d> plist) {
 }
 
 cv::Scalar id_color(uint32_t id) {
-  return cv::Scalar((id * 200) % 256, (id * 150) % 256, (255 + id * 100) % 256);
+  return {static_cast<double>((id * 200) % 256), static_cast<double>((id * 150) % 256),
+          static_cast<double>((255 + id * 100) % 256)};
 }
 
 debug_logger::~debug_logger() {

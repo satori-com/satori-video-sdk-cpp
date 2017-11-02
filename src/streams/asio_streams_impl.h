@@ -15,8 +15,8 @@ namespace impl {
 template <class Rep, class Period>
 inline boost::posix_time::time_duration to_boost(
     const std::chrono::duration<Rep, Period> &dur) {
-  typedef std::chrono::nanoseconds duration_t;
-  typedef duration_t::rep rep_t;
+  using duration_t = std::chrono::nanoseconds;
+  using rep_t = duration_t::rep;
   rep_t d = std::chrono::duration_cast<duration_t>(dur).count();
   rep_t sec = d / 1000000000;
   rep_t nsec = d % 1000000000;
@@ -46,7 +46,7 @@ struct delay_op {
       LOG(5) << "delay_op(" << this << ")";
     }
 
-    ~instance() {
+    ~instance() override {
       _timer.reset();
       LOG(5) << "delay_op(" << this << "::~delay_op";
     }
@@ -90,7 +90,7 @@ struct delay_op {
 
     void on_subscribe(subscription &src) override {
       _src = &src;
-      _timer.reset(new boost::asio::deadline_timer(_io));
+      _timer = std::make_unique<boost::asio::deadline_timer>(_io);
       _sink.on_subscribe(*this);
     }
 
@@ -120,7 +120,7 @@ struct delay_op {
     void on_timer(const boost::system::error_code &ec) {
       LOG(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
 
-      if (ec) {
+      if (ec.value() != 0) {
         LOG(ERROR) << "ASIO ERROR: " << ec.message();
       }
 
@@ -161,7 +161,7 @@ struct delay_op {
 
 template <typename Fn>
 auto delay(boost::asio::io_service &io, Fn &&fn) {
-  return impl::delay_op<Fn>(io, std::move(fn));
+  return impl::delay_op<Fn>(io, std::forward<Fn>(fn));
 }
 
 template <typename T>
@@ -172,12 +172,13 @@ streams::op<T, T> interval(boost::asio::io_service &io,
       std::chrono::system_clock::time_point last_frame;
     };
 
-    state *s = new state();
+    auto s = new state();
     return std::move(src)
            >> delay(io,
                     [s, period](const T &t) {
-                      if (!s->last_frame.time_since_epoch().count())
+                      if (!s->last_frame.time_since_epoch().count()) {
                         return std::chrono::milliseconds(0);
+                      }
 
                       auto this_frame_time = s->last_frame + period;
                       auto now = std::chrono::system_clock::now();
@@ -201,8 +202,8 @@ template <typename T>
 streams::op<T, T> timer_breaker(boost::asio::io_service &io,
                                 std::chrono::milliseconds time) {
   return [&io, time](publisher<T> &&src) {
-    boost::asio::deadline_timer *timer = new boost::asio::deadline_timer(io);
-    std::atomic<bool> *flag = new std::atomic<bool>{true};
+    auto timer = new boost::asio::deadline_timer(io);
+    auto flag = new std::atomic<bool>{true};
 
     timer->expires_from_now(impl::to_boost(time));
     timer->async_wait(

@@ -11,7 +11,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
       12;  // TODO: update this field after codec parameters are made configurable
   const int number_of_frames = 329;
   const int min_key_frames_count =
-      (number_of_frames / gop_size) + (number_of_frames % gop_size ? 1 : 0);
+      (number_of_frames / gop_size) + ((number_of_frames % gop_size) != 0 ? 1 : 0);
   auto frames =
       streams::publishers::range(0, number_of_frames) >> streams::map([](int i) {
         uint8_t pixel_data[] = {0xff, 0x88, 0x11};

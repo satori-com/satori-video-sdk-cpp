@@ -25,7 +25,7 @@ struct video_error_category : std::error_category {
 
 std::error_condition make_error_condition(video_error e) {
   static video_error_category category;
-  return std::error_condition(static_cast<int>(e), category);
+  return {static_cast<int>(e), category};
 }
 
 }  // namespace video

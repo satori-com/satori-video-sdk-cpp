@@ -29,7 +29,7 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
     subscription *_source{nullptr};
 
     sub(OnNext &&on_next, deferred<void> when_done)
-        : _on_next(std::move(on_next)), _when_done(when_done) {}
+        : _on_next(std::move(on_next)), _when_done(std::move(when_done)) {}
 
     void on_next(T &&t) override {
       _on_next(std::move(t));
@@ -53,7 +53,7 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
   };
 
   deferred<void> when_done;
-  subscribe(*(new sub{std::move(on_next), when_done}));
+  subscribe(*(new sub{std::forward<OnNext>(on_next), when_done}));
   return when_done;
 }
 
@@ -158,7 +158,7 @@ struct drain_source_impl : public subscription {
   }
 
  private:
-  void request(int n) override final {
+  void request(int n) final {
     LOG(4) << this << " drain_source_impl::request " << n;
     CHECK(!_die);
     _requested += n;
@@ -178,7 +178,8 @@ struct async_generator_impl {
   async_generator_impl(StartFn &&start_fn, StopFn &&stop_fn)
       : _start_fn(std::move(start_fn)), _stop_fn(std::move(stop_fn)) {}
   async_generator_impl(const async_generator_impl &) = delete;
-  async_generator_impl(async_generator_impl &&) = default;
+  async_generator_impl(async_generator_impl &&other) noexcept
+      : _start_fn(std::move(other._start_fn)), _stop_fn(std::move(other._stop_fn)) {}
 
   StartFn _start_fn;
   StopFn _stop_fn;
@@ -200,7 +201,7 @@ struct async_publisher_impl : public publisher_impl<std::queue<T>> {
     sub(subscriber<std::queue<T>> &sink, AsyncGeneratorImpl &&generator)
         : sub_base_t(sink), _generator(std::move(generator)) {}
 
-    virtual ~sub() {
+    ~sub() override {
       _generator._stop_fn(_state);
       _state = nullptr;
     }
@@ -241,7 +242,7 @@ struct async_publisher_impl : public publisher_impl<std::queue<T>> {
     }
   };
 
-  virtual void subscribe(subscriber<std::queue<T>> &s) {
+  void subscribe(subscriber<std::queue<T>> &s) override {
     LOG(5) << "async_publisher_impl::subscribe";
     auto inst = new sub(s, std::move(_generator));
     s.on_subscribe(*inst);
@@ -258,7 +259,7 @@ struct empty_publisher : public publisher_impl<T>, subscription {
     s.on_complete();
   }
 
-  void request(int n) override {}
+  void request(int /*n*/) override {}
   void cancel() override{};
 };
 
@@ -271,7 +272,7 @@ struct error_publisher : public publisher_impl<T>, subscription {
     s.on_error(_ec);
   }
 
-  void request(int n) override {}
+  void request(int /*n*/) override {}
   void cancel() override{};
 
   const std::error_condition _ec;
@@ -318,7 +319,8 @@ struct generator_impl {
   generator_impl(CreateFn &&create_fn, GenFn &&gen_fn)
       : _create_fn(std::move(create_fn)), _gen_fn(std::move(gen_fn)) {}
   generator_impl(const generator_impl &) = delete;
-  generator_impl(generator_impl &&) = default;
+  generator_impl(generator_impl &&other) noexcept
+      : _create_fn(std::move(other._create_fn)), _gen_fn(std::move(other._gen_fn)){};
 
   CreateFn _create_fn;
   GenFn _gen_fn;
@@ -335,7 +337,7 @@ struct generator_publisher : public publisher_impl<T> {
     explicit sub(Generator &&gen, subscriber<T> &sink)
         : drain_source_impl<T>(sink), _gen(std::move(gen)), _state(_gen._create_fn()) {}
 
-    ~sub() { LOG(5) << "generator(" << this << ")::~generator"; }
+    ~sub() override { LOG(5) << "generator(" << this << ")::~generator"; }
 
     bool drain_impl() override {
       _gen._gen_fn(_state.get(), *this);
@@ -414,7 +416,7 @@ struct merge_publisher : public publisher_impl<T> {
       LOG(5) << this << " merge_publisher::downstream::ctor";
     }
 
-    ~downstream() { LOG(5) << this << " merge_publisher::downstream::dtor"; }
+    ~downstream() override { LOG(5) << this << " merge_publisher::downstream::dtor"; }
 
     void on_subscribe(upstream<T> *u, subscription &s) {
       LOG(5) << this << " merge_publisher::downstream::on_subscribe";
@@ -434,12 +436,15 @@ struct merge_publisher : public publisher_impl<T> {
         _items.pop_front();
         _items_needed--;
 
-        if (_sink != nullptr) _sink->on_next(std::move(item));
+        if (_sink != nullptr) {
+          _sink->on_next(std::move(item));
+        }
       }
 
       auto maybe_destroy = gsl::finally([this]() {
-        if (is_complete())
+        if (is_complete()) {
           destroy_if_possible({}, " merge_publisher::downstream::on_next destroy");
+        }
       });
 
       _call_stack_depth--;
@@ -475,8 +480,9 @@ struct merge_publisher : public publisher_impl<T> {
       disable_upstream(u);
 
       auto maybe_destroy = gsl::finally([this]() {
-        if (is_complete())
+        if (is_complete()) {
           destroy_if_possible({}, " merge_publisher::downstream::on_complete destroy");
+        }
       });
 
       _call_stack_depth--;
@@ -494,7 +500,9 @@ struct merge_publisher : public publisher_impl<T> {
         _items_needed--;
         n--;
 
-        if (_sink != nullptr) _sink->on_next(std::move(item));
+        if (_sink != nullptr) {
+          _sink->on_next(std::move(item));
+        }
       }
 
       if (n > 0) {
@@ -510,8 +518,9 @@ struct merge_publisher : public publisher_impl<T> {
       }
 
       auto maybe_destroy = gsl::finally([this]() {
-        if (is_complete())
+        if (is_complete()) {
           destroy_if_possible({}, " merge_publisher::downstream::request destroy");
+        }
       });
 
       _call_stack_depth--;
@@ -541,11 +550,15 @@ struct merge_publisher : public publisher_impl<T> {
 
    private:
     bool is_complete() const noexcept {
-      if (_upstreams.size() < _expected_number_of_upstreams) return false;
+      if (_upstreams.size() < _expected_number_of_upstreams) {
+        return false;
+      }
 
       size_t active_upstreams{0};
       for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
-        if (it->second != nullptr) active_upstreams++;
+        if (it->second != nullptr) {
+          active_upstreams++;
+        }
       }
 
       return active_upstreams == 0 && _items.empty();
@@ -553,13 +566,16 @@ struct merge_publisher : public publisher_impl<T> {
 
     void destroy_if_possible(std::error_condition ec,
                              const std::string &log_message) noexcept {
-      if (_upstreams.size() < _expected_number_of_upstreams) return;
+      if (_upstreams.size() < _expected_number_of_upstreams) {
+        return;
+      }
 
       if (_sink != nullptr) {
-        if (ec)
+        if (ec) {
           _sink->on_error(ec);
-        else
+        } else {
           _sink->on_complete();
+        }
 
         _sink = nullptr;
       }
@@ -596,7 +612,7 @@ struct merge_publisher : public publisher_impl<T> {
     CHECK(!_subscribed) << "already subscribed";
     _subscribed = true;
 
-    downstream<T> *d = new downstream<T>(s, _publishers.size());
+    auto d = new downstream<T>(s, _publishers.size());
     for (auto &p : _publishers) {
       p->subscribe(*(new upstream<T>(*d)));
     }
@@ -616,9 +632,12 @@ struct op_publisher : public publisher_impl<T> {
   op_publisher(publisher<S> &&source, Op &&op)
       : _source(std::move(source)), _op(std::move(op)) {}
 
+  op_publisher(publisher<S> &&source, const Op &op)
+      : _source(std::move(source)), _op(op) {}
+
   void subscribe(subscriber<value_t> &sink) override {
     using instance_t = typename Op::template instance<S>;
-    instance_t *instance = new instance_t(std::move(_op), sink);
+    auto instance = new instance_t(std::move(_op), sink);
     _source->subscribe(*instance);
   }
 
@@ -705,7 +724,7 @@ struct flat_map_op {
     instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink)
         : drain_source_impl<T>(sink), _fn(std::move(op._fn)) {}
 
-    ~instance() {
+    ~instance() override {
       LOG(5) << "flat_map_op(" << this << ")::~flat_map_op";
       if (_fwd_sub) {
         _fwd_sub->cancel();
@@ -899,8 +918,7 @@ struct take_op {
     instance(take_op &&op, subscriber<value_t> &sink) : _n(op._n), _sink(sink) {}
 
     static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
-      return publisher<value_t>(
-          new op_publisher<S, S, take_op>(std::move(source), std::move(op)));
+      return publisher<value_t>(new op_publisher<S, S, take_op>(std::move(source), op));
     }
 
     void on_next(S &&s) override {
@@ -1061,7 +1079,7 @@ struct pipe_impl<T, op<T, U>> {
 struct flatten_op {
   template <typename T>
   struct instance {
-    static auto apply(publisher<T> &&publisher, flatten_op &&) {
+    static auto apply(publisher<T> &&publisher, flatten_op && /*op*/) {
       return std::move(publisher)
              >> flat_map([](T &&t) { return publishers::of(std::move(t)); });
     }
@@ -1113,7 +1131,7 @@ template <typename State, typename StartFn, typename StopFn>
 publisher<std::queue<T>> generators<T>::async(StartFn &&start_fn, StopFn &&stop_fn) {
   using generator_t = impl::async_generator_impl<StartFn, StopFn>;
   return publisher<std::queue<T>>(new impl::async_publisher_impl<T, State, generator_t>(
-      generator_t(std::move(start_fn), std::move(stop_fn))));
+      generator_t(std::forward<StartFn>(start_fn), std::forward<StopFn>(stop_fn))));
 }
 
 template <typename T>
@@ -1123,7 +1141,7 @@ publisher<T> generators<T>::stateful(CreateFn &&create_fn, GenFn &&gen_fn) {
   using state_t = std::remove_pointer_t<typename function_traits<CreateFn>::result_type>;
 
   return publisher<T>(new impl::generator_publisher<T, state_t, generator_t>(
-      generator_t(std::move(create_fn), std::move(gen_fn))));
+      generator_t(std::forward<CreateFn>(create_fn), std::forward<GenFn>(gen_fn))));
 }
 
 template <typename T>
@@ -1139,22 +1157,22 @@ publisher<T> publishers::merge(std::vector<publisher<T>> &&publishers) {
 
 template <typename T, typename Op>
 auto operator>>(publisher<T> &&src, Op &&op) {
-  return impl::pipe_impl<T, Op>::apply(std::move(src), std::move(op));
+  return impl::pipe_impl<T, Op>::apply(std::move(src), std::forward<Op>(op));
 }
 
 template <typename Fn>
 auto flat_map(Fn &&fn) {
-  return impl::flat_map_op<Fn>{std::move(fn)};
+  return impl::flat_map_op<Fn>{std::forward<Fn>(fn)};
 }
 
 template <typename Fn>
 auto map(Fn &&fn) {
-  return impl::map_op<Fn>{std::move(fn)};
+  return impl::map_op<Fn>{std::forward<Fn>(fn)};
 }
 
 template <typename Predicate>
 auto take_while(Predicate &&p) {
-  return impl::take_while_op<Predicate>{std::move(p)};
+  return impl::take_while_op<Predicate>{std::forward<Predicate>(p)};
 }
 
 inline auto take(int count) { return impl::take_op(count); }
@@ -1163,7 +1181,7 @@ inline auto head() { return take(1); }
 
 template <typename Fn>
 auto do_finally(Fn &&fn) {
-  return impl::do_finally_op<Fn>{std::move(fn)};
+  return impl::do_finally_op<Fn>{std::forward<Fn>(fn)};
 }
 
 inline auto flatten() { return impl::flatten_op(); }

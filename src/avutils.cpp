@@ -19,7 +19,9 @@ namespace avutils {
 namespace {
 
 std::string to_av_codec_name(const std::string &codec_name) {
-  if (codec_name == "vp9") return "libvpx-vp9";
+  if (codec_name == "vp9") {
+    return "libvpx-vp9";
+  }
   return codec_name;
 }
 
@@ -27,7 +29,9 @@ void dump_iformats() {
   AVInputFormat *f{nullptr};
   while (true) {
     f = av_iformat_next(f);
-    if (!f) break;
+    if (f == nullptr) {
+      break;
+    }
     LOG(1) << "available iformat: " << f->name;
   }
 }
@@ -36,7 +40,9 @@ void dump_oformats() {
   AVOutputFormat *f{nullptr};
   while (true) {
     f = av_oformat_next(f);
-    if (!f) break;
+    if (f == nullptr) {
+      break;
+    }
     LOG(1) << "available oformat: " << f->name;
   }
 }
@@ -45,7 +51,9 @@ void dump_codecs() {
   AVCodec *c{nullptr};
   while (true) {
     c = av_codec_next(c);
-    if (!c) break;
+    if (c == nullptr) {
+      break;
+    }
     LOG(1) << "available codec: " << c->name << " is_encoder=" << av_codec_is_encoder(c)
            << " is_decoder=" << av_codec_is_decoder(c);
   }
@@ -55,7 +63,9 @@ void dump_bsfs() {
   void *ptr{nullptr};
   while (true) {
     const AVBitStreamFilter *f = av_bsf_next(&ptr);
-    if (!f) break;
+    if (f == nullptr) {
+      break;
+    }
     LOG(1) << "available bsf: " << f->name;
   }
 }
@@ -101,11 +111,11 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
   }
 }
 
-std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID encoder_id) {
-  const std::string encoder_name = avcodec_get_name(encoder_id);
+std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID codec_id) {
+  const std::string encoder_name = avcodec_get_name(codec_id);
   LOG(1) << "Searching for encoder '" << encoder_name << "'";
 
-  const AVCodec *encoder = avcodec_find_encoder(encoder_id);
+  const AVCodec *encoder = avcodec_find_encoder(codec_id);
   if (encoder == nullptr) {
     LOG(ERROR) << "Encoder '" << encoder_name << "' was not found";
     return nullptr;
@@ -126,7 +136,7 @@ std::shared_ptr<AVCodecContext> encoder_context(const AVCodecID encoder_id) {
   LOG(1) << "Allocated context for encoder '" << encoder_name << "'";
 
   encoder_context->codec_type = AVMEDIA_TYPE_VIDEO;
-  encoder_context->codec_id = encoder_id;
+  encoder_context->codec_id = codec_id;
   encoder_context->pix_fmt = encoder->pix_fmts[0];
   encoder_context->gop_size = 12;  // I-frame at most every gop_size frames
   // Setting timebase to 1 millisecond
@@ -161,7 +171,7 @@ std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
   params->extradata = (uint8_t *)extra_data.data();
   params->extradata_size = static_cast<int>(extra_data.size_bytes());
   int err = avcodec_parameters_to_context(context.get(), params);
-  if (err) {
+  if (err < 0) {
     LOG(ERROR) << "Failed to copy params: " << error_msg(err);
     return nullptr;
   }
@@ -169,8 +179,8 @@ std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
   context->thread_count = 4;
   context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
-  err = avcodec_open2(context.get(), decoder, 0);
-  if (err) {
+  err = avcodec_open2(context.get(), decoder, nullptr);
+  if (err < 0) {
     LOG(ERROR) << "Failed to open codec: " << error_msg(err);
     return nullptr;
   }
@@ -253,10 +263,12 @@ std::shared_ptr<SwsContext> sws_context(int src_width, int src_height,
                                         AVPixelFormat src_format, int dst_width,
                                         int dst_height, AVPixelFormat dst_format) {
   std::ostringstream context_description_stream;
+  const char *src_fmt_name = av_get_pix_fmt_name(src_format);
+  const char *dst_fmt_name = av_get_pix_fmt_name(dst_format);
   context_description_stream << src_width << "x" << src_height << ":"
-                             << av_get_pix_fmt_name(src_format) << "->" << dst_width
-                             << "x" << dst_height << ":"
-                             << av_get_pix_fmt_name(dst_format);
+                             << (src_fmt_name != nullptr ? src_fmt_name : "unknown")
+                             << "->" << dst_width << "x" << dst_height << ":"
+                             << (dst_fmt_name != nullptr ? dst_fmt_name : "unknown");
 
   const std::string context_description = context_description_stream.str();
 
@@ -276,23 +288,23 @@ std::shared_ptr<SwsContext> sws_context(int src_width, int src_height,
   });
 }
 
-std::shared_ptr<SwsContext> sws_context(std::shared_ptr<const AVFrame> src_frame,
-                                        std::shared_ptr<const AVFrame> dst_frame) {
+std::shared_ptr<SwsContext> sws_context(const std::shared_ptr<const AVFrame> &src_frame,
+                                        const std::shared_ptr<const AVFrame> &dst_frame) {
   return sws_context(src_frame->width, src_frame->height,
                      (AVPixelFormat)src_frame->format, dst_frame->width,
                      dst_frame->height, (AVPixelFormat)dst_frame->format);
 }
 
-void sws_scale(std::shared_ptr<SwsContext> sws_context,
-               std::shared_ptr<const AVFrame> src_frame,
-               std::shared_ptr<AVFrame> dst_frame) {
+void sws_scale(const std::shared_ptr<SwsContext> &sws_context,
+               const std::shared_ptr<const AVFrame> &src_frame,
+               const std::shared_ptr<AVFrame> &dst_frame) {
   sws_scale(sws_context.get(), src_frame->data, src_frame->linesize, 0, src_frame->height,
             dst_frame->data, dst_frame->linesize);
 }
 
 std::shared_ptr<AVFormatContext> output_format_context(
     const std::string &format, const std::string &filename,
-    std::function<void(AVFormatContext *)> file_cleaner) {
+    const std::function<void(AVFormatContext *)> &file_cleaner) {
   AVFormatContext *format_context;
 
   LOG(1) << "Allocating format context for " << filename;
@@ -316,7 +328,7 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
                                                            AVInputFormat *forced_format,
                                                            AVDictionary *options) {
   AVFormatContext *format_context = avformat_alloc_context();
-  if (!format_context) {
+  if (format_context == nullptr) {
     LOG(ERROR) << "failed to allocate format context";
     return nullptr;
   }
@@ -342,7 +354,7 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
 }
 
 void copy_image_to_av_frame(const owned_image_frame &image,
-                            std::shared_ptr<AVFrame> frame) {
+                            const std::shared_ptr<AVFrame> &frame) {
   CHECK_EQ(image.width, frame->width) << "Image and frame widhts don't match";
   CHECK_EQ(image.height, frame->height) << "Image and frame heights don't match";
   for (int i = 0; i < MAX_IMAGE_PLANES; i++) {

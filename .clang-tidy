@@ -1,6 +1,6 @@
-Checks:          'clang-diagnostic-*,clang-analyzer-*,readability-identifier-naming,modernize-*'
-WarningsAsErrors: ''
-HeaderFilterRegex: ''
+Checks: 'clang-diagnostic-*,readability-*,performance-*,readability-identifier-naming,misc-*,modernize-*,-modernize-pass-by-value,-misc-move-const-arg,-clang-analyzer-*'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
 CheckOptions:
-   - key:             readability-identifier-naming
-     value:           lower_case
+   - key: readability-identifier-naming
+     value: lower_case

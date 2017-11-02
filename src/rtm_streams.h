@@ -10,10 +10,10 @@ namespace video {
 namespace rtm {
 
 streams::publisher<cbor_item_t *> cbor_channel(
-    std::shared_ptr<rtm::subscriber> subscriber, const std::string &channel,
+    const std::shared_ptr<rtm::subscriber> &subscriber, const std::string &channel,
     const subscription_options &options);
 
-streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<publisher> client,
+streams::subscriber<cbor_item_t *> &cbor_sink(const std::shared_ptr<publisher> &client,
                                               const std::string &channel);
 
 }  // namespace rtm

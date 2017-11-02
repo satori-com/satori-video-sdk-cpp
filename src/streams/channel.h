@@ -26,7 +26,9 @@ class channel {
 
   bool try_send(T &&t) {
     std::lock_guard<std::mutex> guard(_mutex);
-    if (_buffer.size() >= _buffer_size) return false;
+    if (_buffer.size() >= _buffer_size) {
+      return false;
+    }
 
     _buffer.push_back(std::move(t));
     _on_send.notify_one();

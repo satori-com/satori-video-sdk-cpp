@@ -84,7 +84,9 @@ struct vp9_encoder {
       int ret = avcodec_receive_packet(_encoder_context.get(), &packet);
       if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
         break;
-      } else if (ret < 0) {
+      }
+
+      if (ret < 0) {
         return streams::publishers::error<encoded_packet>(
             video_error::FrameGenerationError);
       }
@@ -94,7 +96,7 @@ struct vp9_encoder {
       frame.id = f.id;
       frame.timestamp = f.timestamp;
       frame.key_frame = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
-      packets.push_back(std::move(frame));
+      packets.emplace_back(std::move(frame));
 
       av_packet_unref(&packet);
     }
@@ -122,7 +124,7 @@ struct vp9_encoder {
 
 streams::op<owned_image_packet, encoded_packet> encode_vp9(uint8_t lag_in_frames) {
   return [lag_in_frames](streams::publisher<owned_image_packet> &&src) {
-    vp9_encoder *encoder = new vp9_encoder(lag_in_frames);
+    auto encoder = new vp9_encoder(lag_in_frames);
 
     return std::move(src) >> streams::flat_map([encoder](owned_image_packet &&packet) {
              if (const owned_image_frame *frame =

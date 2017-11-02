@@ -27,8 +27,10 @@ auto& messages_received =
 struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
   explicit control_sub(bot_instance* const bot) : _bot(bot) {}
 
-  ~control_sub() {
-    if (_video_sub) _video_sub->cancel();
+  ~control_sub() override {
+    if (_video_sub != nullptr) {
+      _video_sub->cancel();
+    }
   }
 
   void on_next(cbor_item_t*&& t) override {
@@ -60,18 +62,18 @@ bot_instance::bot_instance(const std::string& bot_id, const execution_mode execm
       bot_context{nullptr, &_image_metadata, execmode,
                   satori::video::metrics_registry()} {}
 
-bot_instance::~bot_instance() {}
+bot_instance::~bot_instance() = default;
 
 void bot_instance::start(streams::publisher<owned_image_packet>& video_stream,
                          streams::publisher<cbor_item_t*>& control_stream) {
-  _control_sub.reset(new control_sub(this));
+  _control_sub = std::make_unique<control_sub>(this);
   control_stream->subscribe(*_control_sub);
   // this will drain the stream in batch mode, should be last.
   video_stream->subscribe(*this);
 }
 
 void bot_instance::stop() {
-  if (_video_sub) {
+  if (_video_sub != nullptr) {
     _video_sub->cancel();
     _video_sub = nullptr;
   }
@@ -104,7 +106,7 @@ void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* messa
   _message_buffer.push_back(newmsg);
 }
 
-void bot_instance::operator()(const owned_image_metadata& metadata) {}
+void bot_instance::operator()(const owned_image_metadata& /*metadata*/) {}
 
 void bot_instance::operator()(const owned_image_frame& frame) {
   LOG(1) << "process_image_frame " << frame.width << "x" << frame.height;

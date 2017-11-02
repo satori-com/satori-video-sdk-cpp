@@ -27,14 +27,16 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
   };
 
   return [](streams::publisher<network_packet> &&src) {
-    state *s = new state();
+    auto s = new state();
     return std::move(src) >> streams::flat_map([s](const network_packet &data) {
              if (const network_metadata *nm = boost::get<network_metadata>(&data)) {
                encoded_metadata em;
                em.codec_name = nm->codec_name;
                em.codec_data = decode64(nm->base64_data);
                return streams::publishers::of({encoded_packet{em}});
-             } else if (const network_frame *nf = boost::get<network_frame>(&data)) {
+             }
+
+             if (const network_frame *nf = boost::get<network_frame>(&data)) {
                if (s->chunk != nf->chunk) {
                  s->reset();
                  return streams::publishers::empty<encoded_packet>();

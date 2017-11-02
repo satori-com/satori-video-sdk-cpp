@@ -8,7 +8,7 @@ namespace video {
 namespace rtm {
 
 struct rtm_channel_impl : rtm::subscription_callbacks {
-  rtm_channel_impl(std::shared_ptr<rtm::subscriber> subscriber,
+  rtm_channel_impl(const std::shared_ptr<rtm::subscriber> &subscriber,
                    const std::string &channel, const rtm::subscription_options &options,
                    streams::observer<cbor_item_t *> &sink)
       : _subscriber(subscriber), _sink(sink) {
@@ -17,7 +17,7 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
 
   ~rtm_channel_impl() override { _subscriber->unsubscribe(_subscription); }
 
-  void on_data(const rtm::subscription &sub, cbor_item_t *data) override {
+  void on_data(const rtm::subscription & /*sub*/, cbor_item_t *data) override {
     _sink.on_next(std::move(data));
   }
 
@@ -29,12 +29,13 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
 };
 
 struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
-  cbor_sink_impl(std::shared_ptr<rtm::publisher> client, const std::string &channel)
+  cbor_sink_impl(const std::shared_ptr<rtm::publisher> &client,
+                 const std::string &channel)
       : _client(client), _channel(channel) {}
 
   void on_next(cbor_item_t *&&item) override {
     _client->publish(_channel, cbor_move(item), nullptr);
-    if (_src) {
+    if (_src != nullptr) {
       _src->request(1);
     }
   }
@@ -53,13 +54,13 @@ struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
   streams::subscription *_src{nullptr};
 };
 
-streams::subscriber<cbor_item_t *> &cbor_sink(std::shared_ptr<rtm::publisher> client,
-                                              const std::string &channel) {
+streams::subscriber<cbor_item_t *> &cbor_sink(
+    const std::shared_ptr<rtm::publisher> &client, const std::string &channel) {
   return *(new cbor_sink_impl(client, channel));
 }
 
 streams::publisher<cbor_item_t *> cbor_channel(
-    std::shared_ptr<rtm::subscriber> subscriber, const std::string &channel,
+    const std::shared_ptr<rtm::subscriber> &subscriber, const std::string &channel,
     const rtm::subscription_options &options) {
   return streams::generators<cbor_item_t *>::async<rtm_channel_impl>(
              [subscriber, channel, options](streams::observer<cbor_item_t *> &observer) {

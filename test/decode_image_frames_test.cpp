@@ -25,8 +25,9 @@ struct test_definition {
 
 streams::publisher<encoded_packet> test_stream(const test_definition &td) {
   std::ifstream metadata_file(td.metadata_filename);
-  if (td.metadata_filename != "" && !metadata_file)
+  if (!td.metadata_filename.empty() && !metadata_file) {
     BOOST_FAIL("File '" + td.metadata_filename + "' was not found");
+  }
 
   std::string base64_metadata;
   metadata_file >> base64_metadata;
@@ -53,7 +54,9 @@ void run_decode_image_frames_test(const test_definition &td) {
   std::cout << "*** running test for codec '" << td.codec_name << "'\n";
   std::ifstream frame_file(td.frames_filename);
 
-  if (!frame_file) BOOST_FAIL("File '" + td.frames_filename + "' was not found");
+  if (!frame_file) {
+    BOOST_FAIL("File '" + td.frames_filename + "' was not found");
+  }
 
   streams::publisher<owned_image_packet> image_stream =
       test_stream(td) >> decode_image_frames(-1, -1, image_pixel_format::RGB0, true);

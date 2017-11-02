@@ -29,7 +29,7 @@ struct threaded_worker_op {
         src->subscribe(*this);
       }
 
-      ~source() {
+      ~source() override {
         LOG(5) << this << " ~source";
         CHECK(std::this_thread::get_id() == _worker_thread->get_id());
         CHECK(!_active);
@@ -86,7 +86,9 @@ struct threaded_worker_op {
               _on_send.wait(lock);
             }
 
-            if (_buffer.empty() || !(_active || _complete || _ec)) break;
+            if (_buffer.empty() || !(_active || _complete || _ec)) {
+              break;
+            }
           }
 
           drain_source_impl<element_t>::drain();
@@ -128,7 +130,9 @@ struct threaded_worker_op {
 
         {
           std::unique_lock<std::mutex> lock(_mutex);
-          if (_buffer.empty()) return false;
+          if (_buffer.empty()) {
+            return false;
+          }
           _buffer.swap(tmp);
         }
 
@@ -150,7 +154,8 @@ struct threaded_worker_op {
       subscription *_src;
     };
 
-    static publisher<std::queue<T>> apply(publisher<T> &&src, threaded_worker_op &&op) {
+    static publisher<std::queue<T>> apply(publisher<T> &&src,
+                                          threaded_worker_op && /*op*/) {
       return publisher<std::queue<T>>(new instance(std::move(src)));
     }
 

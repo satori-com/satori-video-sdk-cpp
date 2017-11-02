@@ -57,7 +57,7 @@ struct image_decoder_op {
         streams::publisher<encoded_packet> &&source, image_decoder_op &&op) {
       return streams::publisher<owned_image_packet>(
           new streams::impl::op_publisher<T, owned_image_packet, image_decoder_op>(
-              std::move(source), std::move(op)));
+              std::move(source), op));
     }
 
     instance(image_decoder_op &&op, streams::subscriber<owned_image_packet> &sink)
@@ -67,7 +67,7 @@ struct image_decoder_op {
           _bounding_height(op._bounding_height),
           _keep_proportions(op._keep_proportions) {}
 
-    ~instance() {
+    ~instance() override {
       if (_source) {
         _source->cancel();
       }
@@ -90,7 +90,7 @@ struct image_decoder_op {
       _source = nullptr;
       if (_context) {
         int err = avcodec_send_packet(_context.get(), nullptr);
-        if (err) {
+        if (err < 0) {
           LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
           deliver_on_error(video_error::FrameGenerationError);
           return;
@@ -148,7 +148,7 @@ struct image_decoder_op {
 
         int err = avcodec_send_packet(_context.get(), _packet.get());
         av_packet_unref(_packet.get());
-        if (err) {
+        if (err > 0) {
           LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
           return;
         }
@@ -183,7 +183,7 @@ struct image_decoder_op {
 
       stopwatch<> s;
       int err = avcodec_receive_frame(_context.get(), _frame.get());
-      if (err) {
+      if (err < 0) {
         switch (err) {
           case AVERROR(EAGAIN):
             LOG(4) << this << " eagain";
@@ -225,7 +225,7 @@ struct image_decoder_op {
           std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
       for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
-        const uint32_t plane_stride = static_cast<uint32_t>(_image->linesize[i]);
+        const auto plane_stride = static_cast<uint32_t>(_image->linesize[i]);
         const uint8_t *plane_data = _image->data[i];
         frame.plane_strides[i] = plane_stride;
         if (plane_stride > 0) {

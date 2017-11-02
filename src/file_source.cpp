@@ -22,7 +22,9 @@ struct file_source_impl {
       : _filename(filename), _loop(loop), _start(std::chrono::system_clock::now()) {}
 
   ~file_source_impl() {
-    if (_dec_ctx) avcodec_free_context(&_dec_ctx);
+    if (_dec_ctx != nullptr) {
+      avcodec_free_context(&_dec_ctx);
+    }
   }
 
   int init() {
@@ -44,7 +46,7 @@ struct file_source_impl {
 
     LOG(1) << "Allocating codec context...";
     _dec_ctx = avcodec_alloc_context3(_dec);
-    if (!_dec_ctx) {
+    if (_dec_ctx == nullptr) {
       LOG(ERROR) << "Failed to allocate codec context";
       return -1;
     }
@@ -97,15 +99,15 @@ struct file_source_impl {
           av_seek_frame(_fmt_ctx, _stream_idx, _fmt_ctx->start_time,
                         AVSEEK_FLAG_BACKWARD);
           return;
-        } else {
-          LOG(4) << "eof in " << _filename;
-          observer.on_complete();
-          return;
         }
-      } else {
-        observer.on_error(video_error::FrameGenerationError);
+
+        LOG(4) << "eof in " << _filename;
+        observer.on_complete();
         return;
       }
+
+      observer.on_error(video_error::FrameGenerationError);
+      return;
     }
 
     if (_pkt.stream_index == _stream_idx) {
@@ -120,8 +122,6 @@ struct file_source_impl {
       observer.on_next(frame);
       _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
     }
-
-    return;
   }
 
   void send_metadata(streams::observer<encoded_packet> &observer) {
@@ -140,13 +140,13 @@ struct file_source_impl {
   AVStream *_stream{nullptr};
   AVCodec *_dec{nullptr};  // TODO: check if possible to destroy it
   AVCodecContext *_dec_ctx{nullptr};
-  AVPacket _pkt{0};
+  AVPacket _pkt{nullptr};
   int64_t _last_pos{0};
   bool _metadata_sent{false};
 };
 
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
-                                               std::string filename, bool loop,
+                                               const std::string &filename, bool loop,
                                                bool batch) {
   avutils::init();
   streams::publisher<encoded_packet> result =

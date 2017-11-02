@@ -4,10 +4,10 @@
 namespace satori {
 namespace video {
 
-void bot_message(bot_context& ctx, const bot_message_kind kind, cbor_item_t* message,
+void bot_message(bot_context& context, const bot_message_kind kind, cbor_item_t* message,
                  const frame_id& id) {
   CHECK(cbor_map_is_indefinite(message)) << "Message must be indefinite map";
-  static_cast<bot_instance&>(ctx).queue_message(kind, message, id);
+  static_cast<bot_instance&>(context).queue_message(kind, message, id);
 }
 
 void bot_register(const bot_descriptor& bot) {

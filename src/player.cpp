@@ -64,12 +64,14 @@ po::variables_map cli_parse(int argc, char *argv[],
     exit(1);
   }
 
-  if (argc == 1 || vm.count("help")) {
+  if (argc == 1 || vm.count("help") > 0) {
     std::cerr << cli_options << std::endl;
     exit(1);
   }
 
-  if (!cli_cfg.validate(vm)) exit(1);
+  if (!cli_cfg.validate(vm)) {
+    exit(1);
+  }
 
   return vm;
 }
@@ -80,8 +82,9 @@ std::shared_ptr<SDL_Window> create_window() {
     return nullptr;
   }
 
-  if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
+  if (SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1") != SDL_TRUE) {
     LOG(WARNING) << "Linear texture filtering not enabled!";
+  }
 
   std::shared_ptr<SDL_Window> window(
       SDL_CreateWindow("SDL Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -91,12 +94,14 @@ std::shared_ptr<SDL_Window> create_window() {
         SDL_DestroyWindow(ptr);
       });
 
-  if (!window) LOG(ERROR) << "Window could not be created! SDL Error: " << SDL_GetError();
+  if (!window) {
+    LOG(ERROR) << "Window could not be created! SDL Error: " << SDL_GetError();
+  }
 
   return window;
 }
 
-std::shared_ptr<SDL_Renderer> create_renderer(std::shared_ptr<SDL_Window> window) {
+std::shared_ptr<SDL_Renderer> create_renderer(const std::shared_ptr<SDL_Window> &window) {
   std::shared_ptr<SDL_Renderer> renderer(
       SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED),
       [](SDL_Renderer *ptr) {
@@ -136,12 +141,14 @@ streams::op<owned_image_packet, std::shared_ptr<SDL_Surface>> image_to_surface()
             }
 
             return streams::publishers::of({surface});
-          } else if (const auto *m = boost::get<owned_image_metadata>(&p)) {
-            return streams::publishers::empty<std::shared_ptr<SDL_Surface>>();
-          } else {
-            CHECK(false) << "unsupported variant";
+          }
+
+          if (const auto *m = boost::get<owned_image_metadata>(&p)) {
             return streams::publishers::empty<std::shared_ptr<SDL_Surface>>();
           }
+
+          ABORT() << "unsupported variant";
+          return streams::publishers::empty<std::shared_ptr<SDL_Surface>>();
         });
 
     return result;
@@ -149,7 +156,7 @@ streams::op<owned_image_packet, std::shared_ptr<SDL_Surface>> image_to_surface()
 }
 
 streams::op<std::shared_ptr<SDL_Surface>, std::shared_ptr<SDL_Texture>>
-surface_to_texture(std::shared_ptr<SDL_Renderer> renderer) {
+surface_to_texture(const std::shared_ptr<SDL_Renderer> &renderer) {
   return [renderer](streams::publisher<std::shared_ptr<SDL_Surface>> &&src) {
 
     streams::publisher<std::shared_ptr<SDL_Texture>> result =
@@ -216,13 +223,15 @@ int main(int argc, char *argv[]) {
       cli_cfg.rtm_client(vm, io_service, ssl_context, rtm_error_handler);
   if (rtm_client) {
     auto ec = rtm_client->start();
-    if (ec) ABORT() << "error starting rtm client: " << ec.message();
+    if (ec) {
+      ABORT() << "error starting rtm client: " << ec.message();
+    }
   }
 
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<std::shared_ptr<SDL_Texture>> source =
-      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel, true,
+      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
                                 image_pixel_format::BGR)
       >> streams::threaded_worker("player.image_buffer") >> streams::flatten()
       >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
@@ -231,7 +240,9 @@ int main(int argc, char *argv[]) {
       >> streams::do_finally([&rtm_client]() {
           if (rtm_client) {
             auto ec = rtm_client->stop();
-            if (ec) LOG(ERROR) << "error stopping rtm client: " << ec.message();
+            if (ec) {
+              LOG(ERROR) << "error stopping rtm client: " << ec.message();
+            }
           }
         });
 

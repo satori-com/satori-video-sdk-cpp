@@ -47,7 +47,7 @@ std::shared_ptr<prometheus::Registry> metrics_registry_shared_ptr() {
 void report_process_metrics_impl(boost::asio::deadline_timer *timer, boost::timer::cpu_timer *cpu_timer) {
   timer->expires_from_now(process_metrics_update_period);
   timer->async_wait([timer, cpu_timer](const boost::system::error_code ec) {
-    if (ec) {
+    if (ec.value() != 0) {
       LOG(ERROR) << ec.message();
       return;
     }

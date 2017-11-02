@@ -6,7 +6,7 @@ using namespace satori::video;
 
 namespace test_bot {
 
-void process_image(bot_context &context, const image_frame &frame) {
+void process_image(bot_context &context, const image_frame & /*frame*/) {
   std::cout << "got frame " << context.frame_metadata->width << "x"
             << context.frame_metadata->height << "\n";
 }

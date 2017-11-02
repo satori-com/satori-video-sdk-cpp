@@ -13,7 +13,7 @@ namespace video {
 prometheus::Registry& metrics_registry();
 
 void expose_metrics(const std::string& bind_address);
-void report_process_metrics(boost::asio::io_service &service);
+void report_process_metrics(boost::asio::io_service& io);
 
 }  // namespace video
 }  // namespace satori

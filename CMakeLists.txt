@@ -37,6 +37,8 @@ endif()
 set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=99 ${CMAKE_CXX_FLAGS}")
 
 add_library(satorivideo
+    include/satorivideo/base.h
+    include/satorivideo/video_bot.h
     src/avutils.cpp
     src/base64.cpp
     src/bot_environment.cpp
@@ -99,6 +101,9 @@ if (CONAN_OPENCV_ROOT)
     message("** Building OpenCV variant")
     target_link_libraries(satorivideo PUBLIC CONAN_PKG::Opencv)
     target_sources(satorivideo PRIVATE
+            include/satorivideo/opencv/opencv_bot.h
+            include/satorivideo/opencv/opencv_impl.h
+            include/satorivideo/opencv/opencv_utils.h
             src/opencv/opencv_utils.cpp)
 endif()
 

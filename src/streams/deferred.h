@@ -154,7 +154,7 @@ class deferred_base {
     _impl->on(f);
   }
 
-  void fail(std::error_condition ec) { _impl->resolve(std::move(ec)); }
+  void fail(std::error_condition ec) { _impl->fail(ec); }
 
   // Resolves the deferred.
   void resolve(value_t &&t) { _impl->resolve(std::move(t)); }
@@ -219,7 +219,7 @@ template <>
 class deferred<void> : public deferred_base<void> {
  private:
   explicit deferred(std::shared_ptr<deferred_impl<void>> impl)
-      : deferred_base<void>(impl) {}
+      : deferred_base<void>(std::move(impl)) {}
 
   template <typename>
   friend class satori::video::streams::
@@ -274,6 +274,12 @@ class deferred_impl_base {
     } else {
       f(std::move(_value));
     }
+  }
+
+  void fail(std::error_condition ec) {
+    CHECK(ec);
+    _value = ec;
+    mark_resolved_and_notify();
   }
 
   void resolve(value_t &&t) {

@@ -48,7 +48,7 @@ network_metadata encoded_metadata::to_network() const {
   network_metadata nm;
 
   nm.codec_name = codec_name;
-  if (codec_data.size() > 0) {
+  if (codec_data.empty()) {
     nm.base64_data = std::move(satori::video::encode64(codec_data));
   }
 

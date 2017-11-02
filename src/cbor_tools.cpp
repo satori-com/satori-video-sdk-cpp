@@ -1,11 +1,11 @@
 #include "cbor_tools.h"
 
-#include <string.h>
+#include <cstring>
 
 #include "logging.h"
 
 namespace cbor {
-cbor_item_t *map_get(const cbor_item_t *map, const std::string name,
+cbor_item_t *map_get(const cbor_item_t *map, const std::string &name,
                      cbor_item_t *default_value) {
   if (map != nullptr && cbor_map_is_definite(map)) {
     for (size_t i = 0; i < cbor_map_size(map); i++) {
@@ -20,27 +20,36 @@ cbor_item_t *map_get(const cbor_item_t *map, const std::string name,
   return default_value;
 }
 
-bool map_has_str_value(const cbor_item_t *map, const std::string name,
-                       const std::string value) {
+bool map_has_str_value(const cbor_item_t *map, const std::string &name,
+                       const std::string &value) {
   const cbor_item_t *item = map_get(map, name);
-  if (item == nullptr) return 0;
-  if (cbor_string_length(item) != value.length()) return false;
+  if (item == nullptr) {
+    return false;
+  }
+  if (cbor_string_length(item) != value.length()) {
+    return false;
+  }
   return strncmp(value.c_str(), reinterpret_cast<char *>(cbor_string_handle(item)),
                  cbor_string_length(item))
          == 0;
 }
 
-std::string map_get_str(const cbor_item_t *map, const std::string name,
-                        const std::string default_value) {
+std::string map_get_str(const cbor_item_t *map, const std::string &name,
+                        const std::string &default_value) {
   const cbor_item_t *value = map_get(map, name);
-  if (value == nullptr) return default_value;
+  if (value == nullptr) {
+    return default_value;
+  }
   return std::string(reinterpret_cast<char *>(cbor_string_handle(value)),
                      cbor_string_length(value));
 }
 
-int map_get_int(const cbor_item_t *map, const std::string name, const int default_value) {
+int map_get_int(const cbor_item_t *map, const std::string &name,
+                const int default_value) {
   const cbor_item_t *value = map_get(map, name);
-  if (value == nullptr) return default_value;
+  if (value == nullptr) {
+    return default_value;
+  }
   return cbor_get_int(value);
 }
 
@@ -68,7 +77,9 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
     case CBOR_TYPE_ARRAY:
       out << '[';
       for (size_t i = 0; i < cbor_array_size(item); i++) {
-        if (i > 0) out << ',';
+        if (i > 0) {
+          out << ',';
+        }
         dump_as_json(out, cbor_array_handle(item)[i]);
       }
       out << ']';
@@ -76,7 +87,9 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
     case CBOR_TYPE_MAP:
       out << '{';
       for (size_t i = 0; i < cbor_map_size(item); i++) {
-        if (i > 0) out << ',';
+        if (i > 0) {
+          out << ',';
+        }
         dump_as_json(out, cbor_map_handle(item)[i].key);
         out << ':';
         dump_as_json(out, cbor_map_handle(item)[i].value);
@@ -92,17 +105,16 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
 int64_t get_int64(const cbor_item_t *item) {
   if (cbor_isa_negint(item)) {
     return -cbor_get_int(item);
-  } else {
-    return cbor_get_int(item);
   }
+
+  return cbor_get_int(item);
 }
 
 double get_double(const cbor_item_t *item) {
   if (cbor_is_int(item)) {
     return static_cast<double>(get_int64(item));
-  } else {
-    return cbor_float_get_float(item);
   }
+  return cbor_float_get_float(item);
 }
 
 }  // namespace cbor

@@ -7,19 +7,19 @@
 namespace cbor {
 // Returns string value for a key or default value if key is not found or not a
 // string.
-std::string map_get_str(const cbor_item_t *map, const std::string name,
-                        const std::string default_value);
+std::string map_get_str(const cbor_item_t *map, const std::string &name,
+                        const std::string &default_value);
 
 // Returns int value for a key or default value if key is not found or not an
 // int.
-int map_get_int(const cbor_item_t *map, const std::string name, const int default_value);
+int map_get_int(const cbor_item_t *map, const std::string &name, int default_value);
 
 // Returns boolean flag indicating if key/value pair exists.
-bool map_has_str_value(const cbor_item_t *map, const std::string name,
-                       const std::string value);
+bool map_has_str_value(const cbor_item_t *map, const std::string &name,
+                       const std::string &value);
 
 // Returns CBOR value for a key or default value if key is not found.
-cbor_item_t *map_get(const cbor_item_t *map, const std::string name,
+cbor_item_t *map_get(const cbor_item_t *map, const std::string &name,
                      cbor_item_t *default_value = nullptr);
 
 int64_t get_int64(const cbor_item_t *item);
@@ -38,7 +38,7 @@ struct map {
   }
 
   std::string get_str(const std::string &key,
-                      const std::string default_value = "") const {
+                      const std::string &default_value = "") const {
     return map_get_str(item, key, default_value);
   }
 

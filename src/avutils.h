@@ -48,8 +48,8 @@ std::shared_ptr<AVPacket> av_packet();
 
 // Creates FFmpeg's sws context based on source and destination frames.
 // Sws context is used to scale images and convert pixel formats.
-std::shared_ptr<SwsContext> sws_context(std::shared_ptr<const AVFrame> src_frame,
-                                        std::shared_ptr<const AVFrame> dst_frame);
+std::shared_ptr<SwsContext> sws_context(const std::shared_ptr<const AVFrame> &src_frame,
+                                        const std::shared_ptr<const AVFrame> &dst_frame);
 
 // Creates FFmpeg's sws context based on source and destination frames.
 std::shared_ptr<SwsContext> sws_context(int src_width, int src_height,
@@ -57,14 +57,14 @@ std::shared_ptr<SwsContext> sws_context(int src_width, int src_height,
                                         int dst_height, AVPixelFormat dst_format);
 
 // Applies sws conversion to source frame and fills data of destination frame.
-void sws_scale(std::shared_ptr<SwsContext> sws_context,
-               std::shared_ptr<const AVFrame> src_frame,
-               std::shared_ptr<AVFrame> dst_frame);
+void sws_scale(const std::shared_ptr<SwsContext> &sws_context,
+               const std::shared_ptr<const AVFrame> &src_frame,
+               const std::shared_ptr<AVFrame> &dst_frame);
 
 // Creates FFmpeg's format context to write data to files
 std::shared_ptr<AVFormatContext> output_format_context(
     const std::string &format, const std::string &filename,
-    std::function<void(AVFormatContext *)> file_cleaner);
+    const std::function<void(AVFormatContext *)> &file_cleaner);
 
 std::shared_ptr<AVFormatContext> open_input_format_context(
     const std::string &url, AVInputFormat *forced_format = nullptr,
@@ -73,7 +73,7 @@ int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out);
 
 // Copies image frame data to AVFrame
 void copy_image_to_av_frame(const owned_image_frame &image,
-                            std::shared_ptr<AVFrame> frame);
+                            const std::shared_ptr<AVFrame> &frame);
 
 struct allocated_image {
   uint8_t *data[MAX_IMAGE_PLANES];
