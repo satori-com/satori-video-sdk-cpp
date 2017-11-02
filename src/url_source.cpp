@@ -11,21 +11,22 @@ namespace satori {
 namespace video {
 
 struct url_source_impl {
-  url_source_impl(std::string url, streams::observer<encoded_packet> &sink)
+  url_source_impl(std::string url, const std::string &options,
+                  streams::observer<encoded_packet> &sink)
       : _url(url), _sink(sink) {
     avutils::init();
-
-    std::thread read_thread([this]() {
+    std::thread([this, options]() {
       _reader_thread_id = std::this_thread::get_id();
 
-      if (start()) {
-        delete this;
+      std::error_condition ec = start(options);
+      if (ec) {
+        _sink.on_error(ec);
         return;
       }
 
       read_loop();
-    });
-    read_thread.detach();
+    })
+        .detach();
   }
 
   ~url_source_impl() {
@@ -36,8 +37,14 @@ struct url_source_impl {
     }
   }
 
-  std::error_condition start() {
-    _input_context = avutils::open_input_format_context(_url);
+  std::error_condition start(const std::string &options) {
+    AVDictionary *options_dict = nullptr;
+    int err = av_dict_parse_string(&options_dict, options.c_str(), "=", ",;", 0);
+    if (err < 0) {
+      LOG(ERROR) << "can't parse options: " << options;
+      return video_error::StreamInitializationError;
+    }
+    _input_context = avutils::open_input_format_context(_url, nullptr, options_dict);
     if (!_input_context) {
       return video_error::StreamInitializationError;
     }
@@ -110,10 +117,11 @@ struct url_source_impl {
   int _stream_idx{-1};
 };
 
-streams::publisher<encoded_packet> url_source(std::string url) {
+streams::publisher<encoded_packet> url_source(std::string url,
+                                              const std::string &options) {
   return streams::generators<encoded_packet>::async<url_source_impl>(
-             [url](streams::observer<encoded_packet> &sink) {
-               return new url_source_impl(url, sink);
+             [url, options](streams::observer<encoded_packet> &sink) {
+               return new url_source_impl(url, options, sink);
              },
              [](url_source_impl *impl) { delete impl; })
          >> streams::flatten();

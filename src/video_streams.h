@@ -19,7 +19,9 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
 streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
                                                  const std::string &dimensions);
 
-streams::publisher<encoded_packet> url_source(std::string url);
+// options are ffmpeg protocol options, 'k1=v1,k2=v2'
+streams::publisher<encoded_packet> url_source(std::string url,
+                                              const std::string &options = "");
 
 streams::publisher<network_packet> network_replay_source(boost::asio::io_service &io,
                                                          const std::string &filename,

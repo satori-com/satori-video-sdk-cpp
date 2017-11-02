@@ -321,7 +321,15 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
     return nullptr;
   }
 
-  LOG(1) << "opening url " << url;
+  std::string options_str;
+  if (options) {
+    char *buffer;
+    av_dict_get_string(options, &buffer, '=', ',');
+    options_str = buffer;
+    free(buffer);
+  }
+
+  LOG(1) << "opening url " << url << " " << options_str;
   int ret = avformat_open_input(&format_context, url.c_str(), forced_format, &options);
   if (ret < 0) {
     // format_context is freed on open error.
