@@ -10,9 +10,7 @@ cbor_item_t *map_get(const cbor_item_t *map, const std::string &name,
   if (map != nullptr && cbor_map_is_definite(map)) {
     for (size_t i = 0; i < cbor_map_size(map); i++) {
       cbor_item_t *key = cbor_map_handle(map)[i].key;
-      if (strncmp(name.c_str(), reinterpret_cast<char *>(cbor_string_handle(key)),
-                  cbor_string_length(key))
-          == 0) {
+      if (name == get_string(key)) {
         return cbor_map_handle(map)[i].value;
       }
     }
@@ -29,9 +27,7 @@ bool map_has_str_value(const cbor_item_t *map, const std::string &name,
   if (cbor_string_length(item) != value.length()) {
     return false;
   }
-  return strncmp(value.c_str(), reinterpret_cast<char *>(cbor_string_handle(item)),
-                 cbor_string_length(item))
-         == 0;
+  return value == get_string(item);
 }
 
 std::string map_get_str(const cbor_item_t *map, const std::string &name,
@@ -40,8 +36,7 @@ std::string map_get_str(const cbor_item_t *map, const std::string &name,
   if (value == nullptr) {
     return default_value;
   }
-  return std::string(reinterpret_cast<char *>(cbor_string_handle(value)),
-                     cbor_string_length(value));
+  return get_string(value);
 }
 
 int map_get_int(const cbor_item_t *map, const std::string &name,
@@ -69,9 +64,7 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
       if (cbor_string_is_indefinite(item)) {
         ABORT();
       } else {
-        std::string a(reinterpret_cast<char *>(cbor_string_handle(item)),
-                      static_cast<int>(cbor_string_length(item)));
-        out << '"' << a << '"';
+        out << '"' << get_string(item) << '"';
       }
       break;
     case CBOR_TYPE_ARRAY:
@@ -115,6 +108,12 @@ double get_double(const cbor_item_t *item) {
     return static_cast<double>(get_int64(item));
   }
   return cbor_float_get_float(item);
+}
+
+std::string get_string(const cbor_item_t *item) {
+  CHECK(cbor_isa_string(item));
+  return std::string{reinterpret_cast<char *>(cbor_string_handle(item)),
+                     cbor_string_length(item)};
 }
 
 }  // namespace cbor

@@ -26,6 +26,8 @@ int64_t get_int64(const cbor_item_t *item);
 
 double get_double(const cbor_item_t *item);
 
+std::string get_string(const cbor_item_t *item);
+
 struct map {
   explicit map(const cbor_item_t *item) : item(item) {}
 
