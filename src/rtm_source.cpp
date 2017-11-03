@@ -62,12 +62,12 @@ streams::publisher<network_packet> rtm_source(
 
   streams::publisher<network_packet> metadata =
       rtm::cbor_channel(client, channel_name + metadata_channel_suffix, metadata_options)
-      >> streams::map(&parse_network_metadata) >> streams::take(1);
+      >> streams::map(&parse_network_metadata);
 
   streams::publisher<network_packet> frames =
       rtm::cbor_channel(client, channel_name, {}) >> streams::map(&parse_network_frame);
 
-  return streams::publishers::concat(std::move(metadata), std::move(frames));
+  return streams::publishers::merge(std::move(metadata), std::move(frames));
 }
 
 }  // namespace video
