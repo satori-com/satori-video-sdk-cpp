@@ -1,14 +1,13 @@
 #pragma once
 
-#include <boost/optional.hpp>
 #include <boost/program_options.hpp>
 #include <gsl/gsl>
 #include <list>
 #include <memory>
 
 #include "data.h"
-#include "satorivideo/video_bot.h"
 #include "rtm_client.h"
+#include "satorivideo/video_bot.h"
 #include "video_streams.h"
 
 namespace satori {
@@ -34,7 +33,7 @@ class bot_environment : private rtm::error_callbacks {
   void send_messages(std::list<struct bot_message>&& messages);
 
  private:
-  void parse_config(boost::optional<std::string> config_file);
+  void process_config(cbor_item_t* bot_config);
   void on_error(std::error_condition ec) override;
   const bot_descriptor* _bot_descriptor{nullptr};
   std::shared_ptr<bot_instance> _bot_instance;

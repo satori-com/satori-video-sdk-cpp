@@ -1,6 +1,7 @@
 #include "bot_environment.h"
 
 #include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -47,8 +48,10 @@ variables_map parse_command_line(int argc, char* argv[],
   po::options_description bot_configuration_options("Bot configuration options");
   bot_configuration_options.add_options()(
       "id", po::value<std::string>()->default_value(""), "bot id");
+  bot_configuration_options.add_options()("config-file", po::value<std::string>(),
+                                          "(json) bot config file");
   bot_configuration_options.add_options()("config", po::value<std::string>(),
-                                          "bot config file");
+                                          "(json) bot config");
 
   po::options_description bot_execution_options("Bot execution options");
   bot_execution_options.add_options()(
@@ -78,6 +81,11 @@ variables_map parse_command_line(int argc, char* argv[],
   }
 
   if (!cli_cfg.validate(vm)) {
+    exit(1);
+  }
+
+  if (vm.count("config") > 0 && vm.count("config-file") > 0) {
+    std::cerr << "--config and --config-file options are mutually exclusive" << std::endl;
     exit(1);
   }
 
@@ -116,36 +124,52 @@ void log_important_counters() {
 
 }  // namespace
 
-void bot_environment::parse_config(boost::optional<std::string> config_file) {
-  if (_bot_descriptor->ctrl_callback == nullptr && config_file.is_initialized()) {
+cbor_item_t* read_config_from_file(const std::string& config_file) {
+  FILE* fp = fopen(config_file.c_str(), "r");
+  if (fp == nullptr) {
+    std::cerr << "Can't read config file " << config_file << ": " << strerror(errno)
+              << std::endl;
+    exit(1);
+  }
+  auto file_closer = gsl::finally([&fp]() { fclose(fp); });
+
+  char readBuffer[65536];
+  rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+  rapidjson::Document d;
+  rapidjson::ParseResult ok = d.ParseStream(is);
+
+  if (!ok) {
+    std::cerr << "Config parse error at offset " << ok.Offset() << ": "
+              << GetParseError_En(ok.Code()) << std::endl;
+    exit(1);
+  }
+
+  return json_to_cbor(d);
+}
+
+cbor_item_t* read_config_from_arg(const std::string& arg) {
+  rapidjson::Document d;
+  rapidjson::ParseResult ok = d.Parse(arg.c_str());
+
+  if (!ok) {
+    std::cerr << "Config parse error at offset " << ok.Offset() << ": "
+              << GetParseError_En(ok.Code()) << std::endl;
+    exit(1);
+  }
+
+  return json_to_cbor(d);
+}
+
+void bot_environment::process_config(cbor_item_t* config) {
+  if (config == nullptr) {
+    return;
+  }
+
+  if (_bot_descriptor->ctrl_callback == nullptr) {
     std::cerr << "Config specified but there is no control method set\n";
     exit(1);
   }
 
-  if (_bot_descriptor->ctrl_callback == nullptr) {
-    return;
-  }
-
-  cbor_item_t* config;
-
-  if (config_file.is_initialized()) {
-    FILE* fp = fopen(config_file.get().c_str(), "r");
-    if (fp == nullptr) {
-      std::cerr << "Can't read config file " << config_file.get() << ": "
-                << strerror(errno) << "\n";
-      exit(1);
-    }
-    auto file_closer = gsl::finally([&fp]() { fclose(fp); });
-
-    char readBuffer[65536];
-    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
-    rapidjson::Document d;
-    d.ParseStream(is);
-
-    config = json_to_cbor(d);
-  } else {
-    config = cbor_new_definite_map(0);
-  }
   cbor_item_t* cmd = configure_command(config);
   auto cbor_deleter = gsl::finally([&config, &cmd]() {
     cbor_decref(&config);
@@ -209,9 +233,15 @@ int bot_environment::main(int argc, char* argv[]) {
   const bool batch = cmd_args.count("batch") > 0;
   _bot_instance = std::make_shared<bot_instance>(
       id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this);
-  parse_config(cmd_args.count("config") > 0
-                   ? boost::optional<std::string>{cmd_args["config"].as<std::string>()}
-                   : boost::optional<std::string>{});
+
+  cbor_item_t* bot_config{nullptr};
+  if (cmd_args.count("config-file") > 0) {
+    bot_config = read_config_from_file(cmd_args["config-file"].as<std::string>());
+  } else if (cmd_args.count("config") > 0) {
+    bot_config = read_config_from_arg(cmd_args["config"].as<std::string>());
+  }
+
+  process_config(bot_config);
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
