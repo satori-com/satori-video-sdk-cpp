@@ -75,10 +75,41 @@ void dump_bsfs() {
 void init() {
   static bool initialized = false;
   if (!initialized) {
-    LOG(INFO) << "initializing av library";
-    if (DEBUG_MODE) {
-      av_log_set_level(AV_LOG_VERBOSE);
+    loguru::Verbosity verbosity_cutoff = loguru::current_verbosity_cutoff();
+    int av_log_level = AV_LOG_INFO;
+
+    switch (verbosity_cutoff) {
+    case -3:
+      av_log_level = AV_LOG_FATAL;
+      break;
+    case -2:
+      av_log_level = AV_LOG_ERROR;
+      break;
+    case -1:
+      av_log_level = AV_LOG_WARNING;
+      break;
+    case 0:
+      av_log_level = AV_LOG_INFO;
+      break;
+    case 1:
+      av_log_level = AV_LOG_VERBOSE;
+      break;
+    case 2:
+      av_log_level = AV_LOG_DEBUG;
+      break;
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+      av_log_level = AV_LOG_TRACE;
+      break;
     }
+
+    av_log_set_level(av_log_level);
+    LOG(INFO) << "initializing av library, logging level " << av_log_level;
 
     avdevice_register_all();
     avcodec_register_all();
