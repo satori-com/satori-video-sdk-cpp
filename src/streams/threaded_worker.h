@@ -104,6 +104,8 @@ struct threaded_worker_op {
             drain_source_impl<element_t>::deliver_on_error(_ec);
           }
         }
+
+        delete this;
       }
 
       void die() override {

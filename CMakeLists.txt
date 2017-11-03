@@ -93,9 +93,14 @@ target_link_libraries(satorivideo
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
         CONAN_PKG::Rapidjson
-        CONAN_PKG::GPerfTools
     )
 target_include_directories(satorivideo PUBLIC include)
+
+if (CONAN_GPERFTOOLS_ROOT)
+    message("** Enabling gperftools")
+    target_link_libraries(satorivideo PUBLIC CONAN_PKG::GPerfTools)
+    add_definitions(-DHAS_GPERFTOOLS)
+endif()
 
 if (CONAN_OPENCV_ROOT)
     message("** Building OpenCV variant")

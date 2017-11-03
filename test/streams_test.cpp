@@ -160,14 +160,14 @@ BOOST_AUTO_TEST_CASE(lift_square) {
   BOOST_TEST(events(std::move(p)) == strings({"4", "9", "16", "."}));
 }
 
-BOOST_AUTO_TEST_CASE(buffered_worker) {
+BOOST_AUTO_TEST_CASE(threaded_worker) {
   LOG_SCOPE_FUNCTION(0);
   auto p = streams::publishers::range(1, 5) >> streams::threaded_worker("test")
            >> streams::flatten();
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "."}));
 }
 
-BOOST_AUTO_TEST_CASE(buffered_worker_cancel) {
+BOOST_AUTO_TEST_CASE(threaded_worker_cancel) {
   LOG_SCOPE_FUNCTION(0);
   auto p = streams::publishers::range(1, 5) >> streams::threaded_worker("test")
            >> streams::flatten() >> streams::take(3);
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE(collector_asio) {
            >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
            >> streams::take_while([](auto i) { return i < 10; })
            >> streams::do_finally([&terminated]() { terminated = true; });
-  auto *s = new ::collector_sink<int>();
+  auto s = std::make_unique<collector_sink<int>>();
   BOOST_TEST(!terminated);
 
   p->subscribe(*s);

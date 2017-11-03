@@ -150,8 +150,8 @@ class deferred_base {
 
   // Calls f(status_or<T>) when value is available.
   template <class Fn /* value_t -> () */>
-  void on(Fn f) {
-    _impl->on(f);
+  void on(Fn &&f) {
+    _impl->on(std::forward<Fn>(f));
   }
 
   void fail(std::error_condition ec) { _impl->fail(ec); }
@@ -161,16 +161,16 @@ class deferred_base {
 
   // Transforms the value once resolved into immediate value.
   template <class Fn /* : T -> U */>
-  typename map_types<Fn, T>::return_t map(Fn f) const {
+  typename map_types<Fn, T>::return_t map(Fn &&f) const {
     using U = typename map_types<Fn, T>::result_element_t;
-    return deferred<U>(_impl->map(f));
+    return deferred<U>(_impl->map(std::forward<Fn>(f)));
   }
 
   // Transform the value once resolved into another deferred.
   template <class Fn /* : T -> deferred<U> */>
-  typename then_types<Fn, T>::return_t then(Fn f) const {
+  typename then_types<Fn, T>::return_t then(Fn &&f) const {
     using U = typename then_types<Fn, T>::result_element_t;
-    return deferred<U>(_impl->then(f));
+    return deferred<U>(_impl->then(std::forward<Fn>(f)));
   }
 
  protected:
@@ -256,7 +256,11 @@ class deferred_impl_base {
 
   deferred_impl_base(value_t value) : _value(std::move(value)), _resolved(true) {}
 
+  ~deferred_impl_base() {}
+
  public:
+  deferred_impl_base(const deferred_impl_base &) = delete;
+
   bool resolved() const { return _resolved; }
 
   bool ok() const {
@@ -265,12 +269,12 @@ class deferred_impl_base {
   }
 
   template <class Fn>
-  void on(Fn f) {
+  void on(Fn &&f) {
     CHECK(!_has_callback);
     _has_callback = true;
 
     if (!_resolved) {
-      _resolve_cb = std::move(f);
+      _resolve_cb = std::forward<Fn>(f);
     } else {
       f(std::move(_value));
     }
@@ -288,10 +292,10 @@ class deferred_impl_base {
   }
 
   template <class Fn>
-  inline typename map_types<Fn, T>::impl_return_t map(Fn f);
+  inline typename map_types<Fn, T>::impl_return_t map(Fn &&f);
 
   template <class Fn>
-  inline typename then_types<Fn, T>::impl_return_t then(Fn f);
+  inline typename then_types<Fn, T>::impl_return_t then(Fn &&f);
 
  private:
   void mark_resolved_and_notify() {
@@ -301,6 +305,7 @@ class deferred_impl_base {
       return;
     }
     _resolve_cb(std::move(_value));
+    _resolve_cb = {};
   }
 };
 
@@ -359,16 +364,16 @@ struct error_fwd<void, U> {
 // value to status::OK.
 template <class Fn /* T -> U */, typename T, typename U>
 struct apply_fn {
-  inline static U apply(Fn f, const error_or<T> &t) { return f(t.get()); }
+  inline static U apply(Fn &f, const error_or<T> &t) { return f(t.get()); }
 };
 template <class Fn /* void -> U */, typename U>
 struct apply_fn<Fn, void, U> {
-  inline static U apply(Fn f, const std::error_condition & /*t*/) { return f(); }
+  inline static U apply(Fn &f, const std::error_condition & /*t*/) { return f(); }
 };
 template <class Fn /* T -> void */, typename T>
 struct apply_fn<Fn, T, std::error_condition> {
   using U = std::error_condition;
-  inline static U apply(Fn f, const error_or<T> &t) {
+  inline static U apply(Fn &f, const error_or<T> &t) {
     f(t.get());
     return {};
   }
@@ -376,7 +381,7 @@ struct apply_fn<Fn, T, std::error_condition> {
 template <class Fn /* void -> void */>
 struct apply_fn<Fn, void, std::error_condition> {
   using U = std::error_condition;
-  inline static U apply(Fn f, const std::error_condition & /*t*/) {
+  inline static U apply(Fn &f, const std::error_condition & /*t*/) {
     f();
     return {};
   }
@@ -387,12 +392,12 @@ struct apply_fn<Fn, void, std::error_condition> {
 
 template <typename T>
 template <class Fn /* : T -> U */>
-typename map_types<Fn, T>::impl_return_t deferred_impl_base<T>::map(Fn f) {
+typename map_types<Fn, T>::impl_return_t deferred_impl_base<T>::map(Fn &&f) {
   using U = typename map_types<Fn, T>::result_element_t;
   using u_value_t = typename impl_types<U>::value_t;
 
   auto result = std::make_shared<deferred_impl<U>>();
-  on([result, f](const value_t &value) mutable {
+  on([ result, f = std::forward<Fn>(f) ](const value_t &value) mutable {
     if (impl_types<T>::ok(value)) {
       u_value_t u = apply_fn<Fn, T, u_value_t>::apply(f, value);
       result->resolve(std::move(u));
@@ -405,12 +410,12 @@ typename map_types<Fn, T>::impl_return_t deferred_impl_base<T>::map(Fn f) {
 
 template <typename T>
 template <class Fn /* : T -> U */>
-typename then_types<Fn, T>::impl_return_t deferred_impl_base<T>::then(Fn f) {
+typename then_types<Fn, T>::impl_return_t deferred_impl_base<T>::then(Fn &&f) {
   using U = typename then_types<Fn, T>::result_element_t;
   using u_value_t = typename impl_types<U>::value_t;
 
   auto result = std::make_shared<deferred_impl<U>>();
-  on([result, f](const value_t &value) mutable {
+  on([ result, f = std::forward<Fn>(f) ](const value_t &value) mutable {
     if (impl_types<T>::ok(value)) {
       deferred<U> u = apply_fn<Fn, T, deferred<U>>::apply(f, value);
       u.on(

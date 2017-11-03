@@ -257,7 +257,7 @@ std::shared_ptr<AVPacket> av_packet() {
     LOG(ERROR) << "failed to allocate packet";
     return nullptr;
   }
-  LOG(1) << "allocated frame";
+  LOG(1) << "allocated packet";
   return packet;
 }
 
