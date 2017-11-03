@@ -294,6 +294,19 @@ ${CMAKE_BINARY_DIR}/test/test_bot \
 | tee /dev/tty \
 | grep 'got frame 160x130'")
 
+add_test(NAME ProcessEmptyConfigTest COMMAND bash -c "\
+${CMAKE_BINARY_DIR}/test/test_bot \
+--input-video-file=test_data/test.mp4 \
+| tee /dev/tty \
+| grep 'got no config'")
+
+add_test(NAME ProcessNonemptyConfigTest COMMAND bash -c "\
+${CMAKE_BINARY_DIR}/test/test_bot \
+--input-video-file=test_data/test.mp4 \
+--config='{\"myparam\":\"myvalue\"}' \
+| tee /dev/tty \
+| grep 'processing config {\"myparam\":\"myvalue\"}'")
+
 # flaky test
 # add_test(NAME FramesLimitTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --frames-limit=5 | tee /dev/tty | grep -o 'got frame 320x240' | wc -l | tee /dev/tty | grep '5'")
 
