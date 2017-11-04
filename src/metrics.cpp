@@ -2,6 +2,8 @@
 
 #include <boost/timer/timer.hpp>
 #include <prometheus/exposer.h>
+#include <boost/timer/timer.hpp>
+#include <chrono>
 
 #ifdef HAS_GPERFTOOLS
 #include <gperftools/malloc_extension.h>
@@ -41,6 +43,10 @@ auto& process_cpu_system_time_sec = prometheus::BuildCounter()
     .Register(metrics_registry())
     .Add({});
 
+auto& process_start_time = prometheus::BuildGauge()
+                               .Name("process_start_time")
+                               .Register(metrics_registry())
+                               .Add({});
 
 std::shared_ptr<prometheus::Registry> metrics_registry_shared_ptr() {
   static auto registry = std::make_shared<prometheus::Registry>();
@@ -102,6 +108,10 @@ void expose_metrics(const std::string& bind_address) {
 }
 
 void report_process_metrics(boost::asio::io_service &io) {
+  auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
+  process_start_time.Set(
+      std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
+
   auto timer = new boost::asio::deadline_timer(io);
   auto cpu_timer = new boost::timer::cpu_timer();
   report_process_metrics_impl(timer, cpu_timer);
