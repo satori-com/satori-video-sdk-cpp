@@ -63,26 +63,17 @@ namespace {
 
 constexpr int READ_BUFFER_SIZE = 100000;
 
+auto &rtm_messages_received =
+    prometheus::BuildCounter().Name("rtm_messages_received").Register(metrics_registry());
 
-auto& rtm_messages_received = prometheus::BuildCounter()
-    .Name("rtm_messages_received")
-    .Register(metrics_registry())
-    .Add({});
+auto &rtm_bytes_received =
+    prometheus::BuildCounter().Name("rtm_bytes_received").Register(metrics_registry());
 
-auto& rtm_bytes_received = prometheus::BuildCounter()
-    .Name("rtm_bytes_received")
-    .Register(metrics_registry())
-    .Add({});
+auto &rtm_messages_sent =
+    prometheus::BuildCounter().Name("rtm_messages_sent").Register(metrics_registry());
 
-auto& rtm_messages_sent = prometheus::BuildCounter()
-    .Name("rtm_messages_sent")
-    .Register(metrics_registry())
-    .Add({});
-
-auto& rtm_bytes_sent = prometheus::BuildCounter()
-    .Name("rtm_bytes_sent")
-    .Register(metrics_registry())
-    .Add({});
+auto &rtm_bytes_sent =
+    prometheus::BuildCounter().Name("rtm_bytes_sent").Register(metrics_registry());
 
 std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -150,6 +141,7 @@ enum class subscription_status {
 };
 
 struct subscription_impl {
+  const std::string channel;
   const subscription &sub;
   subscription_callbacks &callbacks;
   subscription_status status;
@@ -248,8 +240,8 @@ class secure_client : public client {
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
-    rtm_messages_sent.Increment();
-    rtm_bytes_sent.Increment(buf.GetSize());
+    rtm_messages_sent.Add({{"channel", channel}}).Increment();
+    rtm_bytes_sent.Add({{"channel", channel}}).Increment(buf.GetSize());
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -257,8 +249,9 @@ class secure_client : public client {
                          const subscription_options *options) override {
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     _subscriptions.emplace(std::make_pair(
-        channel, subscription_impl{sub, callbacks, subscription_status::PendingSubscribe,
-                                   ++_request_id}));
+        channel,
+        subscription_impl{channel, sub, callbacks, subscription_status::PendingSubscribe,
+                          ++_request_id}));
 
     rapidjson::Document document;
     subscribe_request req{_request_id, channel};
@@ -334,21 +327,19 @@ class secure_client : public client {
       }
 
       std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
-      _read_buffer.consume(_read_buffer.size());
-
-      rtm_messages_received.Increment();
-      rtm_bytes_received.Increment(input.size());
+      auto input_size = _read_buffer.size();
+      _read_buffer.consume(input_size);
 
       rapidjson::StringStream s(input.c_str());
       rapidjson::Document d;
       d.ParseStream(s);
-      process_input(d);
+      process_input(d, input_size);
 
       ask_for_read();
     });
   }
 
-  void process_input(rapidjson::Document &d) {
+  void process_input(const rapidjson::Document &d, size_t byte_size) {
     if (!d.HasMember("action")) {
       std::cerr << "no action in pdu: " << to_string(d) << "\n";
     }
@@ -367,7 +358,10 @@ class secure_client : public client {
         return;
       }
 
-      for (rapidjson::Value &m : body["messages"].GetArray()) {
+      rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
+      rtm_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
+
+      for (const rapidjson::Value &m : body["messages"].GetArray()) {
         sub.callbacks.on_data(sub.sub, cbor_move(video::json_to_cbor(m)));
       }
     } else if (action == "rtm/subscribe/ok") {
