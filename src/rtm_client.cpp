@@ -524,11 +524,13 @@ void resilient_client::on_error(std::error_condition ec) {
 void resilient_client::restart() {
   std::lock_guard<std::mutex> guard(_client_mutex);
 
+  LOG(1) << "creating new client";
   _client = _factory(*this);
   if (!_started) {
     return;
   }
 
+  LOG(1) << "startig new client";
   auto ec = _client->start();
   if (ec) {
     LOG(ERROR) << "can't restart client: " << ec.message();
@@ -536,9 +538,12 @@ void resilient_client::restart() {
     return;
   }
 
+  LOG(1) << "restoring subscriptions";
   for (const auto &sub : _subscriptions) {
     _client->subscribe_channel(sub.channel, *sub.sub, *sub.callbacks, sub.options);
   }
+
+  LOG(1) << "client restart done";
 }
 
 }  // namespace rtm
