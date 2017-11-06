@@ -196,13 +196,13 @@ void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
   for (auto&& msg : messages) {
     switch (msg.kind) {
       case bot_message_kind::ANALYSIS:
-        _analysis_sink->on_next(std::move(msg.data));
+        _analysis_sink->on_next(cbor_move(msg.data));
         break;
       case bot_message_kind::CONTROL:
-        _control_sink->on_next(std::move(msg.data));
+        _control_sink->on_next(cbor_move(msg.data));
         break;
       case bot_message_kind::DEBUG:
-        _debug_sink->on_next(std::move(msg.data));
+        _debug_sink->on_next(cbor_move(msg.data));
         break;
     }
   }

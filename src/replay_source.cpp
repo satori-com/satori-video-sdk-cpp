@@ -54,12 +54,13 @@ streams::publisher<cbor_item_t *> read_json(const std::string &filename) {
 }
 
 static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
+  cbor_incref(doc);
+  auto decref = gsl::finally([&doc]() { cbor_decref(&doc); });
   cbor_item_t *messages = cbor::map(doc).get("messages");
   std::vector<cbor_item_t *> result;
   for (size_t i = 0; i < cbor_array_size(messages); ++i) {
     result.push_back(cbor_array_get(messages, i));
   }
-  cbor_decref(&doc);
   return streams::publishers::of(std::move(result));
 }
 
