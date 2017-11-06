@@ -25,7 +25,7 @@ build-asan:
 > docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p asan --build=outdated -s build_type=Debug" -t ${DOCKER_TAG}-asan .
 
 build-tidy:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p tidy --build=outdated -s build_type=Release" -t ${DOCKER_TAG}-asan .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p tidy --build=outdated -s build_type=Release" -t ${DOCKER_TAG}-tidy .
 
 ## FIXME: had to duplicate it for now
 conan-login:
