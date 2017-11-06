@@ -130,7 +130,7 @@ class resilient_client : public client, error_callbacks {
   using client_factory_t =
       std::function<std::unique_ptr<client>(error_callbacks &callbacks)>;
 
-  explicit resilient_client(client_factory_t &&factory, error_callbacks &callbacks);
+  explicit resilient_client(boost::asio::io_service &io_service, client_factory_t &&factory, error_callbacks &callbacks);
 
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override;
@@ -164,6 +164,7 @@ class resilient_client : public client, error_callbacks {
     const subscription_options *options;
   };
 
+  boost::asio::io_service &_io;
   client_factory_t _factory;
   error_callbacks &_error_callbacks;
   std::unique_ptr<client> _client;

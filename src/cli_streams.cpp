@@ -248,6 +248,7 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
   const std::string appkey = vm["appkey"].as<std::string>();
 
   return std::make_shared<rtm::resilient_client>(
+      io_service,
       [endpoint, port, appkey, &io_service, &ssl_context,
        &rtm_error_callbacks](rtm::error_callbacks &callbacks) {
         return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1,

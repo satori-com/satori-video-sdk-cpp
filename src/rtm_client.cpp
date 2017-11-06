@@ -464,9 +464,9 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
   return std::move(client);
 }
 
-resilient_client::resilient_client(resilient_client::client_factory_t &&factory,
+resilient_client::resilient_client(asio::io_service &io_service, resilient_client::client_factory_t &&factory,
                                    error_callbacks &callbacks)
-    : _factory(std::move(factory)), _error_callbacks(callbacks) {
+    : _io(io_service), _factory(std::move(factory)), _error_callbacks(callbacks) {
   restart();
 }
 
@@ -518,10 +518,14 @@ std::error_condition resilient_client::stop() {
 
 void resilient_client::on_error(std::error_condition ec) {
   LOG(INFO) << "restarting rtm client because of error: " << ec.message();
-  restart();
+  // this post prevents deadlock in case error happens in client method.
+  _io.post([this]() {
+    restart();
+  });
 }
 
 void resilient_client::restart() {
+  LOG(1) << "acquiring client lock";
   std::lock_guard<std::mutex> guard(_client_mutex);
 
   LOG(1) << "creating new client";
