@@ -161,7 +161,7 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
 }
 
 void bot_environment::process_config(cbor_item_t* config) {
-  if (_bot_descriptor->ctrl_callback == nullptr) {
+  if (!_bot_descriptor.ctrl_callback) {
     if (config == nullptr) return;
     std::cerr << "Bot control handler was not provided" << std::endl;
     exit(1);
@@ -175,7 +175,7 @@ void bot_environment::process_config(cbor_item_t* config) {
     cbor_decref(&cmd);
   });
 
-  cbor_item_t* response = _bot_descriptor->ctrl_callback(*_bot_instance, cmd);
+  cbor_item_t* response = _bot_descriptor.ctrl_callback(*_bot_instance, cmd);
   if (response != nullptr) {
     _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response),
                                  frame_id{0, 0});
@@ -187,10 +187,7 @@ bot_environment& bot_environment::instance() {
   return env;
 }
 
-void bot_environment::register_bot(const bot_descriptor* bot) {
-  CHECK(!_bot_descriptor);
-  _bot_descriptor = bot;
-}
+void bot_environment::register_bot(const bot_descriptor& bot) { _bot_descriptor = bot; }
 
 void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
   for (auto&& msg : messages) {
@@ -231,7 +228,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch") > 0;
   _bot_instance = std::make_shared<bot_instance>(
-      id, batch ? execution_mode::BATCH : execution_mode::LIVE, *_bot_descriptor, *this);
+      id, batch ? execution_mode::BATCH : execution_mode::LIVE, _bot_descriptor, *this);
 
   cbor_item_t* bot_config{nullptr};
   if (cmd_args.count("config-file") > 0) {
@@ -254,7 +251,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
   _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
-                                      _bot_descriptor->pixel_format);
+                                      _bot_descriptor.pixel_format);
 
   if (!batch_mode) {
     _source = std::move(_source) >> streams::threaded_worker("processing_worker")

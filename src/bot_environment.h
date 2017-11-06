@@ -25,7 +25,7 @@ class bot_environment : private rtm::error_callbacks {
  public:
   static bot_environment& instance();
 
-  void register_bot(const bot_descriptor* bot);
+  void register_bot(const bot_descriptor& bot);
   int main(int argc, char* argv[]);
 
   rtm::publisher& publisher() { return *_rtm_client; }
@@ -35,7 +35,7 @@ class bot_environment : private rtm::error_callbacks {
  private:
   void process_config(cbor_item_t* bot_config);
   void on_error(std::error_condition ec) override;
-  const bot_descriptor* _bot_descriptor{nullptr};
+  bot_descriptor _bot_descriptor;
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;
 

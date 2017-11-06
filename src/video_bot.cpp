@@ -11,7 +11,7 @@ void bot_message(bot_context& context, const bot_message_kind kind, cbor_item_t*
 }
 
 void bot_register(const bot_descriptor& bot) {
-  bot_environment::instance().register_bot(&bot);
+  bot_environment::instance().register_bot(bot);
 }
 
 int bot_main(int argc, char* argv[]) {
