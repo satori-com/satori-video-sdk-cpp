@@ -39,7 +39,7 @@ struct url_source_impl {
 
   std::error_condition start(const std::string &options) {
     AVDictionary *options_dict = nullptr;
-    int err = av_dict_parse_string(&options_dict, options.c_str(), "=", ",;", 0);
+    int err = av_dict_parse_string(&options_dict, options.c_str(), "=", ";", 0);
     if (err < 0) {
       LOG(ERROR) << "can't parse options: " << options;
       return video_error::StreamInitializationError;
