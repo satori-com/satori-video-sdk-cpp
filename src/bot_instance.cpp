@@ -171,6 +171,8 @@ void bot_instance::operator()(cbor_item_t* msg) {
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
   }
 
+  cbor_decref(&msg);
+
   send_messages(frame_id{-1, -1});
 }
 
