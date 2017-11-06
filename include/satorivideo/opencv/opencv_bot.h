@@ -5,25 +5,29 @@
 
 namespace satori {
 namespace video {
-namespace cvbot {
 
-// Getting OpenCV image
-// this cv::Mat object does not own the frame data, please perform deep clone
-// if you need to use it outside of the frame callback runtime
-cv::Mat get_image(const bot_context &context, const image_frame &frame);
+// Bot image callback receiving OpenCV Mat object.
+// This cv::Mat object does not own frame data, and it is guaranteed to live
+// only during callback execution frame. Perform deep clone
+// if you need to use it later.
+using opencv_bot_img_callback_t =
+    std::function<void(bot_context &context, const cv::Mat &img)>;
 
-cv::Rect2d convert_to_fractional(const cv::Rect &rect, const cv::Size &view);
-cv::Point2d convert_from_fractional(const cv::Point2d &p, const cv::Size &view);
-cv::Rect2d convert_from_fractional(const cv::Rect2d &p, const cv::Size &view);
+struct opencv_bot_descriptor {
+  // Invoked on every received image
+  opencv_bot_img_callback_t img_callback;
 
-// CBOR output functions
-cbor_item_t *rect_to_cbor(cv::Rect rect);
-cbor_item_t *rect_to_cbor(cv::Rect2d rect);
+  // Invoked on every received control command, guaranteed to be invoked during
+  // initialization
+  bot_ctrl_callback_t ctrl_callback;
+};
 
-// CBOR input functions
-cv::Rect2d rect_from_cbor(cbor_item_t *item);
-cv::Point2d point_from_cbor(cbor_item_t *item);
+// Registers opencv bot.
+// Should be called by bot implementation before starting a bot.
+EXPORT void opencv_bot_register(const opencv_bot_descriptor &bot);
 
-}
+// Starts a bot (e.g. launches main event loop).
+// A bot implementation should be registered before calling this method.
+EXPORT int opencv_bot_main(int argc, char *argv[]);
 }
 }

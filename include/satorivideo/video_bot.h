@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 
 #include "base.h"
 
@@ -69,13 +70,15 @@ EXPORT struct bot_context {
 };
 
 // API for image handler callback
-using bot_img_callback_t = void (*)(bot_context &context, const image_frame &frame);
+using bot_img_callback_t =
+    std::function<void(bot_context &context, const image_frame &frame)>;
 
 // API for control command callback
 // Format of message is defined by user.
 // Recommended format is: {"action": "configure", "body":{<configure_parameters
 // if specified>}}
-using bot_ctrl_callback_t = cbor_item_t *(*)(bot_context &context, cbor_item_t *message);
+using bot_ctrl_callback_t =
+    std::function<cbor_item_t *(bot_context &context, cbor_item_t *message)>;
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 

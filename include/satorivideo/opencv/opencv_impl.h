@@ -6,7 +6,7 @@
 
 namespace satori {
 namespace video {
-namespace cvbot {
+namespace opencv {
 
 template <typename A>
 std::function<bool(A, A)> ordering_function() {

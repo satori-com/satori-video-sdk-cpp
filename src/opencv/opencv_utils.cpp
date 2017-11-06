@@ -1,17 +1,9 @@
-#include "satorivideo/opencv/opencv_bot.h"
 #include "satorivideo/opencv/opencv_utils.h"
+#include "../logging.h"
 
 namespace satori {
 namespace video {
-
-namespace cvbot {
-cv::Mat get_image(const bot_context &context, const image_frame &frame) {
-  assert(context.frame_metadata->width != 0);
-  const uint8_t *buffer = frame.plane_data[0];
-  uint16_t linesize = context.frame_metadata->plane_strides[0];
-  return cv::Mat(context.frame_metadata->height, context.frame_metadata->width, CV_8UC3,
-                 (void *)buffer, linesize);
-}
+namespace opencv {
 
 void log_image(const cv::Mat &image) {
   static int counter = 1;

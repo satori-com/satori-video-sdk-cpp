@@ -109,7 +109,9 @@ if (CONAN_OPENCV_ROOT)
             include/satorivideo/opencv/opencv_bot.h
             include/satorivideo/opencv/opencv_impl.h
             include/satorivideo/opencv/opencv_utils.h
-            src/opencv/opencv_utils.cpp)
+            src/opencv/opencv_bot.cpp
+            src/opencv/opencv_utils.cpp
+            )
 endif()
 
 function(set_binary_output_directory TARGET DIRECTORY)
@@ -198,6 +200,13 @@ add_executable(empty_bot test/bots/empty_bot.cpp)
 set_property(TARGET empty_bot PROPERTY CXX_STANDARD 14)
 set_binary_output_directory(empty_bot test)
 target_link_libraries(empty_bot PRIVATE satorivideo CONAN_PKG::Loguru)
+
+if (CONAN_OPENCV_ROOT)
+    add_executable(empty_opencv_bot test/bots/empty_opencv_bot.cpp)
+    set_property(TARGET empty_opencv_bot PROPERTY CXX_STANDARD 14)
+    set_binary_output_directory(empty_opencv_bot test)
+    target_link_libraries(empty_opencv_bot PRIVATE satorivideo CONAN_PKG::Loguru)
+endif()
 
 function(add_video_test TEST_NAME TEST_FILE)
     add_executable(${TEST_NAME} ${TEST_FILE})
