@@ -219,8 +219,9 @@ class secure_client : public client {
 
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override {
-    CHECK(!callbacks) << "not implemeneted";
+    CHECK(!callbacks) << "not implemented";
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
+    CHECK_EQ(0, cbor_refcount(message));
     cbor_incref(message);
     auto decref = gsl::finally([message]() mutable { cbor_decref(&message); });
 
