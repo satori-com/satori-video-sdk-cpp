@@ -309,7 +309,7 @@ int bot_environment::main(int argc, char* argv[]) {
                 frames_count++;
                 constexpr int period = 100;
                 if ((frames_count % period) == 0) {
-                  LOG(INFO) << "Processed " << period << " frames";
+                  LOG(INFO) << "Processed " << frames_count << " frames";
                   log_important_counters();
                 }
                 return pkt;
