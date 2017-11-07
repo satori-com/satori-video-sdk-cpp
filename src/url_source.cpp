@@ -100,7 +100,8 @@ struct url_source_impl {
       auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
       if (_pkt.stream_index == _stream_idx) {
         LOG(4) << "packet from url " << _url;
-        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}};
+        _next_id++;
+        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}, frame_id{_next_id, _next_id}};
         _sink.on_next(frame);
       }
     }
@@ -115,6 +116,7 @@ struct url_source_impl {
   std::thread::id _reader_thread_id;
   std::atomic<bool> _active{true};
   int _stream_idx{-1};
+  int64_t _next_id{0};
 };
 
 streams::publisher<encoded_packet> url_source(const std::string &url,
