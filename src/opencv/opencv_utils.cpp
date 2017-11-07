@@ -8,8 +8,11 @@ namespace opencv {
 void log_image(const cv::Mat &image) {
   static int counter = 1;
   std::string filename = "logs/frame" + std::to_string(counter++) + ".jpg";
-  cv::imwrite(filename, image);
-  std::cout << "logged: " << filename << "\n";
+  if (cv::imwrite(filename, image)) {
+    LOG(4) << "Logged: " << filename;
+  } else {
+    LOG(ERROR) << "Failed to write: " << filename;
+  }
 }
 
 bool collinear(const Vector &a, const Vector &b, double precision) {
@@ -91,8 +94,7 @@ void debug_logger::add(const std::vector<cv::Point2d> &points, uint32_t groupId,
 }
 
 cbor_pair kv_pair(const std::string &key, cbor_item_t *value) {
-  return {cbor_move(cbor_build_string(key.c_str())),
-      cbor_move(value)};
+  return {cbor_move(cbor_build_string(key.c_str())), cbor_move(value)};
 }
 
 cbor_item_t *points(const std::vector<cv::Point2d> &plist) {
@@ -139,7 +141,6 @@ debug_logger::~debug_logger() {
     log_image(*image);
   }
 }
-
-}  // namespace cvbot
+}  // namespace opencv
 }  // namespace video
 }  // namespace satori
