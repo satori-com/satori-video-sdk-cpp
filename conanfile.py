@@ -65,7 +65,7 @@ class SatorivideoConan(ConanFile):
         cmake_build_command = "VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config
         self.output.info(cmake_build_command)
         self.run(cmake_build_command)
-        self.run("CTEST_OUTPUT_ON_FAILURE=ON ctest -V -j 8 .")
+        self.run("CTEST_OUTPUT_ON_FAILURE=ON ctest -j 8 .")
 
     def package(self):
         excludes = None
