@@ -118,7 +118,9 @@ void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); 
 
 void bot_instance::on_next(owned_image_packet&& packet) {
   boost::apply_visitor(*this, packet);
-  _video_sub->request(1);
+  if (_video_sub != nullptr) {
+    _video_sub->request(1);
+  }
 }
 
 void bot_instance::on_complete() {
@@ -178,7 +180,7 @@ void bot_instance::operator()(const owned_image_frame& frame) {
 
 void bot_instance::operator()(cbor_item_t* msg) {
   // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-//  messages_received.Add({{"message_type", "control"}}).Increment();
+  //  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
   auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
 
@@ -219,19 +221,19 @@ void bot_instance::operator()(cbor_item_t* msg) {
 void bot_instance::send_messages(const frame_id& id) {
   for (auto&& msg : _message_buffer) {
     // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-/*
-    switch (msg.kind) {
-      case bot_message_kind::ANALYSIS:
-        messages_sent.Add({{"message_type", "analysis"}}).Increment();
-        break;
-      case bot_message_kind::DEBUG:
-        messages_sent.Add({{"message_type", "debug"}}).Increment();
-        break;
-      case bot_message_kind::CONTROL:
-        messages_sent.Add({{"message_type", "control"}}).Increment();
-        break;
-    }
-*/
+    /*
+        switch (msg.kind) {
+          case bot_message_kind::ANALYSIS:
+            messages_sent.Add({{"message_type", "analysis"}}).Increment();
+            break;
+          case bot_message_kind::DEBUG:
+            messages_sent.Add({{"message_type", "debug"}}).Increment();
+            break;
+          case bot_message_kind::CONTROL:
+            messages_sent.Add({{"message_type", "control"}}).Increment();
+            break;
+        }
+    */
 
     cbor_item_t* data = msg.data;
 
