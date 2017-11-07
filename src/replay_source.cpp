@@ -54,8 +54,6 @@ streams::publisher<cbor_item_t *> read_json(const std::string &filename) {
 }
 
 static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
-  CHECK_EQ(0, cbor_refcount(doc));
-  cbor_incref(doc);
   auto decref = gsl::finally([&doc]() { cbor_decref(&doc); });
 
   cbor_item_t *messages = cbor::map(doc).get("messages");
