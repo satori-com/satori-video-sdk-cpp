@@ -1,5 +1,6 @@
 #include "rtm_client.h"
 
+#include <rapidjson/error/en.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <boost/asio.hpp>
@@ -50,6 +51,8 @@ struct client_error_category : std::error_category {
         return "unsubscribe error";
       case client_error::AsioError:
         return "asio error";
+      case client_error::InvalidMessage:
+        return "invalid message";
     }
   }
 };
@@ -212,7 +215,6 @@ class secure_client : public client {
     if (ec.value() != 0) {
       LOG(ERROR) << "can't close: " << ec.message();
       return make_error_condition(client_error::AsioError);
-
     }
     return {};
   }
@@ -314,13 +316,17 @@ class secure_client : public client {
   void ask_for_read() {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
                                         unsigned long) {
+      LOG(9) << this << " async_read";
       if (ec == boost::asio::error::operation_aborted) {
+        LOG(9) << this << " async_read operation is aborted/cancelled";
         CHECK(_client_state == client_state::PendingStopped);
         LOG(INFO) << "Got stop request for async_read loop";
         _client_state = client_state::Stopped;
         _subscriptions.clear();
         return;
       }
+
+      LOG(9) << this << " async_read ec.value() = " << ec.value();
       if (ec.value() != 0) {
         LOG(ERROR) << "asio error: " << ec.message();
         _callbacks.on_error(client_error::AsioError);
@@ -331,11 +337,20 @@ class secure_client : public client {
       auto input_size = _read_buffer.size();
       _read_buffer.consume(input_size);
 
+      LOG(9) << this << " async_read input_size = " << input_size;
       rapidjson::StringStream s(input.c_str());
       rapidjson::Document d;
-      d.ParseStream(s);
+      rapidjson::ParseResult ok = d.ParseStream(s);
+      if (!ok) {
+        LOG(ERROR) << "Parse message error at offset " << ok.Offset() << ": "
+                   << GetParseError_En(ok.Code()) << ", message: " << input;
+        _callbacks.on_error(client_error::InvalidMessage);
+        return;
+      }
+      LOG(9) << this << " async_read processing input";
       process_input(d, input_size);
 
+      LOG(9) << this << " async_read asking for read";
       ask_for_read();
     });
   }
@@ -465,7 +480,8 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
   return std::move(client);
 }
 
-resilient_client::resilient_client(asio::io_service &io_service, resilient_client::client_factory_t &&factory,
+resilient_client::resilient_client(asio::io_service &io_service,
+                                   resilient_client::client_factory_t &&factory,
                                    error_callbacks &callbacks)
     : _io(io_service), _factory(std::move(factory)), _error_callbacks(callbacks) {
   restart();
@@ -520,9 +536,7 @@ std::error_condition resilient_client::stop() {
 void resilient_client::on_error(std::error_condition ec) {
   LOG(INFO) << "restarting rtm client because of error: " << ec.message();
   // this post prevents deadlock in case error happens in client method.
-  _io.post([this]() {
-    restart();
-  });
+  _io.post([this]() { restart(); });
 }
 
 void resilient_client::restart() {

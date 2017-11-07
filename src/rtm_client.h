@@ -31,6 +31,7 @@ enum class client_error : unsigned char {
   SubscribeError = 6,
   UnsubscribeError = 7,
   AsioError = 8,
+  InvalidMessage = 9
 };
 
 std::error_condition make_error_condition(client_error e);
@@ -115,7 +116,7 @@ struct subscriber {
 class client : public publisher, public subscriber {
  public:
   virtual std::error_condition start() __attribute__((warn_unused_result)) = 0;
-  virtual std::error_condition stop() __attribute__((warn_unused_result))  = 0;
+  virtual std::error_condition stop() __attribute__((warn_unused_result)) = 0;
 };
 
 std::unique_ptr<client> new_client(const std::string &endpoint, const std::string &port,
@@ -130,7 +131,8 @@ class resilient_client : public client, error_callbacks {
   using client_factory_t =
       std::function<std::unique_ptr<client>(error_callbacks &callbacks)>;
 
-  explicit resilient_client(boost::asio::io_service &io_service, client_factory_t &&factory, error_callbacks &callbacks);
+  explicit resilient_client(boost::asio::io_service &io_service,
+                            client_factory_t &&factory, error_callbacks &callbacks);
 
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override;
