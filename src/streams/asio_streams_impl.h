@@ -53,15 +53,12 @@ struct delay_op {
 
     void on_next(T &&t) override {
       CHECK(_active);
-      auto delay = _fn(t);
-      LOG(5) << "delay_op(" << this << ")::on_next delay=" << delay.count();
+      LOG(1) << "delay_op(" << this << ")::on_next";
 
-      if (delay.count()) {
-        _buffer.push_back(std::move(t));
-        _timer->expires_from_now(to_boost(delay));
-        _timer->async_wait(std::bind(&instance::on_timer, this, std::placeholders::_1));
-      } else {
-        _sink.on_next(std::move(t));
+      _buffer.push_back(std::move(t));
+
+      if (_buffer.size() == 1) {
+        schedule_timer();
       }
     }
 
@@ -117,18 +114,16 @@ struct delay_op {
       _src->request(n);
     }
 
-    void on_timer(const boost::system::error_code &ec) {
+    void on_timer() {
       LOG(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
-
-      if (ec.value() != 0) {
-        LOG(ERROR) << "ASIO ERROR: " << ec.message();
-      }
 
       CHECK(!_buffer.empty());
       _sink.on_next(std::move(_buffer.front()));
       _buffer.pop_front();
 
-      if (!_active && _buffer.empty()) {
+      if (!_buffer.empty()) {
+        schedule_timer();
+      } else if (!_active) {
         if (_error) {
           LOG(5) << "delay_op not active, on_error";
           _sink.on_error(_error);
@@ -137,6 +132,26 @@ struct delay_op {
           _sink.on_complete();
         }
         delete this;
+      }
+    }
+
+    void schedule_timer() {
+      CHECK(_buffer.size() > 0);
+
+      auto delay = _fn(_buffer.front());
+      LOG(5) << "delay_op(" << this << ")::schedule_timer delay=" << delay.count();
+
+      if (delay.count() == 0) {
+        on_timer();
+      } else {
+        _timer->expires_from_now(to_boost(delay));
+        _timer->async_wait([this](const boost::system::error_code &ec) {
+          if (ec.value() != 0) {
+            LOG(ERROR) << "ASIO ERROR: " << ec.message();
+            return;
+          }
+          on_timer();
+        });
       }
     }
 
@@ -177,6 +192,7 @@ streams::op<T, T> interval(boost::asio::io_service &io,
            >> delay(io,
                     [s, period](const T &t) {
                       if (!s->last_frame.time_since_epoch().count()) {
+                        s->last_frame = std::chrono::system_clock::now();
                         return std::chrono::milliseconds(0);
                       }
 
@@ -187,13 +203,10 @@ streams::op<T, T> interval(boost::asio::io_service &io,
                         return std::chrono::milliseconds(0);
                       }
 
+                      s->last_frame = this_frame_time;
                       return std::chrono::duration_cast<std::chrono::milliseconds>(
                           this_frame_time - now);
                     })
-           >> streams::map([s](T &&t) {
-               s->last_frame = std::chrono::system_clock::now();
-               return std::move(t);
-             })
            >> streams::do_finally([s]() { delete s; });
   };
 }
