@@ -2,18 +2,37 @@
 
 Supported platforms: Mac, Linux. [Install Prerequisites](docs/prerequisites.md)
 
-## Create First Video Bot
+## Building First Video Bot
 
-Clone https://github.com/satori-com/satori-video-sdk-cpp-examples/tree/master/empty-bot
+Clone [examples project](https://github.com/satori-com/satori-video-sdk-cpp-examples):
 
-Follow build instructions in README
+```
+git clone git@github.com:satori-com/satori-video-sdk-cpp.git
+cd satori-video-sdk-cpp
+```
+
+Build a empty-bot:
+
+```
+cd empty-bot
+mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make -j8
+```
 
 ## Run Video Bot
 
-Run video bot without arguments to see options.
+Run bot without arguments to see list of available inputs.
 
-File/Camera/RTM sources
+Examples:
 
-## Write Processing Code
+Run video bot with video file:
+
+```
+./empty-bot --input-video-file=my_video_file.mp4
+```
+
+
+TODO RTM/Camera/RTM sources
+
+## Add Processing Code
 
 ## Deploy Video Bot
