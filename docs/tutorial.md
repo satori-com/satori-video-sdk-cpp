@@ -11,12 +11,15 @@ git clone git@github.com:satori-com/satori-video-sdk-cpp.git
 cd satori-video-sdk-cpp
 ```
 
-Build a empty-bot:
+Build an empty-opencv-bot (or empty-bot if you prefer to work without opencv wrapper):
 
 ```
-cd empty-bot
+cd empty-opencv-bot
 mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make -j8
 ```
+
+First time build will take significant time while conan fetches and builds and requires packages.
+
 
 ## Run Video Bot
 
