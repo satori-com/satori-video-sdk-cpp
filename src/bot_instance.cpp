@@ -140,7 +140,7 @@ void bot_instance::operator()(cbor_item_t* msg) {
   // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
 //  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
-  auto cbor_deleter = gsl::finally([&msg]() { cbor_decref(&msg); });
+  auto msg_decref = gsl::finally([&msg]() { cbor_decref(&msg); });
 
   if (cbor_isa_array(msg)) {
     for (int i = 0; i < cbor_array_size(msg); ++i) {
@@ -170,8 +170,6 @@ void bot_instance::operator()(cbor_item_t* msg) {
 
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
   }
-
-  cbor_decref(&msg);
 
   send_messages(frame_id{-1, -1});
 }
