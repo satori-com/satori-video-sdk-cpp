@@ -67,6 +67,8 @@ namespace {
 
 constexpr int READ_BUFFER_SIZE = 100000;
 
+const boost::posix_time::minutes WS_PING_INTERVAL{1};
+
 auto &rtm_messages_received =
     prometheus::BuildCounter().Name("rtm_messages_received").Register(metrics_registry());
 
@@ -158,13 +160,29 @@ class secure_client : public client {
                          const std::string &appkey, uint64_t client_id,
                          error_callbacks &callbacks, asio::io_service &io_service,
                          asio::ssl::context &ssl_ctx)
-      : _host(host),
-        _port(port),
-        _appkey(appkey),
+      : _host{host},
+        _port{port},
+        _appkey{appkey},
         _tcp_resolver{io_service},
         _ws{io_service, ssl_ctx},
-        _client_id(client_id),
-        _callbacks(callbacks) {}
+        _client_id{client_id},
+        _callbacks{callbacks},
+        _ping_timer{io_service} {
+    _control_callback = [](boost::beast::websocket::frame_type type,
+                           boost::beast::string_view payload) {
+      switch (type) {
+        case boost::beast::websocket::frame_type::close:
+          LOG(INFO) << "got close frame " << payload;
+          break;
+        case boost::beast::websocket::frame_type::ping:
+          LOG(INFO) << "got ping frame " << payload;
+          break;
+        case boost::beast::websocket::frame_type::pong:
+          LOG(INFO) << "got pong frame " << payload;
+          break;
+      }
+    };
+  }
 
   ~secure_client() override = default;
 
@@ -201,6 +219,10 @@ class secure_client : public client {
     }
     LOG(1) << "Websocket open";
 
+    _ws.control_callback(_control_callback);
+
+    arm_ping_timer();
+
     _client_state = client_state::Running;
     ask_for_read();
     return {};
@@ -212,11 +234,20 @@ class secure_client : public client {
 
     _client_state = client_state::PendingStopped;
     boost::system::error_code ec;
+    _ping_timer.cancel(ec);
+    if (ec.value() != 0) {
+      LOG(ERROR) << "can't stop ping timer: " << ec.message();
+      return make_error_condition(client_error::AsioError);
+    }
+
+    ec.clear();
     _ws.next_layer().next_layer().close(ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't close: " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
+
+    _ws.control_callback();
     return {};
   }
 
@@ -386,6 +417,32 @@ class secure_client : public client {
                     });
   }
 
+  void arm_ping_timer() {
+    LOG(1) << this << " setting ws ping timer";
+
+    _ping_timer.expires_from_now(WS_PING_INTERVAL);
+    _ping_timer.async_wait([this](const boost::system::error_code &ec) {
+      _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec) {
+        LOG(1) << this << " ping_write_handler";
+        if (ec == boost::asio::error::operation_aborted) {
+          LOG(ERROR) << this << " ping operation is aborted/cancelled";
+          // TODO: should we react, or just rely on _ws.async_read()
+          return;
+        }
+
+        LOG(1) << this << " ping_write_handler ec.value() = " << ec.value();
+        if (ec.value() != 0) {
+          LOG(ERROR) << this << " asio error: " << ec.message();
+          _callbacks.on_error(client_error::AsioError);
+          return;
+        }
+
+        LOG(1) << this << " requesting another ping";
+        arm_ping_timer();
+      });
+    });
+  }
+
   void process_input(const rapidjson::Document &d, size_t byte_size) {
     if (!d.HasMember("action")) {
       std::cerr << "no action in pdu: " << to_string(d) << "\n";
@@ -497,6 +554,10 @@ class secure_client : public client {
   boost::beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
   std::map<std::string, subscription_impl> _subscriptions;
   std::queue<std::string> _write_buffer;
+  boost::asio::deadline_timer _ping_timer;
+  std::function<void(boost::beast::websocket::frame_type type,
+                     boost::beast::string_view payload)>
+      _control_callback;
 };
 
 }  // namespace
