@@ -64,20 +64,20 @@ struct LogRecord {
 };
 
 class debug_logger {
-public:
+ public:
   debug_logger(bot_context *ctx);
   void set_image(cv::Mat *img);
   void add(const std::vector<cv::Point2d> &points, uint32_t groupId,
            const std::string &caption, uint32_t thickness = 1);
   ~debug_logger();
 
-private:
+ private:
   cv::Mat *image{nullptr};
   bot_context *context{nullptr};
   std::vector<LogRecord> records;
 };
 
-}  // namespace cvbot
+}  // namespace opencv
 }  // namespace video
 }  // namespace satori
 

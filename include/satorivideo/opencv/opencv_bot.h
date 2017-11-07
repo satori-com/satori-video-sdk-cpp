@@ -29,5 +29,5 @@ EXPORT void opencv_bot_register(const opencv_bot_descriptor &bot);
 // Starts a bot (e.g. launches main event loop).
 // A bot implementation should be registered before calling this method.
 EXPORT int opencv_bot_main(int argc, char *argv[]);
-}
-}
+}  // namespace video
+}  // namespace satori

@@ -4,9 +4,8 @@
 //
 // Example:
 // int main(int argc, char *argv[]) {
-//   satori::video::bot_register({640, 480, image_pixel_format::BGR,
-//                                         &transcoder::process_image,
-//                                         nullptr});
+//   satori::video::bot_register(bot_descriptor{image_pixel_format::BGR,
+//                                              &transcoder::process_image});
 //   return satori::video::bot_main(argc, argv);
 // }
 

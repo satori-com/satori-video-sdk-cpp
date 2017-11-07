@@ -10,9 +10,7 @@ namespace opencv {
 
 template <typename A>
 std::function<bool(A, A)> ordering_function() {
-  return [](const A& a, const A& b) {
-    return ordering_value(a) < ordering_value(b);
-  };
+  return [](const A &a, const A &b) { return ordering_value(a) < ordering_value(b); };
 }
 
 inline cv::Point center(const cv::Rect &a) {
@@ -41,10 +39,10 @@ inline double distance(const cv::Point2d &a, const cv::Point2d &b) {
 }
 
 inline double distance(const cv::Rect &a, const cv::Rect &b) {
-  return sqrt((a.x + a.width * 0.5 - b.x - b.width * 0.5) *
-      (a.x + a.width * 0.5 - b.x - b.width * 0.5) +
-      (a.y + a.height * 0.5 - b.y - b.height * 0.5) *
-          (a.y + a.height * 0.5 - b.y - b.height * 0.5));
+  return sqrt((a.x + a.width * 0.5 - b.x - b.width * 0.5)
+                  * (a.x + a.width * 0.5 - b.x - b.width * 0.5)
+              + (a.y + a.height * 0.5 - b.y - b.height * 0.5)
+                    * (a.y + a.height * 0.5 - b.y - b.height * 0.5));
 }
 
 template <typename A>
@@ -81,6 +79,6 @@ int closest(const std::vector<A> &h1, int e2, const std::vector<A> &h2,
   }
   return e1;
 }
-}  // namespace cvbot
+}  // namespace opencv
 }  // namespace video
 }  // namespace satori
