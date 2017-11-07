@@ -329,11 +329,13 @@ ${CMAKE_BINARY_DIR}/test/test_bot \
 # flaky test
 # add_test(NAME FramesLimitTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --frames-limit=5 | tee /dev/tty | grep -o 'got frame 320x240' | wc -l | tee /dev/tty | grep '5'")
 
+if (CONAN_OPENCV_ROOT)
 add_test(NAME OpencvTest COMMAND bash -c "\
 ${CMAKE_BINARY_DIR}/test/test_opencv_bot \
 --input-video-file=test_data/test.mp4 \
 | tee /dev/tty \
 | grep 'got frame 240 x 320'")
+endif()
 
 add_video_test(avutils_test test/avutils_test.cpp)
 add_video_test(deferred_test test/deferred_test.cpp)
