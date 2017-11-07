@@ -3,11 +3,10 @@
 #include <thread>
 #include "SDL2/SDL.h"
 
-#include "logging_impl.h"
-
 #include "avutils.h"
 #include "cli_streams.h"
 #include "data.h"
+#include "logging_impl.h"
 #include "streams/streams.h"
 #include "streams/threaded_worker.h"
 #include "video_error.h"
@@ -87,8 +86,8 @@ std::shared_ptr<SDL_Window> create_window() {
   }
 
   std::shared_ptr<SDL_Window> window(
-      SDL_CreateWindow("SDL Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                       640, 480, SDL_WINDOW_RESIZABLE),
+      SDL_CreateWindow("Satori Video Player", SDL_WINDOWPOS_UNDEFINED,
+                       SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE),
       [](SDL_Window *ptr) {
         LOG(INFO) << "Destroying window";
         SDL_DestroyWindow(ptr);

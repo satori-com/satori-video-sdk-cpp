@@ -123,12 +123,12 @@ function(set_binary_output_directory TARGET DIRECTORY)
             RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
 endfunction()
 
-add_executable(video_publisher_cli
-        src/video_publisher_cli.cpp)
-set_property(TARGET video_publisher_cli PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(video_publisher_cli bin)
-add_dependencies(video_publisher_cli satorivideo)
-target_link_libraries(video_publisher_cli
+add_executable(satori_video_publisher src/clitools/publisher.cpp)
+set_property(TARGET satori_video_publisher PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(satori_video_publisher bin)
+add_dependencies(satori_video_publisher satorivideo)
+target_include_directories(satori_video_publisher PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(satori_video_publisher
         PRIVATE
         satorivideo
         CONAN_PKG::Boost
@@ -140,12 +140,12 @@ target_link_libraries(video_publisher_cli
         CONAN_PKG::PrometheusCpp
         )
 
-add_executable(video_recorder_cli
-        src/video_recorder_cli.cpp)
-set_property(TARGET video_recorder_cli PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(video_recorder_cli bin)
-add_dependencies(video_recorder_cli satorivideo)
-target_link_libraries(video_recorder_cli
+add_executable(satori_video_recorder src/clitools/recorder.cpp)
+set_property(TARGET satori_video_recorder PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(satori_video_recorder bin)
+add_dependencies(satori_video_recorder satorivideo)
+target_include_directories(satori_video_recorder PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(satori_video_recorder
         PRIVATE
         satorivideo
         CONAN_PKG::Boost
@@ -158,11 +158,12 @@ target_link_libraries(video_recorder_cli
         CONAN_PKG::PrometheusCpp
         )
 
-add_executable(player src/player.cpp)
-set_property(TARGET player PROPERTY CXX_STANDARD 14)
-set_binary_output_directory(player bin)
-add_dependencies(player satorivideo)
-target_link_libraries(player
+add_executable(satori_video_player src/clitools/player.cpp)
+set_property(TARGET satori_video_player PROPERTY CXX_STANDARD 14)
+set_binary_output_directory(satori_video_player bin)
+add_dependencies(satori_video_player satorivideo)
+target_include_directories(satori_video_player PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(satori_video_player
         PRIVATE
         satorivideo
         CONAN_PKG::Boost
