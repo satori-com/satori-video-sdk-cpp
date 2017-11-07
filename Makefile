@@ -1,5 +1,7 @@
 DOCKER_BUILD_OPTIONS?=
+BUILD_TYPE=RelWithDebInfo
 .RECIPEPREFIX = >
+
 
 .PHONY: all conan-create conan-create-in-docker conan-upload-from-docker conan-login conan-upload
 
@@ -13,19 +15,19 @@ conan-create:
 > conan create satorivideo/master ${CONAN_CREATE_ARGS}
 
 conan-create-in-docker:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=Release" -t ${DOCKER_TAG} .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG} .
 
 conan-upload-from-docker:
 > docker run --rm ${DOCKER_TAG} bash -c "CONAN_REMOTE=${CONAN_REMOTE} CONAN_SERVER=${CONAN_SERVER} CONAN_USER=${CONAN_USER} CONAN_PASSWORD=${CONAN_PASSWORD} make conan-login conan-upload"
 
 build-clang:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p clang --build=outdated -s build_type=Release" -t ${DOCKER_TAG}-clang .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p clang --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-clang .
 
 build-asan:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p asan --build=outdated -s build_type=Debug" -t ${DOCKER_TAG}-asan .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p asan --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-asan .
 
 build-tidy:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p tidy --build=outdated -s build_type=Release" -t ${DOCKER_TAG}-tidy .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p tidy --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-tidy .
 
 ## FIXME: had to duplicate it for now
 conan-login:
