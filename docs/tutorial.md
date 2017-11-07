@@ -1,6 +1,6 @@
 # Satori Video C++ SDK Tutorial
 
-Supported platforms: Mac, Linux. [Install Prerequisites](docs/prerequisites.md)
+Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
 
 ## Building First Video Bot
 
