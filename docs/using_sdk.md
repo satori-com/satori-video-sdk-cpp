@@ -1,6 +1,6 @@
 # Using Satori Video C++ SDK
 
-Supported platforms: Mac, Linux. [Install Prerequisites](docs/prerequisites.md)
+Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
 
 ## SDK Overview
 
@@ -11,3 +11,5 @@ Supported platforms: Mac, Linux. [Install Prerequisites](docs/prerequisites.md)
 ## Deploying Video Bots
 
 ## Debugging and Profiling Video Bots
+
+## SDK Command Line Tools
