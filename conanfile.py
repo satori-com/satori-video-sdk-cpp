@@ -3,7 +3,7 @@ from conans import ConanFile, CMake
 
 class SatorivideoConan(ConanFile):
     name = "SatoriVideo"
-    url = "https://bitbucket.addsrv.com/projects/PLATFORM/repos/video/browse"
+    url = "https://github.com/satori-com/satori-video-sdk-cpp"
     description = "Satori Video Client Library"
 
     options = {"with_opencv": [True, False], "with_gperftools": [True, False]}
