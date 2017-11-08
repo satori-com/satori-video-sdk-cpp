@@ -435,7 +435,7 @@ class secure_client : public client {
       rtm_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
 
       for (const rapidjson::Value &m : body["messages"].GetArray()) {
-        sub.callbacks.on_data(sub.sub, cbor_move(video::json_to_cbor(m)));
+        sub.callbacks.on_data(sub.sub, std::move(video::json_to_cbor(m)));
       }
     } else if (action == "rtm/subscribe/ok") {
       const uint64_t id = d["id"].GetInt64();

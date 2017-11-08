@@ -191,6 +191,7 @@ void bot_environment::register_bot(const bot_descriptor& bot) { _bot_descriptor 
 
 void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
   for (auto&& msg : messages) {
+    CHECK_EQ(1, cbor_refcount(msg.data));
     switch (msg.kind) {
       case bot_message_kind::ANALYSIS:
         _analysis_sink->on_next(cbor_move(msg.data));

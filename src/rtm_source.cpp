@@ -18,7 +18,7 @@ network_packet parse_network_metadata(cbor_item_t *item) {
 }
 
 network_packet parse_network_frame(cbor_item_t *item) {
-  cbor_incref(item);
+  CHECK_EQ(1, cbor_refcount(item));
   auto decref = gsl::finally([&item]() { cbor_decref(&item); });
   auto msg = cbor::map(item);
 
