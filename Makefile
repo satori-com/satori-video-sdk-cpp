@@ -24,7 +24,7 @@ conan-create-in-docker:
 > docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG} .
 
 conan-upload-from-docker:
-> docker run --rm ${DOCKER_TAG} bash -c "CONAN_REMOTE=${CONAN_REMOTE} CONAN_SERVER=${CONAN_SERVER} CONAN_USER=${CONAN_USER} CONAN_PASSWORD=${CONAN_PASSWORD} CONAN_UPLOAD_OPTIONS=${CONAN_UPLOAD_OPTIONS} make conan-login conan-upload"
+> docker run --rm ${DOCKER_TAG} bash -c "CONAN_REMOTE=${CONAN_REMOTE} CONAN_SERVER=${CONAN_SERVER} CONAN_USER=${CONAN_USER} CONAN_PASSWORD=${CONAN_PASSWORD} CONAN_UPLOAD_OPTIONS='${CONAN_UPLOAD_OPTIONS}' make conan-login conan-upload"
 
 build-clang:
 > docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p clang --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-clang .
