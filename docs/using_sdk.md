@@ -68,12 +68,30 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-## Executing Video Bots
+## Running Video Bots
+
+### Choosing Video Source
 
 Video bots support plentora of video sources: satori video, laptop camera or video file. 
-Run bot without parameters to see available options.
+Run bot without parameters to see full list of available options.
 
-TODO: execution options
+| Input Type | Command Line Options |
+|------------|----------------------|
+| Live Satori Video | `--endpoint=<satori-endpoint>` `--appkey=<satori-appkey>` `--channel=<satori-channel>` |
+| Video File | `--input-video-file=<video-file-name>` |
+| Laptop Camera (Mac OSX only) | `--input-camera` |
+
+### Common Options
+
+Several input-related options can be used with any input type.
+
+| Option  | Description |
+|---------|-------------|
+| `--time-limit=<sec>` | exit bot after specified time elapsed |
+| `--frames-limit=<n>` | exit bot after specified number of frames was processed |
+| `--input-resolution=<width>x<height>|original` | frame resolution to use for processing |
+| `--keep-proportions=0|1` | specifies if proportions should be kept during frame resizing. |
+
 
 ## Deploying Video Bots to Cloud
 
