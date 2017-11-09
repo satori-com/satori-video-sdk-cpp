@@ -55,13 +55,32 @@ std::shared_ptr<prometheus::Registry> metrics_registry_shared_ptr() {
 
 #ifdef HAS_GPERFTOOLS
 void report_tcmalloc_metrics() {
-  size_t allocated_bytes = 0;
-  size_t heap_size = 0;
-  CHECK(MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes",
-                                                        &allocated_bytes));
-  CHECK(MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size));
-  process_current_allocated_bytes.Set(allocated_bytes);
-  process_heap_size.Set(heap_size);
+  MallocExtension *extension = MallocExtension::instance();
+  if (extension == nullptr) {
+    LOG(ERROR) << "null malloc extension";
+    return;
+  }
+
+  {
+    size_t allocated_bytes = 0;
+    bool success = extension->GetNumericProperty("generic.current_allocated_bytes",
+                                                 &allocated_bytes);
+    if (success) {
+      process_current_allocated_bytes.Set(allocated_bytes);
+    } else {
+      LOG(ERROR) << "can't get generic.current_allocated_bytes property";
+    }
+  }
+
+  {
+    size_t heap_size = 0;
+    bool success = extension->GetNumericProperty("generic.heap_size", &heap_size);
+    if (success) {
+      process_heap_size.Set(heap_size);
+    } else {
+      LOG(ERROR) << "can't get generic.heap_size property";
+    }
+  }
 }
 #else
 void report_tcmalloc_metrics() {}
