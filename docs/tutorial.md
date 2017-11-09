@@ -38,40 +38,6 @@ Run video bot with Satori video stream:
 ./empty-bot --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
 ```
 
-## SDK CLI tools
-
-| Name   | Description |
-|--------|-------------|
-| `satori_video_player` | Allows watching video files, Satori video streams, and grab video from laptop camera (Mac OSX only) |
-| `satori_video_publisher` | Allows creating Satori video streams from video files or laptop camera (Mac OSX only), so other clients can subscribe to them |
-| `satori_video_recorder` | Allows recording Satori video streams into video files. [Matroska](http://matroska.org/) is the only supported video file format |
-
-### Running Player SDK CLI tool
-```shell
-# Watch Satori video stream
-./satori_video_player --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
-
-# Watch video file
-./satori_video_player --input-video-file=my_video_file.mp4
-
-# Watch video stream from laptop camera (Mac OSX only)
-./satori_video_player --input-camera
-```
-
-### Running Publisher SDK CLI tool
-```shell
-# Create Satori video stream from video file
-./satori_video_publisher --input-video-file=my_video_file.mp4 --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
-
-# Create Satori video stream from laptop camera
-./satori_video_publisher --input-camera --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
-```
-
-### Running Recorder SDK CLI tool
-```shell
-# Record Satori video stream into file
-./satori_video_recorder --output-video-file=my_video_file.mkv --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
-```
 
 ## Add Processing Code
 
