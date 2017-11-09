@@ -392,8 +392,10 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
     return nullptr;
   }
   LOG(1) << "opened url " << url;
-  return std::shared_ptr<AVFormatContext>(
-      format_context, [](AVFormatContext *ctx) { avformat_free_context(ctx); });
+  return std::shared_ptr<AVFormatContext>(format_context, [](AVFormatContext *ctx) {
+    avformat_close_input(&ctx);
+    avformat_free_context(ctx);
+  });
 }
 
 void copy_image_to_av_frame(const owned_image_frame &image,
