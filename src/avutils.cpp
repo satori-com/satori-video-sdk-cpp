@@ -365,7 +365,7 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
   }
 
   std::string options_str;
-  if (options) {
+  if (options != nullptr) {
     char *buffer;
     av_dict_get_string(options, &buffer, '=', ',');
     options_str = buffer;

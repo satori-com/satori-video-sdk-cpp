@@ -136,7 +136,7 @@ struct delay_op {
     }
 
     void schedule_timer() {
-      CHECK(_buffer.size() > 0);
+      CHECK(!_buffer.empty());
 
       auto delay = _fn(_buffer.front());
       LOG(5) << "delay_op(" << this << ")::schedule_timer delay=" << delay.count();

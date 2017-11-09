@@ -256,7 +256,7 @@ class deferred_impl_base {
 
   deferred_impl_base(value_t value) : _value(std::move(value)), _resolved(true) {}
 
-  ~deferred_impl_base() {}
+  ~deferred_impl_base() = default;
 
  public:
   deferred_impl_base(const deferred_impl_base &) = delete;

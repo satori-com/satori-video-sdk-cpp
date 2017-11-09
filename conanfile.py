@@ -1,4 +1,5 @@
 from conans import ConanFile, CMake
+import os
 
 
 class SatorivideoConan(ConanFile):
@@ -7,7 +8,6 @@ class SatorivideoConan(ConanFile):
     description = "Satori Video Client Library"
 
     options = {"with_opencv": [True, False], "with_gperftools": [True, False]}
-
 
     requires = "Libcbor/0.5.0@satorivideo/master", \
                "Boost/1.65.1-05@satorivideo/master", \
@@ -39,7 +39,7 @@ class SatorivideoConan(ConanFile):
                       "PrometheusCpp:fPIC=True"
 
     generators = "cmake"
-    exports_sources = "*"
+    exports_sources = "*", "!build*", "!cmake-build-*", ".clang-tidy", ".clang-format", "!Dockerfile", "!Makefile"
 
     def requirements(self):
         if self.options.with_opencv:
@@ -51,20 +51,24 @@ class SatorivideoConan(ConanFile):
             self.options["GPerfTools"].shared = False
             self.options["GPerfTools"].fPIC = True
 
-
     def build(self):
         cmake = CMake(self)
         cmake_options = []
         cmake_options.append("-DCMAKE_VERBOSE_MAKEFILE=ON")
 
+        if "CMAKE_CXX_CLANG_TIDY" in os.environ:
+            cmake_options.append("-DCMAKE_CXX_CLANG_TIDY='%s'" %
+                                 os.environ["CMAKE_CXX_CLANG_TIDY"])
+
         cmake_generate_command = ('cmake . %s %s' %
                                   (cmake.command_line, " ".join(cmake_options)))
-        self.output.info(cmake_generate_command)
+        self.output.info("running cmake: %s" % cmake_generate_command)
         self.run(cmake_generate_command)
 
         cmake_build_command = "VERBOSE=1 cmake --build . %s -- -j 8" % cmake.build_config
-        self.output.info(cmake_build_command)
+        self.output.info("running build: %s" % cmake_build_command)
         self.run(cmake_build_command)
+        self.output.info("running tests")
         self.run("CTEST_OUTPUT_ON_FAILURE=ON ctest -j 8 .")
 
     def package(self):
@@ -73,7 +77,8 @@ class SatorivideoConan(ConanFile):
             excludes = "opencv"
 
         self.copy("*.h", dst="include", src="include", excludes=excludes)
-        self.copy("*.h", dst="include/satorivideo/impl", src="src", excludes=excludes)
+        self.copy("*.h", dst="include/satorivideo/impl",
+                  src="src", excludes=excludes)
         self.copy("*.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so", dst="lib", keep_path=False)

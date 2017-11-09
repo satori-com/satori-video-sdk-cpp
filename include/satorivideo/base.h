@@ -2,9 +2,9 @@
 
 // Flag shows if bot was compiled in debug mode
 #if defined(BOT_DEBUG)
-#define BOT_DEBUG 1
+#define BOT_DEBUG true
 #else
-#define BOT_DEBUG 0
+#define BOT_DEBUG false
 #endif
 
 #if __EMSCRIPTEN__
@@ -15,15 +15,15 @@
 #endif
 
 #if defined(__APPLE__)
-#define PLATFORM_APPLE 1
+#define PLATFORM_APPLE true
 #else
-#define PLATFORM_APPLE 0
+#define PLATFORM_APPLE false
 #endif
 
 #if NDEBUG
-#define RELEASE_MODE 1
-#define DEBUG_MODE 0
+#define RELEASE_MODE true
+#define DEBUG_MODE false
 #else
-#define RELEASE_MODE 0
-#define DEBUG_MODE 1
+#define RELEASE_MODE false
+#define DEBUG_MODE true
 #endif

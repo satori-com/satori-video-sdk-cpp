@@ -90,8 +90,8 @@ BOOST_AUTO_TEST_CASE(format_context) {
 }
 
 BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
-  int width = 100;
-  int height = 100;
+  uint16_t width = 100;
+  uint16_t height = 100;
   int align = 1;
   AVPixelFormat av_pixel_format = AV_PIX_FMT_RGB0;
   std::shared_ptr<AVFrame> frame =
@@ -101,13 +101,13 @@ BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
   image.pixel_format = image_pixel_format::RGB0;
   image.width = width;
   image.height = height;
-  size_t data_size = width * height * 3;
+  unsigned int data_size = width * height * 3u;
   std::unique_ptr<uint8_t[]> data = std::make_unique<uint8_t[]>(data_size);
   for (size_t i = 0; i < data_size; i++) {
-    data[i] = (i * i) % 256;
+    data[i] = static_cast<uint8_t>((i * i) % 256);
   }
   image.plane_data[0].assign(data.get(), data.get() + data_size);
-  image.plane_strides[0] = width * 3;
+  image.plane_strides[0] = width * 3u;
 
   avutils::copy_image_to_av_frame(image, frame);
 

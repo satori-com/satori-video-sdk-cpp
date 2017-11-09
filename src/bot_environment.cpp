@@ -162,12 +162,16 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
 
 void bot_environment::process_config(cbor_item_t* config) {
   if (!_bot_descriptor.ctrl_callback) {
-    if (config == nullptr) return;
+    if (config == nullptr) {
+      return;
+    }
     std::cerr << "Bot control handler was not provided" << std::endl;
     exit(1);
   }
 
-  if (config == nullptr) config = cbor_new_definite_map(0);
+  if (config == nullptr) {
+    config = cbor_new_definite_map(0);
+  }
 
   cbor_item_t* cmd = configure_command(config);
   auto cbor_deleter = gsl::finally([&config, &cmd]() {

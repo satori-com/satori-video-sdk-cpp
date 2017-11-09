@@ -1,4 +1,4 @@
-Checks: 'clang-diagnostic-*,readability-*,performance-*,readability-identifier-naming,misc-*,modernize-*,-modernize-pass-by-value,-misc-move-const-arg,-clang-analyzer-*'
+Checks: 'bugprone-*,clang-diagnostic-*,misc-*,modernize-*,performance-*,readability-*,-modernize-pass-by-value,-misc-move-const-arg,-clang-analyzer-*'
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 CheckOptions:

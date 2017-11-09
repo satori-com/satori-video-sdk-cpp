@@ -128,7 +128,7 @@ debug_logger::~debug_logger() {
   if (image != nullptr) {
     for (LogRecord &entry : records) {
       if (entry.points.size() > 1) {
-        for (int i = 0; i < entry.points.size() - 1; i++) {
+        for (size_t i = 0; i < entry.points.size() - 1; i++) {
           cv::line(*image, entry.points[i], entry.points[i + 1], id_color(entry.groupId),
                    entry.thickness);
         }

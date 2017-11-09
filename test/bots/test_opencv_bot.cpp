@@ -4,7 +4,7 @@ namespace sv = satori::video;
 
 namespace test_bot {
 
-void process_image(sv::bot_context &context, const cv::Mat &mat) {
+void process_image(sv::bot_context & /*context*/, const cv::Mat &mat) {
   std::cout << "got frame " << mat.size << "\n";
 }
 
