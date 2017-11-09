@@ -41,6 +41,10 @@ Run video bot with Satori video stream:
 Check out [Running Video Bots](using_sdk.md#running-video-bots) section in user guide for more ways to configure
 bot input or tweak its running parameters.
 
-## Add Processing Code
+## Configuring Bot
+
+## Processing Frames
+
+## Sending Analysis Results
 
 ## Deploy Video Bot
