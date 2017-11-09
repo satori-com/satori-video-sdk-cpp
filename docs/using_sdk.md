@@ -89,8 +89,8 @@ Several input-related options can be used with any input type.
 |---------|-------------|
 | `--time-limit=<sec>` | exit bot after specified time elapsed |
 | `--frames-limit=<n>` | exit bot after specified number of frames was processed |
-| `--input-resolution=<width>x<height>|original` | frame resolution to use for processing |
-| `--keep-proportions=0|1` | specifies if proportions should be kept during frame resizing. |
+| `--input-resolution=<width>x<height>` | frame resolution to use for processing |
+| `--keep-proportions=<1 or 0>` | specifies if proportions should be kept during frame resizing. |
 
 
 ## Deploying Video Bots to Cloud
