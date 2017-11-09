@@ -39,7 +39,8 @@ class SatorivideoConan(ConanFile):
                       "PrometheusCpp:fPIC=True"
 
     generators = "cmake"
-    exports_sources = "*", "!build*", "!cmake-build-*", ".clang-tidy", ".clang-format", "!Dockerfile", "!Makefile"
+    exports_sources = "*", ".clang-tidy", ".clang-format", \
+                      "!build*", "!cmake-build-*", "!Dockerfile", "!Makefile"
 
     def requirements(self):
         if self.options.with_opencv:
