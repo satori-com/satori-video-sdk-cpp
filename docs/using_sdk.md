@@ -73,6 +73,20 @@ int main(int argc, char *argv[]) {
 Video bots support plentora of video sources: satori video, laptop camera or video file. 
 Run bot without parameters to see available options.
 
+TODO: execution options
+
+## Deploying Video Bots to Cloud
+
+Satori Video Bot library is a static C++ library. We recommend full static linking
+of your bot binaries and using Docker to deploy them to the cloud.
+
+## Debugging and Profiling Video Bots
+Video bots can be debugged/profiled as any normal C++ process. 
+We recommend following tools: gdb, lldb, (Mac) Instruments, perf, CLion.
+
+To simplify debugging in production the bot library links with gperftools' tcmalloc
+and profiler. This can be disabled by specifying `SatoriVideo:with_gperftools=False`.
+
 ## SDK Command Line Tools
 
 | Name   | Description |
@@ -118,15 +132,3 @@ Run bot without parameters to see available options.
                         --appkey=<satori-appkey> \
                         --channel=<satori-channel>
 ```
-## Deploying Video Bots to Cloud
-
-Satori Video Bot library is a static C++ library. We recommend full static linking
-of your bot binaries and using Docker to deploy them to the cloud.
-
-## Debugging and Profiling Video Bots
-Video bots can be debugged/profiled as any normal C++ process. 
-We recommend following tools: gdb, lldb, (Mac) Instruments, perf, CLion.
-
-To simplify debugging in production the bot library links with gperftools' tcmalloc
-and profiler. This can be disabled by specifying `SatoriVideo:with_gperftools=False`.
-
