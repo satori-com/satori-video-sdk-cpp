@@ -214,6 +214,10 @@ std::shared_ptr<AVCodecContext> decoder_context(const std::string &codec_name,
   params->extradata = (uint8_t *)extra_data.data();
   params->extradata_size = static_cast<int>(extra_data.size_bytes());
   int err = avcodec_parameters_to_context(context.get(), params);
+  params->extradata = nullptr;  // avcodec_parameters_free will try to free it.
+  params->extradata_size = 0;
+  avcodec_parameters_free(&params);
+
   if (err < 0) {
     LOG(ERROR) << "Failed to copy params: " << error_msg(err);
     return nullptr;
@@ -237,7 +241,6 @@ std::shared_ptr<AVCodecContext> decoder_context(const AVCodec *decoder) {
   std::shared_ptr<AVCodecContext> context(
       avcodec_alloc_context3(decoder), [](AVCodecContext *ctx) {
         LOG(1) << "deleting context for decoder '" << ctx->codec->name << "'";
-        avcodec_close(ctx);
         avcodec_free_context(&ctx);
       });
   if (context == nullptr) {
