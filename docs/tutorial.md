@@ -38,7 +38,7 @@ Run video bot with Satori video stream:
 ./empty-bot --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
 ```
 
-Check out [Running Video Bots](using_sdk.md#running-video-bots) section in user guide for more ways to configure \
+Check out [Running Video Bots](using_sdk.md#running-video-bots) section in user guide for more ways to configure
 bot input or tweak its running parameters.
 
 ## Add Processing Code
