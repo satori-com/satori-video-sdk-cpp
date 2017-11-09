@@ -84,7 +84,9 @@ Run bot without parameters to see available options.
 ### Running Player SDK CLI tool
 ```shell
 # Watch Satori video stream
-./satori_video_player --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
+./satori_video_player --endpoint=<satori-endpoint> \
+                      --appkey=<satori-appkey> \
+                      --channel=<satori-channel>
 
 # Watch video file
 ./satori_video_player --input-video-file=my_video_file.mp4
@@ -96,16 +98,25 @@ Run bot without parameters to see available options.
 ### Running Publisher SDK CLI tool
 ```shell
 # Create Satori video stream from video file
-./satori_video_publisher --input-video-file=my_video_file.mp4 --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
+./satori_video_publisher --input-video-file=my_video_file.mp4 \
+                         --endpoint=<satori-endpoint> \
+                         --appkey=<satori-appkey> \
+                         --channel=<satori-channel>
 
 # Create Satori video stream from laptop camera
-./satori_video_publisher --input-camera --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
+./satori_video_publisher --input-camera \
+                         --endpoint=<satori-endpoint> \
+                         --appkey=<satori-appkey> \
+                         --channel=<satori-channel>
 ```
 
 ### Running Recorder SDK CLI tool
 ```shell
 # Record Satori video stream into file
-./satori_video_recorder --output-video-file=my_video_file.mkv --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
+./satori_video_recorder --output-video-file=my_video_file.mkv \
+                        --endpoint=<satori-endpoint> \
+                        --appkey=<satori-appkey> \
+                        --channel=<satori-channel>
 ```
 ## Deploying Video Bots to Cloud
 
