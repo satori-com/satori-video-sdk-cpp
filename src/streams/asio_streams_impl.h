@@ -53,7 +53,7 @@ struct delay_op {
 
     void on_next(T &&t) override {
       CHECK(_active);
-      LOG(1) << "delay_op(" << this << ")::on_next";
+      LOG(5) << "delay_op(" << this << ")::on_next";
 
       _buffer.push_back(std::move(t));
 
@@ -199,7 +199,7 @@ streams::op<T, T> interval(boost::asio::io_service &io,
                       auto this_frame_time = s->last_frame + period;
                       auto now = std::chrono::system_clock::now();
                       if (this_frame_time < now) {
-                        std::cerr << "late frame in interval\n";
+                        LOG(WARNING) << "late frame in interval";
                         return std::chrono::milliseconds(0);
                       }
 

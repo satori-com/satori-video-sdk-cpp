@@ -224,6 +224,7 @@ struct image_decoder_op {
       frame.timestamp =
           std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
+      // TODO: use avutils::copy_av_frame_to_image() maybe?
       for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
         const auto plane_stride = static_cast<uint32_t>(_image->linesize[i]);
         const uint8_t *plane_data = _image->data[i];

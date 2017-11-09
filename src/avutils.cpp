@@ -79,33 +79,33 @@ void init() {
     int av_log_level = AV_LOG_INFO;
 
     switch (verbosity_cutoff) {
-    case -3:
-      av_log_level = AV_LOG_FATAL;
-      break;
-    case -2:
-      av_log_level = AV_LOG_ERROR;
-      break;
-    case -1:
-      av_log_level = AV_LOG_WARNING;
-      break;
-    case 0:
-      av_log_level = AV_LOG_INFO;
-      break;
-    case 1:
-      av_log_level = AV_LOG_VERBOSE;
-      break;
-    case 2:
-      av_log_level = AV_LOG_DEBUG;
-      break;
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-      av_log_level = AV_LOG_TRACE;
-      break;
+      case -3:
+        av_log_level = AV_LOG_FATAL;
+        break;
+      case -2:
+        av_log_level = AV_LOG_ERROR;
+        break;
+      case -1:
+        av_log_level = AV_LOG_WARNING;
+        break;
+      case 0:
+        av_log_level = AV_LOG_INFO;
+        break;
+      case 1:
+        av_log_level = AV_LOG_VERBOSE;
+        break;
+      case 2:
+        av_log_level = AV_LOG_DEBUG;
+        break;
+      case 3:
+      case 4:
+      case 5:
+      case 6:
+      case 7:
+      case 8:
+      case 9:
+        av_log_level = AV_LOG_TRACE;
+        break;
     }
 
     av_log_set_level(av_log_level);
@@ -136,6 +136,18 @@ AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format) {
       return AV_PIX_FMT_BGR24;
     case image_pixel_format::RGB0:
       return AV_PIX_FMT_RGB0;
+    default:
+      throw std::runtime_error{"Unsupported pixel format: "
+                               + std::to_string((int)pixel_format)};
+  }
+}
+
+image_pixel_format to_image_pixel_format(AVPixelFormat pixel_format) {
+  switch (pixel_format) {
+    case AV_PIX_FMT_BGR24:
+      return image_pixel_format::BGR;
+    case AV_PIX_FMT_RGB0:
+      return image_pixel_format::RGB0;
     default:
       throw std::runtime_error{"Unsupported pixel format: "
                                + std::to_string((int)pixel_format)};
@@ -394,6 +406,26 @@ void copy_image_to_av_frame(const owned_image_frame &image,
     }
   }
 }
+
+owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
+  owned_image_frame image;
+
+  image.width = static_cast<uint16_t>(frame->width);
+  image.height = static_cast<uint16_t>(frame->height);
+  image.pixel_format = to_image_pixel_format(static_cast<AVPixelFormat>(frame->format));
+
+  for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
+    const auto plane_stride = static_cast<uint32_t>(frame->linesize[i]);
+    image.plane_strides[i] = plane_stride;
+    if (plane_stride > 0) {
+      const uint8_t *plane_data = frame->data[i];
+      image.plane_data[i].assign(plane_data, plane_data + (plane_stride * frame->height));
+    }
+  }
+
+  return image;
+}
+
 std::shared_ptr<allocated_image> allocate_image(int width, int height,
                                                 image_pixel_format pixel_format) {
   uint8_t *data[MAX_IMAGE_PLANES];

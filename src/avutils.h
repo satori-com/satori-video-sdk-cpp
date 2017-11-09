@@ -27,6 +27,9 @@ std::string error_msg(int av_error_code);
 // Converts image_pixel_format into FFmpeg's AVPixelFormat.
 AVPixelFormat to_av_pixel_format(image_pixel_format pixel_format);
 
+// Converts FFmpeg's AVPixelFormat into image_pixel_format.
+image_pixel_format to_image_pixel_format(AVPixelFormat pixel_format);
+
 // Creates FFmpeg's encoder context for encoder identified by encoder id.
 std::shared_ptr<AVCodecContext> encoder_context(AVCodecID codec_id);
 
@@ -74,6 +77,9 @@ int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out);
 // Copies image frame data to AVFrame
 void copy_image_to_av_frame(const owned_image_frame &image,
                             const std::shared_ptr<AVFrame> &frame);
+
+// Converts AVFrame to image frame
+owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame);
 
 struct allocated_image {
   uint8_t *data[MAX_IMAGE_PLANES];

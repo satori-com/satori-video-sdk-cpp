@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
   cli_cfg.enable_rtm_output = true;
+  cli_cfg.enable_generic_output_options = true;
 
   po::options_description cli_options = cli_cfg.to_boost();
   cli_options.add(generic);
@@ -58,12 +59,12 @@ int main(int argc, char *argv[]) {
 
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
-  streams::publisher<satori::video::encoded_packet> source =
-      cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel);
-
   if (auto ec = rtm_client->start()) {
     ABORT() << "error starting rtm client: " << ec.message();
   }
+
+  streams::publisher<satori::video::encoded_packet> source =
+      cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel);
 
   source = std::move(source) >> streams::do_finally([&rtm_client]() {
              if (auto ec = rtm_client->stop()) {

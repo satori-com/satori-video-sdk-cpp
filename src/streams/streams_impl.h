@@ -31,9 +31,7 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
     sub(OnNext &&on_next, deferred<void> when_done)
         : _on_next(std::move(on_next)), _when_done(std::move(when_done)) {}
 
-    void on_next(T &&t) override {
-      _on_next(std::move(t));
-    }
+    void on_next(T &&t) override { _on_next(std::move(t)); }
 
     void on_complete() override {
       _when_done.resolve();

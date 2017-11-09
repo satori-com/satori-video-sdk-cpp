@@ -16,8 +16,9 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                const std::string &filename, bool loop,
                                                bool batch);
 
-streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
-                                                 const std::string &dimensions);
+streams::publisher<owned_image_packet> camera_source(boost::asio::io_service &io,
+                                                     const std::string &resolution,
+                                                     uint8_t fps);
 
 // options are ffmpeg protocol options, 'k1=v1,k2=v2'
 streams::publisher<encoded_packet> url_source(const std::string &url,
@@ -41,6 +42,8 @@ streams::subscriber<encoded_packet> &rtm_sink(
 
 streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
                                               const mkv::format_options &format_options);
+
+streams::op<owned_image_packet, encoded_packet> encode_as_mjpeg();
 
 }  // namespace video
 }  // namespace satori

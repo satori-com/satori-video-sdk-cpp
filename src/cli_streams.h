@@ -48,6 +48,7 @@ struct configuration {
   bool enable_file_input{false};
   bool enable_camera_input{false};
   bool enable_generic_input_options{false};
+  bool enable_generic_output_options{false};
   bool enable_rtm_output{false};
   bool enable_file_output{false};
   bool enable_file_batch_mode{false};

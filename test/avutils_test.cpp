@@ -21,6 +21,14 @@ BOOST_AUTO_TEST_CASE(av_pixel_format) {
                     avutils::to_av_pixel_format(image_pixel_format::RGB0));
 }
 
+BOOST_AUTO_TEST_CASE(pixel_image_format) {
+  BOOST_CHECK_EQUAL((int)image_pixel_format::BGR,
+                    (int)avutils::to_image_pixel_format(AV_PIX_FMT_BGR24));
+
+  BOOST_CHECK_EQUAL((int)image_pixel_format::RGB0,
+                    (int)avutils::to_image_pixel_format(AV_PIX_FMT_RGB0));
+}
+
 BOOST_AUTO_TEST_CASE(encoder_context) {
   const AVCodecID encoder_id = AV_CODEC_ID_VP9;
   const AVCodec *encoder = avcodec_find_encoder(encoder_id);
@@ -125,6 +133,41 @@ BOOST_AUTO_TEST_CASE(parse_image_size) {
   s = avutils::parse_image_size("original");
   BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_WIDTH, s->width);
   BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_HEIGHT, s->height);
+}
+
+BOOST_AUTO_TEST_CASE(av_frame_to_image) {
+  uint16_t width = 32;
+  uint16_t height = 32;
+  uint16_t rgb_components = 3;
+  uint16_t stride = width * rgb_components;
+  uint16_t data_size = width * height * rgb_components;
+
+  std::shared_ptr<AVFrame> av_frame =
+      avutils::av_frame(width, height, 1, AV_PIX_FMT_RGB0);
+
+  av_frame->linesize[0] = stride;
+  av_frame->data[0] = new uint8_t[data_size];
+  av_frame->data[0][0] = 0xab;
+  av_frame->data[0][data_size - 1] = 0xcd;
+
+  owned_image_frame frame = avutils::to_image_frame(av_frame);
+
+  BOOST_CHECK_EQUAL(width, frame.width);
+  BOOST_CHECK_EQUAL(height, frame.height);
+  BOOST_CHECK_EQUAL((int)image_pixel_format::RGB0, (int)frame.pixel_format);
+  BOOST_CHECK_EQUAL(width * rgb_components, frame.plane_strides[0]);
+
+  BOOST_CHECK_EQUAL(0, frame.plane_strides[1]);
+  BOOST_CHECK_EQUAL(0, frame.plane_strides[2]);
+  BOOST_CHECK_EQUAL(0, frame.plane_strides[3]);
+
+  BOOST_CHECK_EQUAL(data_size, frame.plane_data[0].size());
+  BOOST_CHECK_EQUAL(0, frame.plane_data[1].size());
+  BOOST_CHECK_EQUAL(0, frame.plane_data[2].size());
+  BOOST_CHECK_EQUAL(0, frame.plane_data[3].size());
+
+  BOOST_CHECK_EQUAL(0xab, (uint8_t)frame.plane_data[0][0]);
+  BOOST_CHECK_EQUAL(0xcd, (uint8_t)frame.plane_data[0][data_size - 1]);
 }
 
 }  // namespace video

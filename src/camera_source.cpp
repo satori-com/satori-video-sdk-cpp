@@ -17,162 +17,128 @@ extern "C" {
 #include "video_error.h"
 #include "video_streams.h"
 
+namespace {
+
+uint8_t system_framerate() {
+  if (PLATFORM_APPLE) {
+    return 30;  // the only supported frame rate by AVFoundation
+  } else {
+    ABORT() << "Webcam support is not implemented yet";
+  }
+}
+
+}  // namespace
+
 namespace satori {
 namespace video {
 
-// TODO: use functions from avutils and smart pointers
 struct camera_source_impl {
-  explicit camera_source_impl(const std::string &dimensions) : _dimensions(dimensions) {}
+  explicit camera_source_impl(const std::string &resolution)
+      : _resolution(resolution),
+        _framerate(std::to_string(system_framerate())),
+        _start(std::chrono::system_clock::now()) {}
 
-  ~camera_source_impl() {
-    if (_dec_frame != nullptr) {
-      av_frame_free(&_dec_frame);
-    }
-    if (_enc_frame != nullptr) {
-      av_frame_free(&_enc_frame);
-    }
-    if (_sws_ctx != nullptr) {
-      sws_freeContext(_sws_ctx);
-    }
-    if (_dec_ctx != nullptr) {
-      avcodec_free_context(&_dec_ctx);
-    }
-    if (_fmt_ctx != nullptr) {
-      avformat_close_input(&_fmt_ctx);
-    }
-  }
+  ~camera_source_impl() = default;
 
-  int init() {
-    int ret = 0;
-    AVInputFormat *input_format = nullptr;  // TODO: deallocate?
-    AVDictionary *options = nullptr;
-    init_open_parameters(&input_format, &options);
-
-    LOG(1) << "Looking for decoder " << avcodec_get_name(_dec_id);
-    _dec = avcodec_find_decoder(_dec_id);
-    if (_dec == nullptr) {
-      LOG(ERROR) << "Decoder was not found";
-      return -1;
-    }
-    LOG(1) << "Decoder was found";
-
-    LOG(1) << "Setting codec to format context...";
-    _fmt_ctx = avformat_alloc_context();
-    av_format_set_video_codec(_fmt_ctx, _dec);
-    LOG(1) << "Codec was set to format context";
-
-    LOG(1) << "Opening camera...";
-    if ((ret = avformat_open_input(&_fmt_ctx, "0", input_format, &options)) < 0) {
-      LOG(ERROR) << "Could not open camera:" << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Camera is open";
-
-    LOG(1) << "Looking for best stream";
-    _stream_idx = avutils::find_best_video_stream(_fmt_ctx, &_dec);
-    if (_stream_idx < 0) {
-      return ret;
-    }
-    _stream = _fmt_ctx->streams[_stream_idx];
-    LOG(1) << "Best stream was found";
-
-    LOG(1) << "Allocating codec context...";
-    _dec_ctx = avcodec_alloc_context3(_dec);
-    if (_dec_ctx == nullptr) {
-      LOG(ERROR) << "Failed to allocate codec context";
-      return -1;
-    }
-    LOG(1) << "Codec context is allocated";
-
-    LOG(1) << "Copying codec parameters to codec context...";
-    if ((ret = avcodec_parameters_to_context(_dec_ctx, _stream->codecpar)) < 0) {
-      LOG(ERROR) << "Failed to copy codec parameters to codec context: "
-                 << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Codec parameters were copied to codec context";
-
-    LOG(1) << "Opening video codec...";
-    if ((ret = avcodec_open2(_dec_ctx, _dec, nullptr)) < 0) {
-      LOG(ERROR) << "Failed to open video codec: " << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Video codec is open";
-
-    LOG(1) << "Looking for encoder " << avcodec_get_name(_enc_id);
-    _enc = avcodec_find_encoder(_enc_id);
-    if (_enc == nullptr) {
-      LOG(ERROR) << "Encoder was not found";
-      return -1;
-    }
-    LOG(1) << "Encoder was found";
-
-    LOG(1) << "Allocating encoder context...";
-    _enc_ctx = avcodec_alloc_context3(_enc);
-    if (_enc_ctx == nullptr) {
-      LOG(ERROR) << "Failed to allocate encoder context";
-      return -1;
-    }
-    LOG(1) << "Encoder context is allocated";
-
-    _enc_ctx->pix_fmt = _enc_pix_fmt;
-    _enc_ctx->width = _dec_ctx->width;
-    _enc_ctx->height = _dec_ctx->height;
-    _enc_ctx->time_base.den = 1;
-    _enc_ctx->time_base.num = 1;
-
-    LOG(1) << "Opening encoder...";
-    AVDictionary *opts = nullptr;
-    if ((ret = avcodec_open2(_enc_ctx, _enc, nullptr)) < 0) {
-      LOG(ERROR) << "Failed to open encoder: " << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Encoder is open";
-
-    LOG(1) << "Opening sws...";
-    _sws_ctx = sws_getContext(_dec_ctx->width, _dec_ctx->height, _dec_ctx->pix_fmt,
-                              _enc_ctx->width, _enc_ctx->height, _enc_ctx->pix_fmt,
-                              SWS_BICUBIC, nullptr, nullptr, nullptr);
-    if (_sws_ctx == nullptr) {
-      LOG(ERROR) << "Failed to open sws";
-      return -1;
-    }
-    LOG(1) << "SWS is open";
-
-    LOG(1) << "Allocating frames...";
-    _dec_frame = av_frame_alloc();
-    _enc_frame = av_frame_alloc();
-    if (_dec_frame == nullptr || _enc_frame == nullptr) {
-      LOG(ERROR) << "Failed to allocate frames";
-      return -1;
-    }
-    _enc_frame->format = _enc_ctx->pix_fmt;
-    _enc_frame->width = _enc_ctx->width;
-    _enc_frame->height = _enc_ctx->height;
-    ret = av_image_alloc(_enc_frame->data, _enc_frame->linesize, _enc_ctx->width,
-                         _enc_ctx->height, _enc_ctx->pix_fmt, 32);
-    if (ret < 0) {
-      LOG(ERROR) << "Could not allocate raw picture buffer: " << avutils::error_msg(ret);
-      return ret;
-    }
-    LOG(1) << "Frames were allocated";
-
-    return 0;
-  }
-
-  void init_open_parameters(AVInputFormat **input_format, AVDictionary **options) {
+  AVInputFormat *input_format() {
     if (PLATFORM_APPLE) {
-      *input_format = av_find_input_format("avfoundation");
-      av_dict_set(options, "framerate", "30", 0);
-      av_dict_set(options, "pixel_format", av_get_pix_fmt_name(_dec_pix_fmt), 0);
-      av_dict_set(options, "video_size", _dimensions.c_str(), 0);
+      AVInputFormat *result = av_find_input_format("avfoundation");
+      CHECK(result);
+      return result;
+    } else {
+      ABORT() << "Webcam support is not implemented yet";
+    }
+  }
+
+  AVDictionary *input_open_parameters() {
+    if (PLATFORM_APPLE) {
+      AVDictionary *options{nullptr};
+      av_dict_set(&options, "framerate", _framerate.c_str(), 0);
+      av_dict_set(&options, "pixel_format", av_get_pix_fmt_name(_decoder_pixel_format),
+                  0);
+      av_dict_set(&options, "video_size", _resolution.c_str(), 0);
+      return options;
     } else {
       ABORT() << "Linux webcam support is not implemented yet";
     }
   }
 
-  void generate_one(streams::observer<encoded_packet> &observer) {
-    if (_fmt_ctx == nullptr) {
+  int init() {
+    int ret = 0;
+
+    LOG(1) << "Looking for decoder " << avcodec_get_name(_decoder_id);
+    _decoder = avcodec_find_decoder(_decoder_id);
+    if (_decoder == nullptr) {
+      LOG(ERROR) << "Decoder was not found";
+      return -1;
+    }
+    LOG(1) << "Decoder was found";
+
+    LOG(1) << "Allocating format context";
+    _format_context =
+        avutils::open_input_format_context("0", input_format(), input_open_parameters());
+    LOG(1) << "Allocated format context";
+
+    LOG(1) << "Setting codec to format context...";
+    av_format_set_video_codec(_format_context.get(), _decoder);
+    LOG(1) << "Codec was set to format context";
+
+    LOG(1) << "Looking for best stream";
+    _stream_idx = avutils::find_best_video_stream(_format_context.get(), &_decoder);
+    if (_stream_idx < 0) {
+      return ret;
+    }
+    _stream = _format_context->streams[_stream_idx];
+    LOG(1) << "Best stream was found";
+
+    LOG(1) << "Allocating decoder context...";
+    _decoder_context = avutils::decoder_context(_decoder);
+    if (!_decoder_context) {
+      LOG(ERROR) << "Failed to allocate decoder context";
+      return -1;
+    }
+    LOG(1) << "Decodec context is allocated";
+
+    LOG(1) << "Copying codec parameters to decoder context...";
+    if ((ret = avcodec_parameters_to_context(_decoder_context.get(), _stream->codecpar))
+        < 0) {
+      LOG(ERROR) << "Failed to copy codec parameters to decoder context: "
+                 << avutils::error_msg(ret);
+      return ret;
+    }
+    LOG(1) << "Codec parameters were copied to decoder context";
+
+    LOG(1) << "Opening video decoder...";
+    if ((ret = avcodec_open2(_decoder_context.get(), _decoder, nullptr)) < 0) {
+      LOG(ERROR) << "Failed to open video codec: " << avutils::error_msg(ret);
+      return ret;
+    }
+    LOG(1) << "Video decoder is open";
+
+    LOG(1) << "Allocating frames...";
+    _decoded_av_frame = avutils::av_frame(
+        _decoder_context->width, _decoder_context->height, 1, _decoder_context->pix_fmt);
+    _converted_av_frame = avutils::av_frame(
+        _decoder_context->width, _decoder_context->height, 1, AV_PIX_FMT_BGR24);
+    if (!_decoded_av_frame || !_converted_av_frame) {
+      LOG(ERROR) << "Failed to allocate frames";
+      return -1;
+    }
+    LOG(1) << "Frames were allocated";
+
+    LOG(1) << "Allocating sws context";
+    _sws_context = avutils::sws_context(_decoded_av_frame, _converted_av_frame);
+    if (!_sws_context) {
+      LOG(ERROR) << "Failed to allocate sws context";
+      return -1;
+    }
+    LOG(1) << "Allocated sws context";
+
+    return 0;
+  }
+
+  void generate_one(streams::observer<owned_image_packet> &observer) {
+    if (!_format_context) {
       if (init() < 0) {
         observer.on_error(video_error::StreamInitializationError);
         return;
@@ -181,91 +147,83 @@ struct camera_source_impl {
 
     if (!_metadata_sent) {
       send_metadata(observer);
+      return;
     }
 
-    int ret = av_read_frame(_fmt_ctx, &_dec_pkt);
+    av_init_packet(&_av_packet);
+    auto release = gsl::finally([this]() { av_packet_unref(&_av_packet); });
+
+    int ret = av_read_frame(_format_context.get(), &_av_packet);
     if (ret < 0) {
       LOG(ERROR) << "Failed to read frame: " << avutils::error_msg(ret);
       observer.on_error(video_error::FrameGenerationError);
       return;
     }
 
-    if ((ret = avcodec_send_packet(_dec_ctx, &_dec_pkt)) != 0) {
+    if ((ret = avcodec_send_packet(_decoder_context.get(), &_av_packet)) != 0) {
       LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(ret);
       observer.on_error(video_error::FrameGenerationError);
       return;
     }
 
-    if ((ret = avcodec_receive_frame(_dec_ctx, _dec_frame)) != 0) {
+    if ((ret = avcodec_receive_frame(_decoder_context.get(), _decoded_av_frame.get()))
+        != 0) {
       LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(ret);
       observer.on_error(video_error::FrameGenerationError);
       return;
     }
 
-    sws_scale(_sws_ctx, _dec_frame->data, _dec_frame->linesize, 0, _enc_frame->height,
-              _enc_frame->data, _enc_frame->linesize);
+    avutils::sws_scale(_sws_context, _decoded_av_frame, _converted_av_frame);
 
-    if ((ret = avcodec_send_frame(_enc_ctx, _enc_frame)) != 0) {
-      LOG(ERROR) << "avcodec_send_frame error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FrameGenerationError);
-      return;
-    }
+    owned_image_frame frame = avutils::to_image_frame(_converted_av_frame);
+    frame.id = {_last_pos, _av_packet.pos};
+    auto ts = 1000 * _av_packet.pts * _stream->time_base.num / _stream->time_base.den;
+    frame.timestamp =
+        std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
 
-    if ((ret = avcodec_receive_packet(_enc_ctx, &_enc_pkt)) != 0) {
-      LOG(ERROR) << "avcodec_receive_packet error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FrameGenerationError);
-      return;
-    }
-
-    auto release = gsl::finally([this]() {
-      av_packet_unref(&_dec_pkt);
-      av_packet_unref(&_enc_pkt);
-    });
-    observer.on_next(encoded_packet{
-        encoded_frame{std::string{_enc_pkt.data, _enc_pkt.data + _enc_pkt.size}}});
+    observer.on_next(std::move(frame));
+    _last_pos = _av_packet.pos + 1 /* because our intervals are [i1, i2] */;
   }
 
-  void send_metadata(streams::observer<encoded_packet> &observer) {
-    observer.on_next(encoded_metadata{
-        _enc->name,
-        {_enc_ctx->extradata, _enc_ctx->extradata + _enc_ctx->extradata_size}});
+  void send_metadata(streams::observer<owned_image_packet> &observer) {
+    observer.on_next(owned_image_metadata{});
     _metadata_sent = true;
   }
 
-  std::string _dimensions;
-  AVFormatContext *_fmt_ctx{nullptr};
+  const std::string _resolution;
+  const std::string _framerate;
+
+  std::shared_ptr<AVFormatContext> _format_context{nullptr};
   int _stream_idx{-1};
   AVStream *_stream{nullptr};
-  // rawvideo: uyvy422 yuyv422 nv12 0rgb bgr0
-  AVPixelFormat _dec_pix_fmt{AV_PIX_FMT_BGR0};
-  AVCodecID _dec_id{AV_CODEC_ID_RAWVIDEO};
-  AVCodec *_dec{nullptr};  // TODO: deallocate?
-  AVCodecContext *_dec_ctx{nullptr};
-  AVPacket _dec_pkt{nullptr};
-  AVFrame *_dec_frame{nullptr};
-  // mjpeg: yuvj420p yuvj422p yuvj444p
-  // jpeg2000: rgb24 yuv444p gray yuv420p yuv422p yuv410p yuv411p
-  AVPixelFormat _enc_pix_fmt{AV_PIX_FMT_YUVJ422P};
-  AVCodecID _enc_id{AV_CODEC_ID_MJPEG};
-  AVCodec *_enc{nullptr};  // TODO: deallocate?
-  AVCodecContext *_enc_ctx{nullptr};
-  AVPacket _enc_pkt{nullptr};
-  AVFrame *_enc_frame{nullptr};
-  SwsContext *_sws_ctx{nullptr};
+  const AVPixelFormat _decoder_pixel_format{
+      AV_PIX_FMT_BGR0};  // rawvideo: uyvy422 yuyv422 nv12 0rgb bgr0
+  const AVCodecID _decoder_id{AV_CODEC_ID_RAWVIDEO};
+  AVCodec *_decoder{nullptr};  // TODO: deallocate?
+  std::shared_ptr<AVCodecContext> _decoder_context{nullptr};
+  AVPacket _av_packet{nullptr};
+  std::shared_ptr<AVFrame> _decoded_av_frame{nullptr};
+  std::shared_ptr<AVFrame> _converted_av_frame{nullptr};  // for pixel format conversion
+  std::shared_ptr<SwsContext> _sws_context{nullptr};
 
+  const std::chrono::system_clock::time_point _start;
+  int64_t _last_pos{0};
   bool _metadata_sent{false};
 };
 
-streams::publisher<encoded_packet> camera_source(boost::asio::io_service &io,
-                                                 const std::string &dimensions) {
+streams::publisher<owned_image_packet> camera_source(boost::asio::io_service &io,
+                                                     const std::string &resolution,
+                                                     uint8_t fps) {
   avutils::init();
-  return streams::generators<encoded_packet>::stateful(
-             [dimensions]() { return new camera_source_impl(dimensions); },
-             [](camera_source_impl *impl, streams::observer<encoded_packet> &sink) {
+
+  CHECK_LE(fps, system_framerate());
+  return streams::generators<owned_image_packet>::stateful(
+             [resolution]() { return new camera_source_impl(resolution); },
+             [](camera_source_impl *impl, streams::observer<owned_image_packet> &sink) {
                impl->generate_one(sink);
              })
-         >> streams::asio::interval<encoded_packet>(io,
-                                                    std::chrono::milliseconds(1000 / 25));
+         >> streams::asio::interval<owned_image_packet>(
+                io, std::chrono::milliseconds(1000 / fps));
 }
 
 }  // namespace video

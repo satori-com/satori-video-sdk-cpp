@@ -216,6 +216,7 @@ int bot_environment::main(int argc, char* argv[]) {
   cli_streams::configuration cli_cfg;
   cli_cfg.enable_rtm_input = true;
   cli_cfg.enable_file_input = true;
+  cli_cfg.enable_camera_input = true;
   cli_cfg.enable_generic_input_options = true;
   cli_cfg.enable_file_batch_mode = true;
 

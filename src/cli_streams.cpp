@@ -6,6 +6,7 @@
 #include "streams/asio_streams.h"
 #include "streams/threaded_worker.h"
 #include "video_streams.h"
+#include "vp9_encoder.h"
 
 namespace satori {
 namespace video {
@@ -43,9 +44,6 @@ po::options_description file_input_options(bool enable_batch_mode) {
 po::options_description camera_input_options() {
   po::options_description camera_options("Camera options");
   camera_options.add_options()("input-camera", "Is camera used as a source");
-  camera_options.add_options()("camera-dimensions",
-                               po::value<std::string>()->default_value("320x240"),
-                               "Camera dimensions");
 
   return camera_options;
 }
@@ -63,6 +61,15 @@ po::options_description generic_input_options() {
   options.add_options()("keep-proportions", po::value<bool>()->default_value(true),
                         "(bool) tells if original video stream resolution's proportion "
                         "should remain unchanged");
+
+  return options;
+}
+
+po::options_description generic_output_options() {
+  po::options_description options("Generic output options");
+  options.add_options()("output-resolution",
+                        po::value<std::string>()->default_value("320x240"),
+                        "(<width>x<height>|original) resolution of output video stream");
 
   return options;
 }
@@ -160,6 +167,9 @@ po::options_description configuration::to_boost() const {
   if (enable_generic_input_options) {
     options.add(generic_input_options());
   }
+  if (enable_generic_output_options) {
+    options.add(generic_output_options());
+  }
   if (enable_rtm_output) {
     options.add(rtm_options());
   }
@@ -224,7 +234,17 @@ bool configuration::validate(const po::variables_map &vm) const {
   }
 
   if (enable_generic_input_options) {
-    if (!avutils::parse_image_size(vm["input-resolution"].as<std::string>())) {
+    std::string resolution = vm["input-resolution"].as<std::string>();
+    if (!avutils::parse_image_size(resolution)) {
+      std::cerr << "Unable to parse input resolution: " << resolution << "\n";
+      return false;
+    }
+  }
+
+  if (enable_generic_output_options) {
+    std::string resolution = vm["output-resolution"].as<std::string>();
+    if (!avutils::parse_image_size(resolution)) {
+      std::cerr << "Unable to parse output resolution: " << resolution << "\n";
       return false;
     }
   }
@@ -313,8 +333,15 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
   }
 
   if (has_input_camera_args) {
-    return satori::video::camera_source(io_service,
-                                        vm["camera-dimensions"].as<std::string>());
+    CHECK(enable_generic_input_options || enable_generic_output_options);
+    const uint8_t fps = 25;                // FIXME: hardcoded value
+    const uint8_t vp9_lag_in_frames = 25;  // FIXME: hardcoded value
+
+    const std::string resolution = enable_generic_input_options
+                                       ? vm["input-resolution"].as<std::string>()
+                                       : vm["output-resolution"].as<std::string>();
+    return satori::video::camera_source(io_service, resolution, fps)
+           >> encode_vp9(vp9_lag_in_frames);
   }
 
   if (has_input_url_args) {
