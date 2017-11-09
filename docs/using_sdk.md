@@ -46,7 +46,7 @@ Video Bot library currently comes in two flavors
 To define video bot, define callbacaks, register bot descriptor, and pass 
 control to video bot main function:
 
-```
+```c++
 #include <satorivideo/opencv/opencv_bot.h>
 #include <iostream>
 
