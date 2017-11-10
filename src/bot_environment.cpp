@@ -97,8 +97,10 @@ struct file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
   explicit file_cbor_dump_observer(std::ostream& out) : _out(out) {}
 
   void on_next(cbor_item_t*&& t) override {
+    CHECK_EQ(0, cbor_refcount(t));
+    cbor_incref(t);
+    auto t_decref = gsl::finally([&t]() { cbor_decref(&t); });
     _out << t << std::endl;
-    cbor_decref(&t);
   }
   void on_error(std::error_condition ec) override {
     LOG(ERROR) << "ERROR: " << ec.message();

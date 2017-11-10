@@ -23,8 +23,8 @@ network_packet parse_network_frame(cbor_item_t *item) {
   auto msg = cbor::map(item);
 
   auto id = msg.get("i");
-  int64_t i1 = cbor::get_int64(cbor_array_get(id, 0));
-  int64_t i2 = cbor::get_int64(cbor_array_get(id, 1));
+  int64_t i1 = cbor::get_int64(cbor_array_handle(id)[0]);
+  int64_t i2 = cbor::get_int64(cbor_array_handle(id)[1]);
 
   std::chrono::system_clock::time_point timestamp;
   const cbor_item_t *t = msg.get("t");
