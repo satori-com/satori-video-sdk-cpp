@@ -1,6 +1,6 @@
 # Using Satori Video C++ SDK
 
-Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
+Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](prerequisites.md)
 
 ## SDK Overview
 
