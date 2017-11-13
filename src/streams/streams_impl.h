@@ -1110,6 +1110,12 @@ publisher<T> publishers::of(std::queue<T> &&values) {
 }
 
 template <typename T>
+publisher<T> publishers::of(std::list<T> &&values) {
+  return of(std::vector<T>{std::make_move_iterator(std::begin(values)),
+                           std::make_move_iterator(std::end(values))});
+}
+
+template <typename T>
 publisher<T> publishers::range(T from, T to) {
   return impl::range_impl(from, to);
 }

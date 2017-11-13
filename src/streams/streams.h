@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <initializer_list>
+#include <list>
 #include <memory>
 #include <queue>
 #include <system_error>
@@ -81,6 +82,9 @@ struct publishers {
 
   template <typename T>
   static publisher<T> of(std::queue<T> &&values);
+
+  template <typename T>
+  static publisher<T> of(std::list<T> &&values);
 
   // Stream of values [from, to).
   template <typename T>
