@@ -68,17 +68,38 @@ constexpr int READ_BUFFER_SIZE = 100000;
 
 const boost::posix_time::minutes WS_PING_INTERVAL{1};
 
-auto &rtm_messages_received =
-    prometheus::BuildCounter().Name("rtm_messages_received").Register(metrics_registry());
+auto &rtm_actions_received =
+    prometheus::BuildCounter().Name("rtm_actions_received_total").Register(metrics_registry());
 
-auto &rtm_bytes_received =
-    prometheus::BuildCounter().Name("rtm_bytes_received").Register(metrics_registry());
+auto &rtm_messages_received =
+    prometheus::BuildCounter().Name("rtm_messages_received_total").Register(metrics_registry());
+
+auto &rtm_messages_bytes_received =
+    prometheus::BuildCounter().Name("rtm_messages_received_bytes_total").Register(metrics_registry());
 
 auto &rtm_messages_sent =
-    prometheus::BuildCounter().Name("rtm_messages_sent").Register(metrics_registry());
+    prometheus::BuildCounter().Name("rtm_messages_sent_total").Register(metrics_registry());
 
-auto &rtm_bytes_sent =
-    prometheus::BuildCounter().Name("rtm_bytes_sent").Register(metrics_registry());
+auto &rtm_messages_bytes_sent =
+    prometheus::BuildCounter().Name("rtm_messages_sent_bytes_total").Register(metrics_registry());
+
+auto &rtm_bytes_written =
+    prometheus::BuildCounter().Name("rtm_bytes_written_total").Register(metrics_registry()).Add({});
+
+auto &rtm_bytes_read =
+    prometheus::BuildCounter().Name("rtm_bytes_read_total").Register(metrics_registry()).Add({});
+
+auto &rtm_pings_sent_total =
+    prometheus::BuildCounter().Name("rtm_pings_sent_total").Register(metrics_registry()).Add({});
+
+auto &rtm_frames_received_total =
+    prometheus::BuildCounter().Name("rtm_frames_received_total").Register(metrics_registry());
+
+auto &rtm_last_pong_time_seconds =
+    prometheus::BuildGauge().Name("rtm_last_pong_time_seconds").Register(metrics_registry()).Add({});
+
+auto &rtm_last_ping_time_seconds =
+    prometheus::BuildGauge().Name("rtm_last_ping_time_seconds").Register(metrics_registry()).Add({});
 
 std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -171,12 +192,18 @@ class secure_client : public client {
                            boost::beast::string_view payload) {
       switch (type) {
         case boost::beast::websocket::frame_type::close:
+          rtm_frames_received_total.Add({{"type", "close"}}).Increment();
           LOG(INFO) << "got close frame " << payload;
           break;
         case boost::beast::websocket::frame_type::ping:
+          rtm_frames_received_total.Add({{"type", "ping"}}).Increment();
           LOG(INFO) << "got ping frame " << payload;
           break;
         case boost::beast::websocket::frame_type::pong:
+          rtm_frames_received_total.Add({{"type", "pong"}}).Increment();
+          auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
+          rtm_last_pong_time_seconds.Set(
+              std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
           LOG(INFO) << "got pong frame " << payload;
           break;
       }
@@ -273,9 +300,10 @@ class secure_client : public client {
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
-    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
-    rtm_bytes_sent.Add({{"channel", channel}}).Increment(buf.GetSize());
+    rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buf.GetSize());
+    rtm_bytes_written.Increment(buf.GetSize());
+    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -297,6 +325,7 @@ class secure_client : public client {
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
+    rtm_bytes_written.Increment(buf.GetSize());
     _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
     LOG(1) << "requested subscribe for " << channel << ": "
            << std::string(buf.GetString());
@@ -323,6 +352,7 @@ class secure_client : public client {
       rapidjson::StringBuffer buf;
       rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
       document.Accept(writer);
+      rtm_bytes_written.Increment(buf.GetSize());
       _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
@@ -367,6 +397,7 @@ class secure_client : public client {
       std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
       auto input_size = _read_buffer.size();
       _read_buffer.consume(input_size);
+      rtm_bytes_read.Increment(input_size);
 
       LOG(9) << this << " async_read input_size = " << input_size;
       rapidjson::StringStream s(input.c_str());
@@ -391,6 +422,11 @@ class secure_client : public client {
 
     _ping_timer.expires_from_now(WS_PING_INTERVAL);
     _ping_timer.async_wait([this](const boost::system::error_code &ec) {
+      rtm_pings_sent_total.Increment();
+      auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
+      rtm_last_ping_time_seconds.Set(
+          std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
+
       _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec) {
         LOG(1) << this << " ping_write_handler";
         if (ec == boost::asio::error::operation_aborted) {
@@ -418,6 +454,8 @@ class secure_client : public client {
     }
 
     std::string action = d["action"].GetString();
+    rtm_actions_received.Add({{"action", action}}).Increment();
+
     if (action == "rtm/subscription/data") {
       auto body = d["body"].GetObject();
       std::string subscription_id = body["subscription_id"].GetString();
@@ -432,7 +470,7 @@ class secure_client : public client {
       }
 
       rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
-      rtm_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
+      rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
 
       for (const rapidjson::Value &m : body["messages"].GetArray()) {
         sub.callbacks.on_data(sub.sub, std::move(video::json_to_cbor(m)));
