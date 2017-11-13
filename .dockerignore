@@ -1,4 +1,6 @@
 .*
+!.clang-tidy
+!.clang-format
 **/build
 **/cmake-build-*
 in
