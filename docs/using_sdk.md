@@ -24,9 +24,17 @@ Channels names are derived from `video_stream_name` the following ways:
 - `video_stream_name/control` - control messages accompanying video stream
 
 
-## Video Bots Architecture and Lifecycle
+## Video Bots API, Architecture and Lifecycle
 
-Video bot is defined by two callbacks:
+Video Bot API is declared in following files:
+
+| File | Description |
+|------|-------------|
+| [video_bot.h](../include/satorivideo/video_bot.h`) | full video bot api |
+| [opencv_bot.h.h](../include/satorivideo/opencv/opencv_bot.h.h`) | OpenCV additions to bot api |
+
+
+To Video bot is defined by two callbacks:
 
 - image callback - is used to perform processing of rendered video stream frames. 
   As a result of frame processing, video bot send messages to Satori RTM with analysis
@@ -43,7 +51,9 @@ Video Bot library currently comes in two flavors
 - raw image buffer - image callback receives raw bytes and library has not OpenCV
   dependency. Selected by specifying `SatoriVideo:with_opencv=False` conan option.
 
-To define video bot, define callbacaks, register bot descriptor, and pass 
+
+
+To define video bot, define callbacks, register bot descriptor, and pass 
 control to video bot main function:
 
 ```c++
