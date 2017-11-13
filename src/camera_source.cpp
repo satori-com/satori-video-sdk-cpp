@@ -22,9 +22,8 @@ namespace {
 uint8_t system_framerate() {
   if (PLATFORM_APPLE) {
     return 30;  // the only supported frame rate by AVFoundation
-  } else {
-    ABORT() << "Webcam support is not implemented yet";
   }
+  ABORT() << "Webcam support is not implemented yet";
 }
 
 }  // namespace
@@ -45,9 +44,8 @@ struct camera_source_impl {
       AVInputFormat *result = av_find_input_format("avfoundation");
       CHECK(result);
       return result;
-    } else {
-      ABORT() << "Webcam support is not implemented yet";
     }
+    ABORT() << "Webcam support is not implemented yet";
   }
 
   AVDictionary *input_open_parameters() {
@@ -58,9 +56,8 @@ struct camera_source_impl {
                   0);
       av_dict_set(&options, "video_size", _resolution.c_str(), 0);
       return options;
-    } else {
-      ABORT() << "Linux webcam support is not implemented yet";
     }
+    ABORT() << "Linux webcam support is not implemented yet";
   }
 
   int init() {
