@@ -30,8 +30,8 @@ Video Bot API is declared in following files:
 
 | File | Description |
 |------|-------------|
-| [video_bot.h](../include/satorivideo/video_bot.h`) | full video bot api |
-| [opencv_bot.h.h](../include/satorivideo/opencv/opencv_bot.h.h`) | OpenCV additions to bot api |
+| [video_bot.h](../include/satorivideo/video_bot.h) | full video bot api |
+| [opencv_bot.h.h](../include/satorivideo/opencv/opencv_bot.h) | OpenCV additions to bot api |
 
 
 To Video bot is defined by two callbacks:
