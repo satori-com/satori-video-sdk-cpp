@@ -1,6 +1,6 @@
 # Prerequisites
 
-Operating System: Mac or Linux
+Operating Systems: Mac or Linux
 
 * Install Docker: [https://docs.docker.com/engine/installation/](https://docs.docker.com/engine/installation/)
 
