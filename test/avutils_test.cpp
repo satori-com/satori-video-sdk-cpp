@@ -146,7 +146,8 @@ BOOST_AUTO_TEST_CASE(av_frame_to_image) {
       avutils::av_frame(width, height, 1, AV_PIX_FMT_RGB0);
 
   av_frame->linesize[0] = stride;
-  av_frame->data[0] = new uint8_t[data_size];
+  auto data = std::make_unique<uint8_t[]>(data_size);
+  av_frame->data[0] = data.get();
   av_frame->data[0][0] = 0xab;
   av_frame->data[0][data_size - 1] = 0xcd;
 
