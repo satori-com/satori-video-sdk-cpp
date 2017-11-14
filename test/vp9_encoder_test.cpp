@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(vp9_encoder) {
   auto encoded_stream = std::move(frames) >> encode_vp9(1);
   auto when_done = encoded_stream->process(
       [&packets_count, &key_frames_count, &frames_from_last_key_frame_count,
-       gop_size](encoded_packet &&packet) mutable {
+       gop_size](encoded_packet &&packet) {
         if (const encoded_frame *f = boost::get<encoded_frame>(&packet)) {
           if (f->key_frame) {
             LOG(INFO) << "frames_from_last_key_frame_count = "

@@ -279,7 +279,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   _source = std::move(_source)
             >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
-            >> streams::map([frames_count](owned_image_packet&& pkt) mutable {
+            >> streams::map([&frames_count](owned_image_packet&& pkt) {
                 frames_count++;
                 constexpr int period = 100;
                 if ((frames_count % period) == 0) {

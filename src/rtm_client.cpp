@@ -283,7 +283,7 @@ class secure_client : public client {
     CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
     CHECK_EQ(0, cbor_refcount(message));
     cbor_incref(message);
-    auto decref = gsl::finally([message]() mutable { cbor_decref(&message); });
+    auto decref = gsl::finally([&message]() { cbor_decref(&message); });
 
     rapidjson::Document document;
     constexpr const char *tmpl =

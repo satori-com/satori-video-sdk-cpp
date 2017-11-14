@@ -41,7 +41,7 @@ std::vector<std::string> events(streams::publisher<T> &&p,
   std::vector<std::string> events;
 
   auto when_done =
-      p->process([&events](T &&t) mutable { events.push_back(std::to_string(t)); });
+      p->process([&events](T &&t) { events.push_back(std::to_string(t)); });
   when_done.on([&events](std::error_condition ec) {
     if (ec) {
       events.push_back("error:" + ec.message());
