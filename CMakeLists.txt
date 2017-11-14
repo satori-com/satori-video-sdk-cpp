@@ -95,6 +95,15 @@ target_link_libraries(satorivideo
         CONAN_PKG::Rapidjson
     )
 target_include_directories(satorivideo PUBLIC include)
+target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_VERSION=${CONAN_PACKAGE_VERSION})
+target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_NAME=${CONAN_PACKAGE_NAME})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_ARCH=${CONAN_SETTINGS_ARCH})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_BUILD_TYPE=${CONAN_SETTINGS_BUILD_TYPE})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER=${CONAN_SETTINGS_COMPILER})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_LIBCXX=${CONAN_SETTINGS_COMPILER_LIBCXX})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_VERSION=${CONAN_SETTINGS_COMPILER_VERSION})
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_OS=${CONAN_SETTINGS_OS})
+target_compile_definitions(satorivideo PRIVATE GIT_COMMIT_HASH=${GIT_COMMIT_HASH})
 
 if (CONAN_GPERFTOOLS_ROOT)
     message("** Enabling gperftools")
