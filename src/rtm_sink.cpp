@@ -8,7 +8,7 @@
 namespace satori {
 namespace video {
 
-struct rtm_sink_impl : public streams::subscriber<encoded_packet>,
+struct rtm_sink_impl : streams::subscriber<encoded_packet>,
                        boost::static_visitor<void> {
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                 const std::string &rtm_channel)

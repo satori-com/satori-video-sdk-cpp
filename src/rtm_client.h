@@ -63,7 +63,7 @@ struct channel_position {
   }
 };
 
-struct publish_callbacks : public error_callbacks {
+struct publish_callbacks : error_callbacks {
   ~publish_callbacks() override = default;
 
   virtual void on_ok(const channel_position & /*position*/) {}
@@ -79,7 +79,7 @@ struct publisher {
 // Subscription interface of RTM.
 struct subscription {};
 
-struct subscription_callbacks : public error_callbacks {
+struct subscription_callbacks : error_callbacks {
   virtual void on_data(const subscription & /*subscription*/, cbor_item_t * /*unused*/) {}
 };
 

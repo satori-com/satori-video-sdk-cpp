@@ -28,7 +28,7 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
   rtm::subscription _subscription;
 };
 
-struct cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
+struct cbor_sink_impl : streams::subscriber<cbor_item_t *> {
   cbor_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                  const std::string &channel)
       : _client(client), _channel(channel) {}

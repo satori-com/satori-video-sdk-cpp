@@ -31,7 +31,7 @@ struct observer {
 };
 
 template <typename T>
-struct subscriber : public observer<T> {
+struct subscriber : observer<T> {
   ~subscriber() override = default;
   // subscriber instance should be kept alive until on_error/on_complete or
   // cancel() call.

@@ -39,7 +39,7 @@ cbor_item_t* build_shutdown_command() {
 
 }  // namespace
 
-struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
+struct bot_instance::control_sub : streams::subscriber<cbor_item_t*> {
   explicit control_sub(bot_instance* const bot) : _bot(bot) {}
 
   ~control_sub() override {

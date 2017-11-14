@@ -67,7 +67,7 @@ struct strip_publisher<publisher<T>> {
 
 // special type of source that needs to be pull-drained.
 template <typename T>
-struct drain_source_impl : public subscription {
+struct drain_source_impl : subscription {
   drain_source_impl(streams::subscriber<T> &sink) : _sink(sink) {}
 
   long needs() const { return _requested - _delivered; }
@@ -184,7 +184,7 @@ struct async_generator_impl {
 };
 
 template <typename T, typename State, typename AsyncGeneratorImpl>
-struct async_publisher_impl : public publisher_impl<std::queue<T>> {
+struct async_publisher_impl : publisher_impl<std::queue<T>> {
   explicit async_publisher_impl(AsyncGeneratorImpl &&generator)
       : _generator(std::move(generator)) {}
 
@@ -251,7 +251,7 @@ struct async_publisher_impl : public publisher_impl<std::queue<T>> {
 };
 
 template <typename T>
-struct empty_publisher : public publisher_impl<T>, subscription {
+struct empty_publisher : publisher_impl<T>, subscription {
   void subscribe(subscriber<T> &s) override {
     s.on_subscribe(*this);
     s.on_complete();
@@ -262,7 +262,7 @@ struct empty_publisher : public publisher_impl<T>, subscription {
 };
 
 template <typename T>
-struct error_publisher : public publisher_impl<T>, subscription {
+struct error_publisher : publisher_impl<T>, subscription {
   explicit error_publisher(std::error_condition ec) : _ec(ec) {}
 
   void subscribe(subscriber<T> &s) override {
@@ -325,10 +325,10 @@ struct generator_impl {
 };
 
 template <typename T, typename State, typename Generator>
-struct generator_publisher : public publisher_impl<T> {
+struct generator_publisher : publisher_impl<T> {
   using value_t = T;
 
-  struct sub : public drain_source_impl<T>, observer<T> {
+  struct sub : drain_source_impl<T>, observer<T> {
     Generator _gen;
     std::unique_ptr<State> _state;
 
@@ -371,12 +371,12 @@ struct generator_publisher : public publisher_impl<T> {
 
 // TODO: need to fix, this is a very dumb implementation of merge_op
 template <typename T>
-struct merge_publisher : public publisher_impl<T> {
+struct merge_publisher : publisher_impl<T> {
   template <typename T1>
   struct downstream;
 
   template <typename T1>
-  struct upstream : public subscriber<T> {
+  struct upstream : subscriber<T> {
     upstream(downstream<T> &d) : _d(d) {
       LOG(5) << this << " merge_publisher::upstream::ctor";
     }
@@ -624,7 +624,7 @@ struct merge_publisher : public publisher_impl<T> {
 // operators -------
 
 template <typename S, typename T, typename Op>
-struct op_publisher : public publisher_impl<T> {
+struct op_publisher : publisher_impl<T> {
   using value_t = T;
 
   op_publisher(publisher<S> &&source, Op &&op)
@@ -648,7 +648,7 @@ struct map_op {
   using T = typename function_traits<std::decay_t<Fn>>::result_type;
 
   template <typename S>
-  struct instance : public subscriber<S>, private subscription {
+  struct instance : subscriber<S>, private subscription {
     using value_t = T;
 
     static publisher<value_t> apply(publisher<S> &&source, map_op<Fn> &&op) {
@@ -807,7 +807,7 @@ struct flat_map_op {
       drain_source_impl<T>::deliver_on_error(ec);
     }
 
-    struct fwd_sub : public subscriber<T>, public subscription {
+    struct fwd_sub : subscriber<T>, subscription {
       instance *_instance;
       subscription *_source{nullptr};
 
@@ -857,7 +857,7 @@ struct take_while_op {
   take_while_op(Predicate &&p) : _p(p) {}
 
   template <typename T>
-  struct instance : public subscriber<T>, private subscription {
+  struct instance : subscriber<T>, private subscription {
     static publisher<T> apply(publisher<T> &&source, take_while_op<Predicate> &&op) {
       return publisher<T>(new op_publisher<T, T, take_while_op<Predicate>>(
           std::move(source), std::move(op)));

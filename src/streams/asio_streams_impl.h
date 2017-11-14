@@ -33,7 +33,7 @@ struct delay_op {
   delay_op(boost::asio::io_service &io, Fn &&fn) : _io(io), _fn(fn) {}
 
   template <typename T>
-  struct instance : public subscriber<T>, subscription {
+  struct instance : subscriber<T>, subscription {
     using value_t = T;
 
     static publisher<T> apply(publisher<T> &&src, delay_op &&op) {

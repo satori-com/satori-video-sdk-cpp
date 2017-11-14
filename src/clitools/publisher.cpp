@@ -11,7 +11,7 @@ using namespace satori::video;
 
 namespace {
 
-struct rtm_error_handler : public rtm::error_callbacks {
+struct rtm_error_handler : rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
 

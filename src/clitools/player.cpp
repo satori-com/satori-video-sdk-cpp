@@ -20,7 +20,7 @@ constexpr size_t images_buffer_size = 1024;
 constexpr size_t surfaces_max_buffer_size = 1024;
 constexpr size_t textures_max_buffer_size = 1024;
 
-struct rtm_error_handler : public rtm::error_callbacks {
+struct rtm_error_handler : rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
 
