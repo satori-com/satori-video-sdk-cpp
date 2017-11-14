@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.11.03@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.1'
+    version = '0.10.2'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
@@ -44,7 +44,7 @@ class SatorivideoConan(ConanFile):
 
     def requirements(self):
         if self.options.with_opencv:
-            self.requires("Opencv/3.3.0_02@satorivideo/master")
+            self.requires("Opencv/3.3.1@satorivideo/master")
             self.options["Opencv"].shared = False
             self.options["Opencv"].fPIC = True
         if self.options.with_gperftools:
