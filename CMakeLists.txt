@@ -286,6 +286,13 @@ ${CMAKE_BINARY_DIR}/test/test_configure_bot \
 && grep test_analysis_message a5.txt \
 && grep test_debug_message d5.txt")
 
+add_test(NAME ShutdownTest COMMAND bash -c "\
+${CMAKE_BINARY_DIR}/test/test_configure_bot \
+--input-video-file=test_data/test.mp4 \
+--config-file=test_data/config.json \
+| tee /dev/tty \
+| grep 'bot is shutting down'")
+
 add_test(NAME DefaultResolutionTest COMMAND bash -c "\
 ${CMAKE_BINARY_DIR}/test/test_bot \
 --input-video-file=test_data/test.mp4 \

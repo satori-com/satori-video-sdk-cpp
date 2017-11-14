@@ -17,6 +17,8 @@ class bot_instance : public bot_context, streams::subscriber<owned_image_packet>
                const bot_descriptor& descriptor, bot_environment& env);
   ~bot_instance() override;
 
+  void configure(cbor_item_t* config);
+
   void start(streams::publisher<owned_image_packet>& video_stream,
              streams::publisher<cbor_item_t*>& control_stream);
   void stop();

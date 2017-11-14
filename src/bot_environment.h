@@ -33,7 +33,6 @@ class bot_environment : private rtm::error_callbacks {
   void send_messages(std::list<struct bot_message>&& messages);
 
  private:
-  void process_config(cbor_item_t* config);
   void on_error(std::error_condition ec) override;
   bot_descriptor _bot_descriptor;
   std::shared_ptr<bot_instance> _bot_instance;

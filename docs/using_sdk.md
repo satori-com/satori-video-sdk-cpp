@@ -78,6 +78,21 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+
+### Video Bot Commands
+
+Whenever rtm message is received on `<video_channel>/control` channel, control callback
+is executed with the message.
+
+Also, the framework sends following control commands (command is specified by "action"
+attribute  in the message):
+
+| Action | Description |
+|---------|-------------|
+| `"configure"` | always sent at the start. `"body"` attribute contains configuration |
+| `"shutdown"` | always sent during normal bot shutdown |
+
+
 ## Running Video Bots
 
 ### Choosing Video Source

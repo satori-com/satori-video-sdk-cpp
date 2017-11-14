@@ -22,6 +22,21 @@ auto& messages_sent =
 auto& messages_received =
     prometheus::BuildCounter().Name("messages_received").Register(metrics_registry());
 
+cbor_item_t* build_configure_command(cbor_item_t* config) {
+  cbor_item_t* cmd = cbor_new_definite_map(2);
+  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
+                     cbor_move(cbor_build_string("configure"))});
+  cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
+  return cmd;
+}
+
+cbor_item_t* build_shutdown_command() {
+  cbor_item_t* cmd = cbor_new_definite_map(2);
+  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
+                     cbor_move(cbor_build_string("shutdown"))});
+  return cmd;
+}
+
 }  // namespace
 
 struct bot_instance::control_sub : public streams::subscriber<cbor_item_t*> {
@@ -73,11 +88,25 @@ void bot_instance::start(streams::publisher<owned_image_packet>& video_stream,
 }
 
 void bot_instance::stop() {
+  LOG(INFO) << "shutting down bot";
+  if (_descriptor.ctrl_callback) {
+    cbor_item_t* cmd = build_shutdown_command();
+    auto cbor_deleter = gsl::finally([&cmd]() {
+      cbor_decref(&cmd);
+    });
+    cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
+    if (response != nullptr) {
+      queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0, 0});
+    }
+  }
+
   if (_video_sub != nullptr) {
     _video_sub->cancel();
     _video_sub = nullptr;
   }
   _control_sub.reset();
+
+  send_messages(frame_id{0, 0});
 }
 
 void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); }
@@ -209,6 +238,32 @@ void bot_instance::send_messages(const frame_id& id) {
     }
   }
   _env.send_messages(std::move(_message_buffer));
+}
+
+void bot_instance::configure(cbor_item_t* config) {
+  if (!_descriptor.ctrl_callback) {
+    if (config == nullptr) {
+      return;
+    }
+    ABORT() << "Bot control handler was not provided but config was";
+  }
+
+  if (config == nullptr) {
+    LOG(INFO) << "using empty bot configuration";
+    config = cbor_new_definite_map(0);
+  }
+
+  cbor_item_t* cmd = build_configure_command(config);
+  auto cbor_deleter = gsl::finally([&config, &cmd]() {
+    cbor_decref(&config);
+    cbor_decref(&cmd);
+  });
+
+  LOG(INFO) << "configuring bot";
+  cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
+  if (response != nullptr) {
+    queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0, 0});
+  }
 }
 
 }  // namespace video

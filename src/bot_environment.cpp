@@ -112,14 +112,6 @@ struct file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
   std::ostream& _out;
 };
 
-cbor_item_t* configure_command(cbor_item_t* config) {
-  cbor_item_t* cmd = cbor_new_definite_map(2);
-  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
-                     cbor_move(cbor_build_string("configure"))});
-  cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
-  return cmd;
-}
-
 void log_important_counters() {
   LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
 }
@@ -160,32 +152,6 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
   }
 
   return json_to_cbor(d);
-}
-
-void bot_environment::process_config(cbor_item_t* config) {
-  if (!_bot_descriptor.ctrl_callback) {
-    if (config == nullptr) {
-      return;
-    }
-    std::cerr << "Bot control handler was not provided" << std::endl;
-    exit(1);
-  }
-
-  if (config == nullptr) {
-    config = cbor_new_definite_map(0);
-  }
-
-  cbor_item_t* cmd = configure_command(config);
-  auto cbor_deleter = gsl::finally([&config, &cmd]() {
-    cbor_decref(&config);
-    cbor_decref(&cmd);
-  });
-
-  cbor_item_t* response = _bot_descriptor.ctrl_callback(*_bot_instance, cmd);
-  if (response != nullptr) {
-    _bot_instance->queue_message(bot_message_kind::DEBUG, cbor_move(response),
-                                 frame_id{0, 0});
-  }
 }
 
 bot_environment& bot_environment::instance() {
@@ -245,7 +211,7 @@ int bot_environment::main(int argc, char* argv[]) {
     bot_config = read_config_from_arg(cmd_args["config"].as<std::string>());
   }
 
-  process_config(bot_config);
+  _bot_instance->configure(bot_config);
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
