@@ -5,7 +5,7 @@ Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](pr
 ## SDK Overview
 
 Satori Video C++ SDK consists of:
-* C++ library for writing bots processing Satori Video streams 
+* C++ library for writing bots processing Satori Video streams
 * set of command-line utilities to produce/consume satori video streams.
 
 The SDK is distributed as conan package with canonical name of form
@@ -36,24 +36,24 @@ Video Bot API is declared in following files:
 
 To Video bot is defined by two callbacks:
 
-- image callback - is used to perform processing of rendered video stream frames. 
+- image callback - is used to perform processing of rendered video stream frames.
   As a result of frame processing, video bot send messages to Satori RTM with analysis
   result/debug or control messages.
-- (optional) control callback - is used to configure video bot during startup 
+- (optional) control callback - is used to configure video bot during startup
   or influence its operation while it works. If it is defined, then it is always
   called at the start with `configure` message. The content of configuration message
   can be changed by using `--config <inline_json>` or `--config-file <json_file_name>`
   bot runtime arguments.
 
 Video Bot library currently comes in two flavors
-- (default) OpenCV - image callback receives prebuilt `cv::Mat` object ready to be 
-  supplied to plentora of OpenCV algorithms.
+- (default) OpenCV - image callback receives prebuilt `cv::Mat` object ready to be
+  supplied to plethora of OpenCV algorithms.
 - raw image buffer - image callback receives raw bytes and library has not OpenCV
   dependency. Selected by specifying `SatoriVideo:with_opencv=False` conan option.
 
 
 
-To define video bot, define callbacks, register bot descriptor, and pass 
+To define video bot, define callbacks, register bot descriptor, and pass
 control to video bot main function:
 
 ```c++
@@ -67,7 +67,7 @@ void process_image(sv::bot_context &context, const cv::Mat &frame) {
 }
 
 cbor_item_t *process_command(sv::bot_context &, cbor_item_t *) {
-  // will be called at least once with 
+  // will be called at least once with
   // { "action": "configure", "body": <configuration> }
   return nullptr;  // return reply control message if any.
 }
@@ -97,7 +97,7 @@ attribute  in the message):
 
 ### Choosing Video Source
 
-Video bots support plentora of video sources: satori video, laptop camera or video file. 
+Video bots support plentora of video sources: satori video, laptop camera or video file.
 Run bot without parameters to see full list of available options.
 
 | Input Type | Command Line Options |
@@ -117,6 +117,87 @@ Several input-related options can be used with any input type.
 | `--input-resolution=<width>x<height>` | frame resolution to use for processing |
 | `--keep-proportions=<1 or 0>` | specifies if proportions should be kept during frame resizing. |
 
+### Reading Bot Configuration
+
+The following implementation of `process_command` is expecting a JSON with string `model_file` key, for example:
+
+```json
+{"model_file": "mymodel.xml"}
+```
+
+```c++
+cbor_item_t *process_command(sv::bot_context &ctx, cbor_item_t *config) {
+  if (cbor::map_has_str_value(config, "action", "configure")) {
+    std::string p = cbor::map(config).get_map("body").get_str("myparam", "default");
+  }
+  return nullptr;
+}
+```
+
+This code will also perform normally on any valid JSON and without configuration at all,
+in this "default" value will be assigned to `p`.
+
+### Sending Messages
+
+To publish a message use `bot_message` method:
+```c++
+void process_image(sv::bot_context &context, const sv::image_frame & /*frame*/) {
+  cbor_item_t *msg = cbor_new_indefinite_map();
+  cbor_map_add(
+      msg, {cbor_move(cbor_build_string("msg")), cbor_move(cbor_build_string("hello"))});
+  sv::bot_message(context, sv::bot_message_kind::ANALYSIS, cbor_move(msg));
+}
+```
+
+There are three message kinds corresponding to different data channels and different kinds of information:
+
+* bot_message_kind::ANALYSIS -- this kind of message is sent to "/analysis" channel and suppose to contain the result of video analysis that bot performs. For example, rectangles with detected objects, numbers for registered object kinds, motion vectors, image labels etc.
+* bot_message_kind::DEBUG -- this kind of message is sent to "/debug" channel, it contains any information useful for bot diagnostics. For example, results for intermediate functions that have no interest for end-users.
+* bot_message_kind::CONTROL -- this kind of message is sent to "/control" channel, it holds all the data regarding bot dynamic reconfiguration. For example, if you want to manually switch between different bot modes without bot restart.
+
+The following message examples are given in JSON, it is made for better readability, real messages are encoded with CBOR. The coordinates are specified as proportions to full image size to solve the problem of different bots using different image resolutions.
+
+Detected rectangles with objects:
+```json
+{"objects": [{"tag": "car", "rect": [0.225, 0.2167, 0.0625, 0.0584]}]}
+```
+in this example each object has rectangular area set with `[x, y, width, height]` array.
+
+Numbers of registered object kinds:
+```json
+{"counts": [{"car": 8, "truck": 1}]}
+```
+
+Detected motion vector:
+```json
+{"motion": [{"start": [0.225, 0.2167], "end": [0.2367, 0.3673]}]}
+```
+in this example `start` and `end` are arrays of `[x,y]`.
+
+Recognized image categories:
+```json
+{"labels": [{"text": "horse", "probability": 0.2332}]}
+```
+
+Debug message:
+```json
+{"message": "Tracking failed", "rect": [0.225, 0.2167, 0.0625, 0.0584]}
+```
+Indicates that a bot has lost some object in a given rectangular area.
+
+Control message:
+```json
+{"set_threshold" : 67}
+```
+Setting different level for image binarization.
+
+All the messages are bot-specific and depend on the algorithm that a bot implements.
+
+## Executing Video Bots
+
+Video bots support plethora of video sources: satori video, laptop camera or video file.
+Run bot without parameters to see available options.
+
 
 ## Deploying Video Bots to Cloud
 
@@ -124,7 +205,7 @@ Satori Video Bot library is a static C++ library. We recommend full static linki
 of your bot binaries and using Docker to deploy them to the cloud.
 
 ## Debugging and Profiling Video Bots
-Video bots can be debugged/profiled as any normal C++ process. 
+Video bots can be debugged/profiled as any normal C++ process.
 We recommend following tools: gdb, lldb, (Mac) Instruments, perf, CLion.
 
 To simplify debugging in production the bot library links with gperftools' tcmalloc

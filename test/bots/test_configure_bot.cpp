@@ -4,7 +4,7 @@
 
 #include "logging.h"
 
-using namespace satori::video;
+namespace sv = satori::video;
 
 namespace test_bot {
 
@@ -19,18 +19,19 @@ cbor_item_t *build_message(const std::string &text) {
   return cbor_move(message);
 }
 
-void process_image(bot_context &context, const image_frame & /*frame*/) {
+void process_image(sv::bot_context &context, const sv::image_frame & /*frame*/) {
   CHECK(context.instance_data != nullptr);  // Make sure initialization passed
   CHECK(context.frame_metadata->width != 0);
   std::cout << "got frame " << context.frame_metadata->width << "x"
             << context.frame_metadata->height << ", BGR stride "
             << context.frame_metadata->plane_strides[0] << "\n";
-  bot_message(context, bot_message_kind::ANALYSIS,
-              build_message("test_analysis_message"));
-  bot_message(context, bot_message_kind::DEBUG, build_message("test_debug_message"));
+  sv::bot_message(context, sv::bot_message_kind::ANALYSIS,
+                  build_message("test_analysis_message"));
+  sv::bot_message(context, sv::bot_message_kind::DEBUG,
+                  build_message("test_debug_message"));
 }
 
-cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
+cbor_item_t *process_command(sv::bot_context &ctx, cbor_item_t *config) {
   auto action = cbor::map(config).get_str("action");
 
   if (action == "configure") {
@@ -43,14 +44,14 @@ cbor_item_t *process_command(bot_context &ctx, cbor_item_t *config) {
     std::cout << "bot is shutting down\n";
     delete static_cast<bot_state*>(ctx.instance_data);
   }
-  
+
   return nullptr;
 }
 
 }  // namespace test_bot
 
 int main(int argc, char *argv[]) {
-  bot_register(bot_descriptor{image_pixel_format::BGR, &test_bot::process_image,
-                              &test_bot::process_command});
-  return bot_main(argc, argv);
+  sv::bot_register(sv::bot_descriptor{
+      sv::image_pixel_format::BGR, &test_bot::process_image, &test_bot::process_command});
+  return sv::bot_main(argc, argv);
 }
