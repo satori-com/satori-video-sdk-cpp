@@ -11,5 +11,5 @@ RUN mkdir /src
 COPY . /src
 
 WORKDIR /src
-ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
+ENV GIT_COMMIT_HASH $GIT_COMMIT_HASH
 RUN make conan-login conan-create
