@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE(av_frame_to_image) {
 }  // namespace satori
 
 int main(int argc, char *argv[]) {
-  init_logging(argc, argv);
+  satori::video::init_logging(argc, argv);
   satori::video::avutils::init();
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }

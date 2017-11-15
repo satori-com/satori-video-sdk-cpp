@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 3.7)
 project (satori-video-sdk-cpp VERSION 0.1 LANGUAGES CXX)
 
+string(TIMESTAMP CMAKE_GEN_TIME UTC)
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
@@ -74,6 +76,7 @@ add_library(satorivideo
     src/streams/threaded_worker.h
     src/type_traits.h
     src/url_source.cpp
+    src/version.cpp
     src/video_bot.cpp
     src/video_error.cpp
     src/video_streams.cpp
@@ -95,15 +98,17 @@ target_link_libraries(satorivideo
         CONAN_PKG::Rapidjson
     )
 target_include_directories(satorivideo PUBLIC include)
-target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_VERSION=${CONAN_PACKAGE_VERSION})
-target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_NAME=${CONAN_PACKAGE_NAME})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_ARCH=${CONAN_SETTINGS_ARCH})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_BUILD_TYPE=${CONAN_SETTINGS_BUILD_TYPE})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER=${CONAN_SETTINGS_COMPILER})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_LIBCXX=${CONAN_SETTINGS_COMPILER_LIBCXX})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_VERSION=${CONAN_SETTINGS_COMPILER_VERSION})
-target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_OS=${CONAN_SETTINGS_OS})
-target_compile_definitions(satorivideo PRIVATE GIT_COMMIT_HASH=${GIT_COMMIT_HASH})
+target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_VERSION="${CONAN_PACKAGE_VERSION}")
+target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_NAME="${CONAN_PACKAGE_NAME}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_ARCH="${CONAN_SETTINGS_ARCH}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_BUILD_TYPE="${CONAN_SETTINGS_BUILD_TYPE}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER="${CONAN_SETTINGS_COMPILER}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_LIBCXX="${CONAN_SETTINGS_COMPILER_LIBCXX}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_COMPILER_VERSION="${CONAN_SETTINGS_COMPILER_VERSION}")
+target_compile_definitions(satorivideo PRIVATE CONAN_SETTINGS_OS="${CONAN_SETTINGS_OS}")
+target_compile_definitions(satorivideo PRIVATE GIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
+target_compile_definitions(satorivideo PRIVATE CMAKE_GEN_TIME="${CMAKE_GEN_TIME}")
+
 
 if (CONAN_GPERFTOOLS_ROOT)
     message("** Enabling gperftools")

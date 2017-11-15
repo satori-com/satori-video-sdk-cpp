@@ -4,9 +4,12 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <loguru/loguru.hpp>
 
-#include "satorivideo/base.h"
 #include "logging.h"
+#include "satorivideo/base.h"
+#include "version.h"
 
+namespace satori {
+namespace video {
 inline void init_logging(int& argc, char* argv[]) {
   if (RELEASE_MODE) {
     loguru::g_stderr_verbosity = loguru::Verbosity_INFO;
@@ -17,4 +20,7 @@ inline void init_logging(int& argc, char* argv[]) {
   loguru::init(argc, argv);
   LOG(INFO) << "logging initialized in " << (RELEASE_MODE ? "release" : "debug")
             << " mode";
+  log_library_version(loguru::Verbosity_INFO);
 }
+}  // namespace video
+}  // namespace satori
