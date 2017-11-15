@@ -3,6 +3,7 @@ CONAN_USER?=
 CONAN_PASSWORD?=
 CONAN_REMOTE?=video
 CONAN_UPLOAD_OPTIONS?=--all
+GIT_COMMIT_HASH?=
 
 DOCKER_BUILD_OPTIONS?=
 BUILD_TYPE=RelWithDebInfo
@@ -21,7 +22,10 @@ conan-create:
 > conan create satorivideo/master ${CONAN_CREATE_ARGS}
 
 conan-create-in-docker:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG} .
+> docker build ${DOCKER_BUILD_OPTIONS} \
+    --build-arg GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
+    --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=${BUILD_TYPE}" \
+    -t ${DOCKER_TAG} .
 
 conan-upload-from-docker:
 > docker run --rm ${DOCKER_TAG} bash -c "CONAN_REMOTE=${CONAN_REMOTE} CONAN_SERVER=${CONAN_SERVER} CONAN_USER=${CONAN_USER} CONAN_PASSWORD=${CONAN_PASSWORD} CONAN_UPLOAD_OPTIONS='${CONAN_UPLOAD_OPTIONS}' make conan-login conan-upload"
