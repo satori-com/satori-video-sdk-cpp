@@ -5,7 +5,7 @@ Satori Video is a system of transmitting video over [Satori RTM](https://www.sat
 Satori Video C++ SDK provides libraries and tools to build intelligent 
 video processing bots.
 
-Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
+Supported platforms: macOS & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
 
 [Tutorial](docs/tutorial.md) 
 | [Using SDK](docs/using_sdk.md) 
