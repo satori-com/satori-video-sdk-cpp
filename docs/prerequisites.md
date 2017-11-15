@@ -1,8 +1,8 @@
 # Prerequisites
 
-Operating Systems: Mac or Linux
+Operating Systems: macOS or Linux.
 
-* Install Docker: [https://docs.docker.com/engine/installation/](https://docs.docker.com/engine/installation/)
+C++14 compiler.
 
 * Conan, cmake, gnu make >= 3.82, autoconf, libtool:
   - (Mac) `brew install conan cmake autoconf libtool && brew install make --with-default-names`
