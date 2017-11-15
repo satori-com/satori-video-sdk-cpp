@@ -23,7 +23,7 @@ conan-create:
 
 conan-create-in-docker:
 > docker build ${DOCKER_BUILD_OPTIONS} \
-    --build-arg GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
+    --build-arg GIT_COMMIT_HASH=${GIT_COMMIT_HASH} \
     --build-arg CONAN_CREATE_ARGS="--build=outdated -s compiler.libcxx=libstdc++11 -s build_type=${BUILD_TYPE}" \
     -t ${DOCKER_TAG} .
 
