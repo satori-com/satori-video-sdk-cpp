@@ -1,7 +1,6 @@
 #pragma once
 
 #include <boost/variant.hpp>
-#include <functional>
 #include <thread>
 
 #include "../metrics.h"
@@ -23,14 +22,15 @@ struct threaded_worker_op {
     using element_t = std::queue<T>;
 
     struct source : drain_source_impl<element_t>, subscriber<T> {
-      source(publisher<T> &&src, streams::subscriber<element_t> &sink)
-          : drain_source_impl<element_t>(sink) {
+      source(const std::string &name, publisher<T> &&src,
+             streams::subscriber<element_t> &sink)
+          : _name(name), drain_source_impl<element_t>(sink) {
         _worker_thread = std::make_unique<std::thread>(&source::worker_thread_loop, this);
         src->subscribe(*this);
       }
 
       ~source() override {
-        LOG(5) << this << " ~source";
+        LOG(5) << this << " " << _name << " ~source";
         CHECK(std::this_thread::get_id() == _worker_thread->get_id());
         CHECK(!_active);
 
@@ -56,7 +56,7 @@ struct threaded_worker_op {
 
       void on_error(std::error_condition ec) override {
         std::lock_guard<std::mutex> guard(_mutex);
-        LOG(5) << this << " on_error: " << ec.message();
+        LOG(5) << this << " " << _name << " on_error: " << ec.message();
         CHECK(_active);
         _src = nullptr;
         _ec = ec;
@@ -66,7 +66,7 @@ struct threaded_worker_op {
 
       void on_complete() override {
         std::lock_guard<std::mutex> guard(_mutex);
-        LOG(5) << this << " on_complete";
+        LOG(5) << this << " " << _name << " on_complete";
         CHECK(_active);
         _src = nullptr;
         _complete = true;
@@ -75,14 +75,14 @@ struct threaded_worker_op {
       }
 
       void worker_thread_loop() noexcept {
-        LOG(INFO) << this << " started worker thread";
+        LOG(INFO) << this << " " << _name << " started worker thread";
         drain_source_impl<element_t>::deliver_on_subscribe();
 
         while (_active) {
           {
             std::unique_lock<std::mutex> lock(_mutex);
             while (_active && _buffer.empty()) {
-              LOG(5) << this << " waiting for _on_send";
+              LOG(5) << this << " " << _name << " waiting for _on_send";
               _on_send.wait(lock);
             }
 
@@ -94,7 +94,7 @@ struct threaded_worker_op {
           drain_source_impl<element_t>::drain();
         }
 
-        LOG(2) << this << " finished worker thread loop: "
+        LOG(2) << this << " " << _name << " finished worker thread loop: "
                << (_complete ? "complete" : _ec.message());
 
         if (!_cancelled) {
@@ -109,7 +109,7 @@ struct threaded_worker_op {
       }
 
       void die() override {
-        LOG(2) << this << " die";
+        LOG(2) << this << " " << _name << " die";
         CHECK(std::this_thread::get_id() == _worker_thread->get_id());
         _active = false;
       }
@@ -127,7 +127,7 @@ struct threaded_worker_op {
           // drain only on worker thread
           return false;
         }
-        LOG(5) << this << " drain_impl " << _buffer.size();
+        LOG(5) << this << " " << _name << " drain_impl " << _buffer.size();
         std::queue<T> tmp;
 
         {
@@ -138,11 +138,12 @@ struct threaded_worker_op {
           _buffer.swap(tmp);
         }
 
-        LOG(5) << this << " delivering batch: " << tmp.size();
+        LOG(5) << this << " " << _name << " delivering batch: " << tmp.size();
         drain_source_impl<element_t>::deliver_on_next(std::move(tmp));
         return false;
       }
 
+      const std::string _name;
       std::mutex _mutex;
       std::condition_variable _on_send;
 
@@ -156,16 +157,19 @@ struct threaded_worker_op {
       subscription *_src;
     };
 
-    static publisher<std::queue<T>> apply(publisher<T> &&src,
-                                          threaded_worker_op && /*op*/) {
-      return publisher<std::queue<T>>(new instance(std::move(src)));
+    static publisher<std::queue<T>> apply(publisher<T> &&src, threaded_worker_op &&op) {
+      return publisher<std::queue<T>>(new instance(op._name, std::move(src)));
     }
 
-    instance(publisher<T> &&src) : _src(std::move(src)) {}
+    instance(const std::string &name, publisher<T> &&src)
+        : _name(name), _src(std::move(src)) {}
 
-    void subscribe(subscriber<element_t> &s) override { new source(std::move(_src), s); }
+    void subscribe(subscriber<element_t> &s) override {
+      new source(_name, std::move(_src), s);
+    }
 
    private:
+    const std::string _name;
     publisher<T> _src;
   };
 
