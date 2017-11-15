@@ -15,7 +15,7 @@ class SatorivideoConan(ConanFile):
                "Beast/123@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
                "Rapidjson/1.1.0@satorivideo/master", \
-               "Ffmpeg/3.3.3_07@satorivideo/master", \
+               "Ffmpeg/3.4.0@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master", \
                "PrometheusCpp/2017.11.03@satorivideo/master"
