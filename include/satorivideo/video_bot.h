@@ -21,7 +21,7 @@
 #include "base.h"
 
 // libcbor declarations
-// libcbor provides an API for CBOR-formatted channel messages, such as streaming video.
+// libcbor provides an API for CBOR-formatted messages, such as streaming video.
 struct cbor_item_t;
 
 // prometheus-cpp declarations
@@ -44,7 +44,7 @@ EXPORT struct frame_id {
 };
 
 // Provides for as many as 4 separate planes for an image.
-// Packed RGB or YUV use plane 0.
+// Packed RGB and packed YUV use plane 0.
 constexpr uint8_t MAX_IMAGE_PLANES = 4;
 
 // If the video stream uses a packed pixel format such as packed RGB or packed YUV,
@@ -59,7 +59,7 @@ EXPORT struct image_frame {
 };
 
 //
-// Describes the format of all images in the channel: image width, height, and number of planes per frame
+// Describes the format of all images in the channel: image width, height, and number of plane strides per frame
 //
 EXPORT struct image_metadata {
   uint16_t width;
@@ -69,8 +69,13 @@ EXPORT struct image_metadata {
 
 // Indicators for controlling how your bot should react if the main event loop is running behind the rate of incoming
 // video messages.
-// `live`: Drop frames in order to keep up with stream
-// `batch`: Allow analysis task to process every frame
+// `live`: Live video stream mode. The bot processes frames according to the frame rate of the input stream. If
+// processing takes longer, drop subsequent frames to stay in sync with the frame rate. Works with RTM channels,
+// camera input, and files.
+// Use live mode for production.
+// `batch`: Batch (test) input mode. The bot takes as much time as it needs to process a frame. No frames are dropped.
+// Only works with files.
+// Use `batch` mode for testing.
 EXPORT enum class execution_mode { LIVE = 1, BATCH = 2 };
 
 //
@@ -115,7 +120,7 @@ using bot_img_callback_t =
 // Although control channel messages can have any format, you should construct them as JSON objects with this format:
 // { "action" : "configure",
 //   "body" : {
-//     <configuration_parameters
+//     <optional configuration parameters>
 //   }
 // }
 //
@@ -123,7 +128,7 @@ using bot_ctrl_callback_t =
     std::function<cbor_item_t *(bot_context &context, cbor_item_t *message)>;
 
 //
-// Indicators for specifying the format of each pixel in the incoming stream
+// Indicators for specifying pixel format of frames in the incoming stream
 //
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 
@@ -147,7 +152,7 @@ EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 
 // Publishes a message to one of the subchannels for this bot.
 //
-// All of the data you send is aggregated and and published as a single message at the end of each main event loop
+// All of the data you send is aggregated and published as a single message at the end of each main event loop
 // iteration (after the image callback function returns).
 //
 // The id parameter specifies the frame associated with the message. By default, the id value is frame_id{0,0}, which
