@@ -198,12 +198,13 @@ streams::op<T, T> interval(boost::asio::io_service &io,
 
                       auto this_frame_time = s->last_frame + period;
                       auto now = std::chrono::system_clock::now();
+                      s->last_frame = this_frame_time;
+
                       if (this_frame_time < now) {
                         LOG(WARNING) << "late frame in interval";
                         return std::chrono::milliseconds(0);
                       }
 
-                      s->last_frame = this_frame_time;
                       return std::chrono::duration_cast<std::chrono::milliseconds>(
                           this_frame_time - now);
                     })
