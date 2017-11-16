@@ -60,9 +60,6 @@ class SatorivideoConan(ConanFile):
         if "CMAKE_CXX_CLANG_TIDY" in os.environ:
             cmake_options.append("-DCMAKE_CXX_CLANG_TIDY='%s'" %
                                  os.environ["CMAKE_CXX_CLANG_TIDY"])
-        if "GIT_COMMIT_HASH" in os.environ:
-            cmake_options.append("-DGIT_COMMIT_HASH='%s'" %
-                                 os.environ["GIT_COMMIT_HASH"])
 
         cmake_generate_command = ('cmake . %s %s' %
                                   (cmake.command_line, " ".join(cmake_options)))
