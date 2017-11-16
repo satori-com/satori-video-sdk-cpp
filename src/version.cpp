@@ -18,9 +18,9 @@ constexpr char git_commit_hash[] = GIT_COMMIT_HASH;
 }  // namespace
 
 void log_library_version(loguru::Verbosity verbosity) {
-  VLOG(verbosity) << conan_package_name << "/" << conan_package_version << " "
-                  << git_commit_hash << " " << compiled_time << " " << conan_build_type
-                  << " build (" << conan_os << " " << conan_arch << " " << conan_compiler
+  VLOG(verbosity) << conan_package_name << "/" << conan_package_version
+                  << " " << conan_build_type << " (compiled " << compiled_time
+                  << " " << conan_os << " " << conan_arch << " " << conan_compiler
                   << " " << conan_compiler_version << " " << conan_compiler_libcxx << ")";
 }
 
