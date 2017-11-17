@@ -68,38 +68,54 @@ constexpr int READ_BUFFER_SIZE = 100000;
 
 const boost::posix_time::minutes WS_PING_INTERVAL{1};
 
-auto &rtm_actions_received =
-    prometheus::BuildCounter().Name("rtm_actions_received_total").Register(metrics_registry());
+auto &rtm_actions_received = prometheus::BuildCounter()
+                                 .Name("rtm_actions_received_total")
+                                 .Register(metrics_registry());
 
-auto &rtm_messages_received =
-    prometheus::BuildCounter().Name("rtm_messages_received_total").Register(metrics_registry());
+auto &rtm_messages_received = prometheus::BuildCounter()
+                                  .Name("rtm_messages_received_total")
+                                  .Register(metrics_registry());
 
-auto &rtm_messages_bytes_received =
-    prometheus::BuildCounter().Name("rtm_messages_received_bytes_total").Register(metrics_registry());
+auto &rtm_messages_bytes_received = prometheus::BuildCounter()
+                                        .Name("rtm_messages_received_bytes_total")
+                                        .Register(metrics_registry());
 
-auto &rtm_messages_sent =
-    prometheus::BuildCounter().Name("rtm_messages_sent_total").Register(metrics_registry());
+auto &rtm_messages_sent = prometheus::BuildCounter()
+                              .Name("rtm_messages_sent_total")
+                              .Register(metrics_registry());
 
-auto &rtm_messages_bytes_sent =
-    prometheus::BuildCounter().Name("rtm_messages_sent_bytes_total").Register(metrics_registry());
+auto &rtm_messages_bytes_sent = prometheus::BuildCounter()
+                                    .Name("rtm_messages_sent_bytes_total")
+                                    .Register(metrics_registry());
 
-auto &rtm_bytes_written =
-    prometheus::BuildCounter().Name("rtm_bytes_written_total").Register(metrics_registry()).Add({});
+auto &rtm_bytes_written = prometheus::BuildCounter()
+                              .Name("rtm_bytes_written_total")
+                              .Register(metrics_registry())
+                              .Add({});
 
-auto &rtm_bytes_read =
-    prometheus::BuildCounter().Name("rtm_bytes_read_total").Register(metrics_registry()).Add({});
+auto &rtm_bytes_read = prometheus::BuildCounter()
+                           .Name("rtm_bytes_read_total")
+                           .Register(metrics_registry())
+                           .Add({});
 
-auto &rtm_pings_sent_total =
-    prometheus::BuildCounter().Name("rtm_pings_sent_total").Register(metrics_registry()).Add({});
+auto &rtm_pings_sent_total = prometheus::BuildCounter()
+                                 .Name("rtm_pings_sent_total")
+                                 .Register(metrics_registry())
+                                 .Add({});
 
-auto &rtm_frames_received_total =
-    prometheus::BuildCounter().Name("rtm_frames_received_total").Register(metrics_registry());
+auto &rtm_frames_received_total = prometheus::BuildCounter()
+                                      .Name("rtm_frames_received_total")
+                                      .Register(metrics_registry());
 
-auto &rtm_last_pong_time_seconds =
-    prometheus::BuildGauge().Name("rtm_last_pong_time_seconds").Register(metrics_registry()).Add({});
+auto &rtm_last_pong_time_seconds = prometheus::BuildGauge()
+                                       .Name("rtm_last_pong_time_seconds")
+                                       .Register(metrics_registry())
+                                       .Add({});
 
-auto &rtm_last_ping_time_seconds =
-    prometheus::BuildGauge().Name("rtm_last_ping_time_seconds").Register(metrics_registry()).Add({});
+auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
+                                       .Name("rtm_last_ping_time_seconds")
+                                       .Register(metrics_registry())
+                                       .Add({});
 
 std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -573,7 +589,7 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    asio::io_service &io_service,
                                    asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks) {
-  LOG(1) << "Creating RTM client for " << endpoint << ":" << port;
+  LOG(1) << "Creating RTM client for " << endpoint << ":" << port << "?appkey=" << appkey;
   std::unique_ptr<secure_client> client(
       new secure_client(endpoint, port, appkey, id, callbacks, io_service, ssl_ctx));
   return std::move(client);
@@ -648,7 +664,7 @@ void resilient_client::restart() {
     return;
   }
 
-  LOG(1) << "startig new client";
+  LOG(1) << "starting new client";
   auto ec = _client->start();
   if (ec) {
     LOG(ERROR) << "can't restart client: " << ec.message();
