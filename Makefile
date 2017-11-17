@@ -32,7 +32,7 @@ build-clang:
 > docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p clang --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-clang .
 
 build-asan:
-> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p asan --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-asan .
+> docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p clang-asan --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-asan .
 
 build-tidy:
 > docker build ${DOCKER_BUILD_OPTIONS} --build-arg CONAN_CREATE_ARGS="-p tidy --build=outdated -s build_type=${BUILD_TYPE}" -t ${DOCKER_TAG}-tidy .
