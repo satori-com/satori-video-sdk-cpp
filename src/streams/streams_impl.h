@@ -157,6 +157,7 @@ struct drain_source_impl : subscription {
 
  private:
   void request(int n) final {
+    CHECK_GT(n, 0);
     LOG(4) << this << " drain_source_impl::request " << n;
     CHECK(!_die);
     _requested += n;
@@ -770,10 +771,13 @@ struct flat_map_op {
       LOG(5) << "flat_map_op(" << this << ")::drain_impl fwd_sub=" << _fwd_sub
              << " needs=" << drain_source_impl<T>::needs()
              << " _requested_next=" << _requested_next
-             << " _source_complete=" << _source_complete;
+             << " _source_complete=" << _source_complete << " _waiting_from_fwd_sub="
+             << (_fwd_sub ? _fwd_sub->_waiting_from_upstream : 0);
 
       if (_fwd_sub) {
-        _fwd_sub->request(drain_source_impl<T>::needs());
+        if (_fwd_sub->_waiting_from_upstream == 0) {
+          _fwd_sub->request(drain_source_impl<T>::needs());
+        }
         return false;
       }
 
@@ -795,13 +799,16 @@ struct flat_map_op {
     }
 
     void current_result_complete() {
+      CHECK_NOTNULL(_fwd_sub);
       LOG(5) << "flat_map_op(" << this
-             << ")::current_result_complete needs=" << drain_source_impl<T>::needs();
+             << ")::current_result_complete needs=" << drain_source_impl<T>::needs()
+             << " _waiting_from_fwd_sub=" << _fwd_sub->_waiting_from_upstream;
       _fwd_sub = nullptr;
       drain_source_impl<T>::drain();
     }
 
     void current_result_error(std::error_condition ec) {
+      CHECK_NOTNULL(_fwd_sub);
       LOG(5) << "flat_map_op(" << this << ")::current_result_error";
       _fwd_sub = nullptr;
       drain_source_impl<T>::deliver_on_error(ec);
@@ -810,17 +817,22 @@ struct flat_map_op {
     struct fwd_sub : subscriber<T>, subscription {
       instance *_instance;
       subscription *_source{nullptr};
+      int _waiting_from_upstream{0};
 
       explicit fwd_sub(instance *i) : _instance(i) {}
 
       void on_subscribe(subscription &s) override {
         CHECK(!_source);
         _source = &s;
-        _source->request(_instance->needs());
+        int requesting_now = _instance->needs();
+        _waiting_from_upstream += requesting_now;
+        _source->request(requesting_now);
       }
 
       void on_next(T &&t) override {
+        CHECK_GT(_waiting_from_upstream, 0);
         LOG(5) << "flat_map_op(" << _instance << ")::fwd_sub::on_next";
+        _waiting_from_upstream--;
         _instance->deliver_on_next(std::move(t));
       }
 
@@ -835,7 +847,14 @@ struct flat_map_op {
       }
 
       void request(int n) override {
+        CHECK_GT(n, 0);
         LOG(5) << "flat_map_op(" << _instance << ")::fwd_sub::request " << n;
+        if (_source == nullptr) {
+          LOG(5) << "flat_map_op(" << _instance
+                 << ")::fwd_sub::request source is not ready yet";
+          return;
+        }
+        _waiting_from_upstream += n;
         _source->request(n);
       }
 

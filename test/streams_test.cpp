@@ -40,8 +40,7 @@ std::vector<std::string> events(streams::publisher<T> &&p,
                                 boost::asio::io_service *io = nullptr) {
   std::vector<std::string> events;
 
-  auto when_done =
-      p->process([&events](T &&t) { events.push_back(std::to_string(t)); });
+  auto when_done = p->process([&events](T &&t) { events.push_back(std::to_string(t)); });
   when_done.on([&events](std::error_condition ec) {
     if (ec) {
       events.push_back("error:" + ec.message());
@@ -137,6 +136,22 @@ BOOST_AUTO_TEST_CASE(concat) {
   auto p2 = streams::publishers::range(3, 6);
   auto p = streams::publishers::concat(std::move(p1), std::move(p2));
   BOOST_TEST(events(std::move(p)) == strings({"1", "2", "3", "4", "5", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(concat_interval_threaded) {
+  boost::asio::io_service io;
+  bool completed = false;
+  auto p1 = streams::publishers::empty<int>();
+  auto p2 = streams::publishers::range(1, 6)
+            >> streams::asio::interval<int>(io, std::chrono::milliseconds(10))
+            >> streams::threaded_worker("test-worker") >> streams::flatten();
+
+  auto p = streams::publishers::concat(std::move(p1), std::move(p2))
+           >> streams::do_finally([&completed]() { completed = true; });
+
+  BOOST_TEST(!completed);
+  BOOST_TEST(events(std::move(p), &io) == strings({"1", "2", "3", "4", "5", "."}));
+  BOOST_TEST(completed);
 }
 
 BOOST_AUTO_TEST_CASE(on_finally_empty) {
