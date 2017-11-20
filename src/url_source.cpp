@@ -1,5 +1,6 @@
 #include <thread>
 #include "avutils.h"
+#include "threadutils.h"
 #include "video_error.h"
 #include "video_streams.h"
 
@@ -16,6 +17,8 @@ struct url_source_impl {
       : _url(url), _sink(sink) {
     avutils::init();
     std::thread([this, options]() {
+      threadutils::set_current_thread_name("read-loop");
+
       _reader_thread_id = std::this_thread::get_id();
 
       std::error_condition ec = start(options);
@@ -101,7 +104,8 @@ struct url_source_impl {
       if (_pkt.stream_index == _stream_idx) {
         LOG(4) << "packet from url " << _url;
         _next_id++;
-        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size}, frame_id{_next_id, _next_id}};
+        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
+                            frame_id{_next_id, _next_id}};
         _sink.on_next(frame);
       }
     }

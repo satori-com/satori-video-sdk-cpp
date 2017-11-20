@@ -74,6 +74,7 @@ add_library(satorivideo
     src/streams/streams.cpp
     src/streams/streams_impl.h
     src/streams/threaded_worker.h
+    src/threadutils.cpp
     src/type_traits.h
     src/url_source.cpp
     src/version.cpp
@@ -369,3 +370,4 @@ add_video_test(vp9_encoder_test test/vp9_encoder_test.cpp)
 add_video_test(cbor_tools_test test/cbor_tools_test.cpp)
 add_video_test(data_test test/data_test.cpp)
 add_video_test(encoding_test test/encoding_test.cpp)
+add_video_test(threadutils_test test/threadutils_test.cpp)

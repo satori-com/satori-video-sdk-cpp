@@ -9,6 +9,7 @@
 #include "logging_impl.h"
 #include "streams/streams.h"
 #include "streams/threaded_worker.h"
+#include "threadutils.h"
 #include "video_error.h"
 #include "video_streams.h"
 
@@ -255,7 +256,11 @@ int main(int argc, char *argv[]) {
       LOG(ERROR) << "Error while playing: " << ec.message();
     }
   });
-  std::thread([&io_service]() { io_service.run(); }).detach();
+  std::thread([&io_service]() {
+    threadutils::set_current_thread_name("asio-loop");
+    io_service.run();
+  })
+      .detach();
   run_sdl_loop();
   SDL_Quit();
 

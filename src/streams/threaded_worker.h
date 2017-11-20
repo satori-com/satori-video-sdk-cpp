@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "../metrics.h"
+#include "../threadutils.h"
 
 #include "channel.h"
 #include "streams.h"
@@ -79,6 +80,7 @@ struct threaded_worker_op {
       }
 
       void worker_thread_loop() noexcept {
+        threadutils::set_current_thread_name(_name);
         LOG(INFO) << this << " " << _name << " started worker thread";
         drain_source_impl<element_t>::deliver_on_subscribe();
 
