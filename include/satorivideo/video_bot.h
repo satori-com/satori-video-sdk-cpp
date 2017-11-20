@@ -162,7 +162,7 @@ EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 EXPORT void bot_message(bot_context &context, bot_message_kind kind, cbor_item_t *message,
                         const frame_id &id = frame_id{0, 0});
 
-// Registers the bot, including your settings, with RTM
+// Registers the bot, including your settings
 // Call this function before you start the main event loop.
 EXPORT void bot_register(const bot_descriptor &bot);
 
