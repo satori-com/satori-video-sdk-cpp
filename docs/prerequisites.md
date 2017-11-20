@@ -56,7 +56,6 @@ installs the tool as `make` rather than `gnu-make`.
 * wget
 
 **Note:**
-
 * Use `sudo apt-get install -y`, except for conan
 * For conan, use `sudo pip install 'conan>=0.28.0'`
 

@@ -7,7 +7,6 @@
 * [Clone the SDK](#clone-the-sdk)
 * [Build the SDK](#build-the-sdk)
 * [Test SDK modifications](#test-sdk-modifications)
-*
 
 ## Prerequisites
 See [Satori Video SDK for C++ Prerequisites](prerequisites.md).

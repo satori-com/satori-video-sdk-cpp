@@ -1,4 +1,4 @@
-# Satori Video C++ SDK Overview
+# Satori Video C++ SDK
 
 The Satori Video SDK is a library of APIs for building bots that analyze compressed, streaming video in the form of messages.
 The SDK subscribes to a channel containing streaming video messages, continuously receive these messages, decompress

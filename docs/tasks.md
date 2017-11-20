@@ -162,7 +162,7 @@ The following shell commands publish video from a file to the channel:
 $ cd <project_dir>
 $ source activate.sh
 $ ./satori_video_publisher --input-camera \
-                           --endpoint="xxxxxxx.api.satori.com" \
+                           --endpoint="wss://xxxxxxx.api.satori.com" \
                            --appkey="00112233445566778899AABBCCDDEEFF" \
                            --channel="input_channel"
 ```

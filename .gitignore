@@ -2,7 +2,7 @@
 .out
 .idea
 .vscode
-
+docs/.DS_Store
 cmake-build-*
 build
 

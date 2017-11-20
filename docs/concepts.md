@@ -192,7 +192,7 @@ invokes your callback again, it sends the next sequential frame.<br><br>
 For example, suppose you're running in batch mode, and the SDK invokes your callback with frame 1. While you're
 processing frame 1, the SDK decodes frames 2 through 6. When your callback returns, the SDK invokes your
 callback with *frame 2*. Your callback has the opportunity to process every frame in the stream.<br><br>
-Batch mode only works with files, and it's provided so you can test your bot during development. **Don't use batch mode
+Batch mode only works with files. It's provided so you can test your bot during development. **Don't use batch mode
 in production.**
 
 ## Logging and debugging

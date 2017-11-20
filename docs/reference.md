@@ -46,7 +46,7 @@ If you want to use the OpenCV image processing library in your video bot, you al
 |------------------------------------------------------------------|----------------------------|
 | [`opencv_bot.h`](../include/satorivideo/opencv/opencv_bot.h)     | OpenCV video bot API       |
 | [`opencv_utils.h`](../include/satorivideo/opencv/opencv_utils.h) | OpenCV video bot utilities |
-| `opencv.hpp` for OpenCV2Z3221`221` (installed during the build)  | OpenCV API                 |
+| `opencv.hpp` for OpenCV2 (installed during the build)           | OpenCV API                 |
 
 The bot build process uses `conan` to install these files.
 
@@ -418,11 +418,10 @@ Satori channel endpoint for the output channel. This value is
 available from your project page in the Satori Dev Portal. The format is
 `<val>.api.satori.com`, where `<val>` is unique to your project.
 
-`--appkey <key>`
-
-Appkey for your project. This value is available from your
-project page in the Satori Dev Portal. The format is a 32-character
-hexadecimal value.
+`--appkey <key>`<br>
+    Specifies the appkey for your project. This value is available from your
+    project page in the Satori Dev Portal. The format is a 32-character
+    hexadecimal value.
 
 `--port <port>`
 
@@ -842,6 +841,13 @@ Record `<rfile>`, the path-relative name of a file that contains RTM messages re
 `--input-camera`
 
 Record video from the macOS laptop camera.
+Record video from the macOS laptop camera.
+
+`--loop`
+
+For `--input-video-file` or `--input-replay-file`, indicates that the file contains a video loop.
+
+**Note:** If you specify this parameter and the file *doesn't* contain a video loop, the utility hangs.
 
 `--time-limit <tlimit>`
 
@@ -895,4 +901,4 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 
 `--help`
 
-Display usage hints for the \*.
+Display usage hints for the utility.
