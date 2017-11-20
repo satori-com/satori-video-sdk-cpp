@@ -87,9 +87,10 @@ struct drain_source_impl : subscription {
     }
 
     _in_drain = true;
-    LOG(5) << this << " -> drain";
+    LOG(5) << "drain_source_impl(" << this << ") -> drain";
     auto exit_drain = gsl::finally([this]() {
-      LOG(5) << this << " <- drain needs=" << needs() << " _die=" << _die;
+      LOG(5) << "drain_source_impl(" << this << ") <- drain needs=" << needs()
+             << " _die=" << _die;
       if (_die) {
         die();
       } else {
@@ -111,12 +112,12 @@ struct drain_source_impl : subscription {
   }
 
   void deliver_on_subscribe() {
-    LOG(5) << this << " drain_source_impl::deliver_on_subscribe";
+    LOG(5) << "drain_source_impl(" << this << ")::deliver_on_subscribe";
     _sink.on_subscribe(*this);
   }
 
   void deliver_on_next(T &&t) {
-    LOG(5) << this << " drain_source_impl::deliver_on_next to " << &_sink;
+    LOG(5) << "drain_source_impl(" << this << ")::deliver_on_next to " << &_sink;
     _delivered++;
     CHECK(!_die);
     CHECK(_delivered <= _requested);
@@ -124,7 +125,7 @@ struct drain_source_impl : subscription {
   }
 
   void deliver_on_error(std::error_condition ec) {
-    LOG(5) << this << " drain_source_impl::deliver_on_error";
+    LOG(5) << "drain_source_impl(" << this << ")::deliver_on_error";
     CHECK(!_die);
     _sink.on_error(ec);
     if (!_in_drain) {
@@ -135,7 +136,7 @@ struct drain_source_impl : subscription {
   }
 
   void deliver_on_complete() {
-    LOG(5) << this << " drain_source_impl::deliver_on_complete";
+    LOG(5) << "drain_source_impl(" << this << ")::deliver_on_complete";
     CHECK(!_die);
     _sink.on_complete();
     if (!_in_drain) {
@@ -146,7 +147,7 @@ struct drain_source_impl : subscription {
   }
 
   void cancel() override {
-    LOG(4) << this << " drain_source_impl::cancel in_drain=" << _in_drain;
+    LOG(4) << "drain_source_impl(" << this << ")::cancel in_drain=" << _in_drain;
     CHECK(!_die);
     if (!_in_drain) {
       die();
@@ -158,7 +159,7 @@ struct drain_source_impl : subscription {
  private:
   void request(int n) final {
     CHECK_GT(n, 0);
-    LOG(4) << this << " drain_source_impl::request " << n;
+    LOG(4) << "drain_source_impl(" << this << ")::request " << n;
     CHECK(!_die);
     _requested += n;
     drain();
@@ -357,7 +358,7 @@ struct generator_publisher : publisher_impl<T> {
   };
 
   explicit generator_publisher(Generator &&gen) : _gen(std::move(gen)) {
-    LOG(5) << this << " generator_publisher::ctor";
+    LOG(5) << "generator_publisher(" << this << ")::ctor";
   }
 
   void subscribe(subscriber<value_t> &s) override {

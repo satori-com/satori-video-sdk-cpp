@@ -14,6 +14,10 @@ struct stream_error_category : std::error_category {
         return "value was moved";
       case stream_error::NotInitialized:
         return "not initialized";
+      case stream_error::AsioError:
+        return "asio error";
+      case stream_error::Timeout:
+        return "timeout";
     }
   }
 };

@@ -16,6 +16,7 @@
 #include "streams/threaded_worker.h"
 
 using namespace satori::video;
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -52,7 +53,7 @@ std::vector<std::string> events(streams::publisher<T> &&p,
   if (io) {
     run_wait(*io, when_done);
   } else {
-    spin_wait(when_done, std::chrono::milliseconds(1));
+    spin_wait(when_done, 1ms);
   }
 
   BOOST_TEST(when_done.resolved());
@@ -234,7 +235,7 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
           int i = counter++;
           LOG(1) << "on_next " << i;
           s->on_next(std::move(i));
-          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+          std::this_thread::sleep_for(5ms);
         }
         delete this;
       }}
@@ -262,7 +263,7 @@ BOOST_AUTO_TEST_CASE(delay_finally) {
   boost::asio::io_service io_service;
   bool terminated = false;
   auto p = streams::publishers::of({1, 2, 3, 4, 5})
-           >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
+           >> streams::asio::interval<int>(io_service, 5ms)
            >> streams::do_finally([&terminated]() { terminated = true; });
   BOOST_TEST(!terminated);
   BOOST_TEST(events(std::move(p), &io_service)
@@ -295,10 +296,11 @@ struct collector_sink : public streams::subscriber<T> {
 };
 
 BOOST_AUTO_TEST_CASE(collector_asio) {
+  LOG_SCOPE_FUNCTION(INFO);
   boost::asio::io_service io_service;
   bool terminated = false;
   auto p = streams::publishers::range(1, 300000000)
-           >> streams::asio::interval<int>(io_service, std::chrono::milliseconds(5))
+           >> streams::asio::interval<int>(io_service, 5ms)
            >> streams::take_while([](auto i) { return i < 10; })
            >> streams::do_finally([&terminated]() { terminated = true; });
   auto s = std::make_unique<collector_sink<int>>();
@@ -352,6 +354,25 @@ BOOST_AUTO_TEST_CASE(merge_with_both_empty) {
   auto e = events(std::move(p));
   std::sort(e.begin(), e.end());
   BOOST_TEST(e == strings({"."}));
+}
+
+BOOST_AUTO_TEST_CASE(timeout_ok) {
+  LOG_SCOPE_FUNCTION(INFO);
+  boost::asio::io_service io_service;
+  auto p =
+      streams::publishers::range(1, 3) >> streams::asio::timeout<int>(io_service, 1ms);
+  auto e = events(std::move(p), &io_service);
+  BOOST_TEST(e == strings({"1", "2", "."}));
+}
+
+BOOST_AUTO_TEST_CASE(timeout_err) {
+  LOG_SCOPE_FUNCTION(INFO);
+  boost::asio::io_service io_service;
+  auto p = streams::publishers::range(1, 3)
+           >> streams::asio::interval<int>(io_service, 5ms)
+           >> streams::asio::timeout<int>(io_service, 1ms);
+  auto e = events(std::move(p), &io_service);
+  BOOST_TEST(e == strings({"1", "error:timeout"}));
 }
 
 int main(int argc, char *argv[]) {

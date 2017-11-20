@@ -48,7 +48,7 @@ struct delay_op {
 
     ~instance() override {
       _timer.reset();
-      LOG(5) << "delay_op(" << this << "::~delay_op";
+      LOG(5) << "delay_op(" << this << ")::~delay_op";
     }
 
     void on_next(T &&t) override {
@@ -92,11 +92,15 @@ struct delay_op {
     }
 
     void cancel() override {
-      LOG(5) << "delay_op(" << this << ")::cancel _buffer.size()=" << _buffer.size();
-      CHECK(_active);
-      _src->cancel();
-      _src = nullptr;
-      _active = false;
+      LOG(5) << "delay_op(" << this << ")::cancel _active=" << _active
+             << " _buffer.size()=" << _buffer.size();
+
+      // the source might have already completed, but we haven't.
+      if (_active) {
+        _src->cancel();
+        _src = nullptr;
+        _active = false;
+      }
       _cancelled = true;
 
       if (_buffer.empty()) {
@@ -110,16 +114,27 @@ struct delay_op {
         // we are still draining, ignore request.
         return;
       }
-      LOG(5) << "request n=" << n;
+      LOG(5) << "delay_op(" << this << ")::request n=" << n;
       _src->request(n);
     }
 
     void on_timer() {
-      LOG(5) << "delay_op::on_timer _buffer.size()=" << _buffer.size();
+      LOG(5) << "delay_op(" << this << ")::on_timer _cancelled=" << _cancelled
+             << " _buffer.size()=" << _buffer.size();
+      if (_cancelled) {
+        delete this;
+        return;
+      }
 
       CHECK(!_buffer.empty());
       _sink.on_next(std::move(_buffer.front()));
       _buffer.pop_front();
+
+      // we can be cancelled as a result of on_next call.
+      if (_cancelled) {
+        delete this;
+        return;
+      }
 
       if (!_buffer.empty()) {
         schedule_timer();
@@ -162,7 +177,6 @@ struct delay_op {
     subscription *_src;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
     std::deque<T> _buffer;
-    std::atomic<long> _queued{0};
     std::atomic<bool> _active{true};
     std::atomic<bool> _cancelled{false};
     std::error_condition _error{};
@@ -170,6 +184,108 @@ struct delay_op {
 
   boost::asio::io_service &_io;
   Fn _fn;
+};
+
+struct timeout_op {
+  timeout_op(boost::asio::io_service &io, std::chrono::milliseconds time)
+      : _io(io), _time(time) {}
+
+  template <typename T>
+  struct instance : subscriber<T>, subscription {
+    using value_t = T;
+
+    static publisher<T> apply(publisher<T> &&src, timeout_op &&op) {
+      return publisher<T>(new streams::impl::op_publisher<T, T, timeout_op>(
+          std::move(src), std::move(op)));
+    }
+
+    instance(timeout_op &&op, subscriber<T> &sink)
+        : _io(op._io), _time(op._time), _sink(sink) {
+      LOG(5) << "timeout_op(" << this << ")";
+    }
+
+    void request(int n) override {
+      LOG(5) << "timeout_op(" << this << ")::request " << n;
+      CHECK(_src);
+      arm_timer();
+      _src->request(n);
+    }
+
+    void cancel() override {
+      LOG(5) << "timeout_op(" << this << ")::cancel";
+      CHECK(_src);
+      _src->cancel();
+      _src = nullptr;
+      delete this;
+    }
+
+    void on_next(T &&t) override {
+      LOG(5) << "timeout_op(" << this << ")::on_next";
+      _sink.on_next(std::move(t));
+      arm_timer();
+    }
+
+    void on_error(std::error_condition ec) override {
+      LOG(5) << "timeout_op(" << this << ")::on_error";
+      CHECK(_src);
+      _src = nullptr;
+      _sink.on_error(ec);
+      delete this;
+    }
+
+    void on_complete() override {
+      LOG(5) << "timeout_op(" << this << ")::on_complete";
+      CHECK(_src);
+      _src = nullptr;
+      _sink.on_complete();
+      delete this;
+    }
+
+    void on_subscribe(subscription &src) override {
+      LOG(5) << "timeout_op(" << this << ")::on_subscribe";
+      CHECK(!_src);
+      _src = &src;
+      _timer = std::make_unique<boost::asio::deadline_timer>(_io);
+      _sink.on_subscribe(*this);
+    }
+
+    void arm_timer() {
+      LOG(5) << "timeout_op(" << this << ")::arm_timer";
+      CHECK(_timer);
+      _timer->cancel();
+      _timer->expires_from_now(to_boost(_time));
+      _timer->async_wait([this](const boost::system::error_code &ec) {
+        if (ec.value() != 0) {
+          if (ec.value() == boost::system::errc::operation_canceled) {
+            LOG(5) << "timeout_op(" << this << ") timer operation cancelled";
+          } else {
+            LOG(ERROR) << "ASIO ERROR: " << ec.message();
+            send_error_downstream(stream_error::AsioError);
+          }
+          return;
+        }
+        LOG(1) << "timeout_op(" << this << ") timeout detected, sending error upstream";
+        send_error_downstream(stream_error::Timeout);
+      });
+    }
+
+    void send_error_downstream(std::error_condition ec) {
+      CHECK(_src);
+      _src->cancel();
+      _src = nullptr;
+      _sink.on_error(ec);
+      delete this;
+    }
+
+    boost::asio::io_service &_io;
+    const std::chrono::milliseconds _time;
+    subscriber<T> &_sink;
+    subscription *_src{nullptr};
+    std::unique_ptr<boost::asio::deadline_timer> _timer;
+  };
+
+  boost::asio::io_service &_io;
+  const std::chrono::milliseconds _time;
 };
 
 }  // namespace impl
@@ -233,6 +349,10 @@ streams::op<T, T> timer_breaker(boost::asio::io_service &io,
              return result;
            });
   };
+}
+template <typename T>
+auto timeout(boost::asio::io_service &io, std::chrono::milliseconds time) {
+  return impl::timeout_op(io, time);
 }
 
 }  // namespace asio

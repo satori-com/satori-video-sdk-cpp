@@ -26,6 +26,10 @@ template <typename T>
 streams::op<T, T> timer_breaker(boost::asio::io_service &io,
                                 std::chrono::milliseconds time);
 
+// Errors the stream if no item is sent within specified time.
+template <typename T>
+inline auto timeout(boost::asio::io_service &io, std::chrono::milliseconds time);
+
 }  // namespace asio
 }  // namespace streams
 }  // namespace video
