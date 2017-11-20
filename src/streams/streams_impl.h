@@ -373,19 +373,24 @@ struct generator_publisher : publisher_impl<T> {
 // TODO: need to fix, this is a very dumb implementation of merge_op
 template <typename T>
 struct merge_publisher : publisher_impl<T> {
+  using upstream_id = int;
+
   template <typename T1>
   struct downstream;
 
   template <typename T1>
   struct upstream : subscriber<T> {
-    upstream(downstream<T> &d) : _d(d) {
+    upstream(upstream_id id, downstream<T> &d) : id(id), _d(d) {
       LOG(5) << this << " merge_publisher::upstream::ctor";
     }
 
     ~upstream() override { LOG(5) << this << " merge_publisher::upstream::dtor"; }
 
     void on_subscribe(subscription &s) override {
+      CHECK(!_subscribed);
       LOG(5) << this << " merge_publisher::upstream::on_subscribe";
+
+      _subscribed = true;
       _d.on_subscribe(this, s);
     }
 
@@ -397,14 +402,19 @@ struct merge_publisher : publisher_impl<T> {
     void on_error(std::error_condition ec) override {
       LOG(5) << this << " merge_publisher::upstream::on_error";
       _d.on_error(this, ec);
+      delete this;
     }
 
     void on_complete() override {
       LOG(5) << this << " merge_publisher::upstream::on_complete";
       _d.on_complete(this);
+      delete this;
     }
 
+    const upstream_id id;
+
    private:
+    bool _subscribed{false};
     downstream<T> &_d;
   };
 
@@ -418,15 +428,18 @@ struct merge_publisher : publisher_impl<T> {
     ~downstream() override { LOG(5) << this << " merge_publisher::downstream::dtor"; }
 
     void on_subscribe(upstream<T> *u, subscription &s) {
+      CHECK_NOTNULL(u);
+      CHECK(_upstreams.find(u->id) == _upstreams.end());
+
       LOG(5) << this << " merge_publisher::downstream::on_subscribe";
-      _upstreams.emplace(u, &s);
+      _upstreams.emplace(u->id, std::make_pair(u, &s));
     }
 
     void on_next(upstream<T> *u, T &&t) {
       LOG(5) << this << " merge_publisher::downstream::on_next";
       _call_stack_depth++;
 
-      CHECK(_upstreams.find(u) != _upstreams.end());
+      CHECK(_upstreams.find(u->id) != _upstreams.end());
 
       _items.push_back(std::move(t));
 
@@ -449,19 +462,20 @@ struct merge_publisher : publisher_impl<T> {
       _call_stack_depth--;
     }
 
-    void on_error(upstream<T> *u, std::error_condition ec) {
+    void on_error(upstream<T> *failed_upstream, std::error_condition ec) {
       LOG(5) << this << " merge_publisher::downstream::on_error";
       _call_stack_depth++;
 
-      disable_upstream(u);
+      disable_upstream(failed_upstream->id);
 
       for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
-        if (it->second != nullptr) {
-          LOG(5) << this << " merge_publisher::downstream::on_error upstream "
-                 << it->first;
-          it->second->cancel();
-          delete it->first;
-          it->second = nullptr;
+        upstream<T> *u = it->second.first;
+        if (u != nullptr) {
+          subscription *s = it->second.second;
+          LOG(5) << this << " merge_publisher::downstream::on_error cancelling upstream "
+                 << u;
+          s->cancel();
+          it->second = std::make_pair(nullptr, nullptr);
         }
       }
 
@@ -476,7 +490,7 @@ struct merge_publisher : publisher_impl<T> {
       LOG(5) << this << " merge_publisher::downstream::on_complete " << u;
       _call_stack_depth++;
 
-      disable_upstream(u);
+      disable_upstream(u->id);
 
       auto maybe_destroy = gsl::finally([this]() {
         if (is_complete()) {
@@ -508,10 +522,11 @@ struct merge_publisher : publisher_impl<T> {
         // TODO: better randomization, don't always start with first upstream
         // Maybe ring buffer would be better
         for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
-          if (it->second != nullptr) {
-            LOG(5) << this << " merge_publisher::downstream::request _upstream "
-                   << it->first;
-            it->second->request(n);  // TODO: avoid potential over-demanding
+          upstream<T> *u = it->second.first;
+          if (u != nullptr) {
+            subscription *s = it->second.second;
+            LOG(5) << this << " merge_publisher::downstream::request _upstream " << u;
+            s->request(n);  // TODO: avoid potential over-demanding
           }
         }
       }
@@ -530,11 +545,12 @@ struct merge_publisher : publisher_impl<T> {
       _call_stack_depth++;
 
       for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
-        if (it->second != nullptr) {
-          LOG(5) << this << " merge_publisher::downstream::cancel upstream " << it->first;
-          it->second->cancel();
-          delete it->first;
-          it->second = nullptr;
+        upstream<T> *u = it->second.first;
+        if (u != nullptr) {
+          subscription *s = it->second.second;
+          LOG(5) << this << " merge_publisher::downstream::cancel upstream " << u;
+          s->cancel();
+          it->second = std::make_pair(nullptr, nullptr);
         }
       }
 
@@ -555,7 +571,8 @@ struct merge_publisher : publisher_impl<T> {
 
       size_t active_upstreams{0};
       for (auto it = _upstreams.begin(); it != _upstreams.end(); it++) {
-        if (it->second != nullptr) {
+        upstream<T> *u = it->second.first;
+        if (u != nullptr) {
           active_upstreams++;
         }
       }
@@ -585,17 +602,26 @@ struct merge_publisher : publisher_impl<T> {
       }
     }
 
-    void disable_upstream(upstream<T> *u) noexcept {
-      auto it = _upstreams.find(u);
+    void disable_upstream(upstream_id uid) noexcept {
+      LOG(5) << this << " merge_publisher::disable_upstream id=" << uid;
+
+      auto it = _upstreams.find(uid);
       CHECK(it != _upstreams.end());
-      CHECK(it->second != nullptr);
-      delete it->first;
-      it->second = nullptr;
+
+      upstream<T> *u = it->second.first;
+      subscription *s = it->second.second;
+
+      LOG(5) << this << " merge_publisher::disable_upstream " << u;
+
+      CHECK_NOTNULL(u);
+      CHECK_NOTNULL(s);
+
+      it->second = std::make_pair(nullptr, nullptr);
     }
 
     subscriber<T> *_sink{nullptr};
     const size_t _expected_number_of_upstreams{0};
-    std::map<upstream<T> *, subscription *> _upstreams;
+    std::map<upstream_id, std::pair<upstream<T> *, subscription *>> _upstreams;
     std::deque<T> _items;
     long _items_needed{0};
     int _call_stack_depth{0};
@@ -612,8 +638,9 @@ struct merge_publisher : publisher_impl<T> {
     _subscribed = true;
 
     auto d = new downstream<T>(s, _publishers.size());
+    upstream_id uid{0};
     for (auto &p : _publishers) {
-      p->subscribe(*(new upstream<T>(*d)));
+      p->subscribe(*(new upstream<T>(uid++, *d)));
     }
     s.on_subscribe(*d);
   }

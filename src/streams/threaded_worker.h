@@ -26,6 +26,10 @@ struct threaded_worker_op {
              streams::subscriber<element_t> &sink)
           : _name(name), drain_source_impl<element_t>(sink) {
         _worker_thread = std::make_unique<std::thread>(&source::worker_thread_loop, this);
+
+        while (!_worker_thread_ready) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
         src->subscribe(*this);
       }
 
@@ -81,6 +85,7 @@ struct threaded_worker_op {
         while (_active) {
           {
             std::unique_lock<std::mutex> lock(_mutex);
+            _worker_thread_ready = true;
             while (_active && _buffer.empty()) {
               LOG(5) << this << " " << _name << " waiting for _on_send";
               _on_send.wait(lock);
@@ -96,6 +101,8 @@ struct threaded_worker_op {
 
         LOG(2) << this << " " << _name << " finished worker thread loop: "
                << (_complete ? "complete" : _ec.message());
+
+        _worker_thread_ready = true;
 
         if (!_cancelled) {
           if (_complete) {
@@ -143,6 +150,7 @@ struct threaded_worker_op {
         return false;
       }
 
+      std::atomic_bool _worker_thread_ready{false};
       const std::string _name;
       std::mutex _mutex;
       std::condition_variable _on_send;

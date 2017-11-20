@@ -154,6 +154,22 @@ BOOST_AUTO_TEST_CASE(concat_interval_threaded) {
   BOOST_TEST(completed);
 }
 
+BOOST_AUTO_TEST_CASE(merge_interval_threaded) {
+  boost::asio::io_service io;
+  bool completed = false;
+  auto p1 = streams::publishers::empty<int>();
+  auto p2 = streams::publishers::range(1, 6)
+            >> streams::asio::interval<int>(io, std::chrono::milliseconds(10))
+            >> streams::threaded_worker("test-worker-merge") >> streams::flatten();
+
+  auto p = streams::publishers::merge(std::move(p1), std::move(p2))
+           >> streams::do_finally([&completed]() { completed = true; });
+
+  BOOST_TEST(!completed);
+  BOOST_TEST(events(std::move(p), &io) == strings({"1", "2", "3", "4", "5", "."}));
+  BOOST_TEST(completed);
+}
+
 BOOST_AUTO_TEST_CASE(on_finally_empty) {
   LOG_SCOPE_FUNCTION(ERROR);
   bool terminated = false;
