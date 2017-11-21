@@ -123,21 +123,6 @@ auto &rtm_write_buffer_size_items = prometheus::BuildGauge()
                                         .Register(metrics_registry())
                                         .Add({});
 
-auto &rtm_async_writes_buffered_total = prometheus::BuildCounter()
-    .Name("rtm_async_writes_buffered_total")
-    .Register(metrics_registry())
-    .Add({});
-
-auto &rtm_async_writes_total = prometheus::BuildCounter()
-    .Name("rtm_async_writes_total")
-    .Register(metrics_registry())
-    .Add({});
-
-auto &rtm_async_writes_completed_total = prometheus::BuildCounter()
-    .Name("rtm_async_write_completed_total")
-    .Register(metrics_registry())
-    .Add({});
-
 std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -455,7 +440,6 @@ class secure_client : public client {
   void async_write(std::string &&buf) {
     LOG(2) << this << " async_write " << buf.size() << " bytes buffer "
            << _write_buffer.size();
-    rtm_async_writes_buffered_total.Increment();
     _write_buffer.push(std::move(buf));
     if (_write_buffer.size() == 1) {
       write_next_item();
@@ -469,13 +453,11 @@ class secure_client : public client {
     const std::string &top = _write_buffer.front();
     size_t size = top.size();
     rtm_bytes_written.Increment(size);
-    rtm_async_writes_total.Increment();
 
     _ws.async_write(asio::buffer(top.data(), size),
                     [this, size](boost::system::error_code const &ec,
                                  size_t bytes_transferred) mutable {
                       LOG(2) << this << " async_write done " << bytes_transferred;
-                      rtm_async_writes_completed_total.Increment();
                       if (ec.value() != 0) {
                         LOG(ERROR) << "asio write error: " << ec.message();
                         _callbacks.on_error(client_error::AsioError);
