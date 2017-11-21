@@ -14,7 +14,6 @@
 #include <gsl/gsl>
 #include <iostream>
 #include <memory>
-#include <queue>
 #include <utility>
 
 #include "cbor_json.h"
@@ -117,11 +116,6 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Name("rtm_last_ping_time_seconds")
                                        .Register(metrics_registry())
                                        .Add({});
-
-auto &rtm_write_buffer_size_items = prometheus::BuildGauge()
-                                        .Name("rtm_write_buffer_size_items")
-                                        .Register(metrics_registry())
-                                        .Add({});
 
 std::string to_string(const rapidjson::Value &d) {
   rapidjson::StringBuffer buffer;
@@ -322,10 +316,10 @@ class secure_client : public client {
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
-
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buf.GetSize());
-    async_write(std::string(buf.GetString(), buf.GetSize()));
+    rtm_bytes_written.Increment(buf.GetSize());
+    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -347,9 +341,10 @@ class secure_client : public client {
     rapidjson::StringBuffer buf;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
     document.Accept(writer);
+    rtm_bytes_written.Increment(buf.GetSize());
+    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
     LOG(1) << "requested subscribe for " << channel << ": "
            << std::string(buf.GetString());
-    async_write(std::string(buf.GetString(), buf.GetSize()));
   }
 
   void subscribe_filter(const std::string & /*filter*/, const subscription & /*sub*/,
@@ -373,11 +368,12 @@ class secure_client : public client {
       rapidjson::StringBuffer buf;
       rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
       document.Accept(writer);
-      LOG(1) << "requested unsubscribe for " << sub_id << ": "
-             << std::string(buf.GetString());
+      rtm_bytes_written.Increment(buf.GetSize());
+      _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
-      async_write(std::string(buf.GetString(), buf.GetSize()));
+      LOG(1) << "requested unsubscribe for " << sub_id << ": "
+             << std::string(buf.GetString());
       return;
     }
     ABORT() << "didn't find subscription";
@@ -435,41 +431,6 @@ class secure_client : public client {
       LOG(9) << this << " async_read asking for read";
       ask_for_read();
     });
-  }
-
-  void async_write(std::string &&buf) {
-    LOG(9) << this << " async_write " << buf.size() << " bytes buffer "
-           << _write_buffer.size();
-    _write_buffer.push(std::move(buf));
-    if (_write_buffer.size() == 1) {
-      write_next_item();
-    }
-  }
-
-  void write_next_item() {
-    CHECK(!_write_buffer.empty());
-    LOG(9) << this << " write_next_item";
-    rtm_write_buffer_size_items.Set(_write_buffer.size());
-    const std::string &top = _write_buffer.front();
-    size_t size = top.size();
-    rtm_bytes_written.Increment(size);
-
-    _ws.async_write(asio::buffer(top.data(), size),
-                    [this, size](boost::system::error_code const &ec,
-                                 size_t bytes_transferred) mutable {
-                      LOG(9) << this << " async_write done " << bytes_transferred;
-                      if (ec.value() != 0) {
-                        LOG(ERROR) << "asio write error: " << ec.message();
-                        _callbacks.on_error(client_error::AsioError);
-                        return;
-                      }
-                      CHECK_EQ(bytes_transferred, size);
-
-                      _write_buffer.pop();
-                      if (!_write_buffer.empty()) {
-                        write_next_item();
-                      }
-                    });
   }
 
   void arm_ping_timer() {
@@ -619,7 +580,6 @@ class secure_client : public client {
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
-  std::queue<std::string> _write_buffer;
 };
 
 }  // namespace
