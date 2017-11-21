@@ -209,18 +209,18 @@ class secure_client : public client {
       switch (type) {
         case boost::beast::websocket::frame_type::close:
           rtm_frames_received_total.Add({{"type", "close"}}).Increment();
-          LOG(INFO) << "got close frame " << payload;
+          LOG(2) << "got close frame " << payload;
           break;
         case boost::beast::websocket::frame_type::ping:
           rtm_frames_received_total.Add({{"type", "ping"}}).Increment();
-          LOG(INFO) << "got ping frame " << payload;
+          LOG(2) << "got ping frame " << payload;
           break;
         case boost::beast::websocket::frame_type::pong:
           rtm_frames_received_total.Add({{"type", "pong"}}).Increment();
           auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
           rtm_last_pong_time_seconds.Set(
               std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
-          LOG(INFO) << "got pong frame " << payload;
+          LOG(2) << "got pong frame " << payload;
           break;
       }
     };
@@ -434,7 +434,7 @@ class secure_client : public client {
   }
 
   void arm_ping_timer() {
-    LOG(1) << this << " setting ws ping timer";
+    LOG(2) << this << " setting ws ping timer";
 
     _ping_timer.expires_from_now(WS_PING_INTERVAL);
     _ping_timer.async_wait([this](const boost::system::error_code &ec) {
@@ -444,21 +444,21 @@ class secure_client : public client {
           std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
 
       _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec) {
-        LOG(1) << this << " ping_write_handler";
+        LOG(2) << this << " ping_write_handler";
         if (ec == boost::asio::error::operation_aborted) {
           LOG(ERROR) << this << " ping operation is aborted/cancelled";
           // TODO: should we react, or just rely on _ws.async_read()
           return;
         }
 
-        LOG(1) << this << " ping_write_handler ec.value() = " << ec.value();
+        LOG(2) << this << " ping_write_handler ec.value() = " << ec.value();
         if (ec.value() != 0) {
           LOG(ERROR) << this << " asio error: " << ec.message();
           _callbacks.on_error(client_error::AsioError);
           return;
         }
 
-        LOG(1) << this << " requesting another ping";
+        LOG(2) << this << " requesting another ping";
         arm_ping_timer();
       });
     });
