@@ -28,16 +28,15 @@ struct url_source_impl {
       }
 
       read_loop();
-    })
-        .detach();
+    }).detach();
   }
 
-  ~url_source_impl() {
+  void stop() {
     if (_reader_thread_id == std::this_thread::get_id()) {
-      return;
+      delete this;
+    } else {
+      ABORT_S() << "should not happen";
     }
-
-    ABORT_S() << "should not happen";
   }
 
   std::error_condition start(const std::string &options) {
@@ -129,7 +128,7 @@ streams::publisher<encoded_packet> url_source(const std::string &url,
              [url, options](streams::observer<encoded_packet> &sink) {
                return new url_source_impl(url, options, sink);
              },
-             [](url_source_impl *impl) { delete impl; })
+             [](url_source_impl *impl) { impl->stop(); })
          >> streams::flatten();
 }
 }  // namespace video
