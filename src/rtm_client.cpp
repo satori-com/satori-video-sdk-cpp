@@ -438,7 +438,7 @@ class secure_client : public client {
   }
 
   void async_write(std::string &&buf) {
-    LOG(9) << this << " async_write " << buf.size() << " bytes buffer "
+    LOG(2) << this << " async_write " << buf.size() << " bytes buffer "
            << _write_buffer.size();
     _write_buffer.push(std::move(buf));
     if (_write_buffer.size() == 1) {
@@ -448,7 +448,7 @@ class secure_client : public client {
 
   void write_next_item() {
     CHECK(!_write_buffer.empty());
-    LOG(9) << this << " write_next_item";
+    LOG(2) << this << " write_next_item";
     rtm_write_buffer_size_items.Set(_write_buffer.size());
     const std::string &top = _write_buffer.front();
     size_t size = top.size();
@@ -457,7 +457,7 @@ class secure_client : public client {
     _ws.async_write(asio::buffer(top.data(), size),
                     [this, size](boost::system::error_code const &ec,
                                  size_t bytes_transferred) mutable {
-                      LOG(9) << this << " async_write done " << bytes_transferred;
+                      LOG(2) << this << " async_write done " << bytes_transferred;
                       if (ec.value() != 0) {
                         LOG(ERROR) << "asio write error: " << ec.message();
                         _callbacks.on_error(client_error::AsioError);
