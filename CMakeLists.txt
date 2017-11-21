@@ -136,6 +136,10 @@ function(set_binary_output_directory TARGET DIRECTORY)
             RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/${DIRECTORY})
     set_property(TARGET ${TARGET} PROPERTY
             RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY
+            RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/${DIRECTORY})
+    set_property(TARGET ${TARGET} PROPERTY
+            RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/${DIRECTORY})
 endfunction()
 
 add_executable(satori_video_publisher src/clitools/publisher.cpp)
