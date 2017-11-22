@@ -45,6 +45,11 @@ variables_map parse_command_line(int argc, char* argv[],
                         po::value<std::string>()->default_value(""),
                         "socket bind address:port for metrics server");
 
+  po::options_description bot_as_a_service_options("Bot as a service options");
+  bot_configuration_options.add_options()("service-mode", po::value<bool>()->default_value(false),
+                        "Start bot as a service, in this case bot advertises its capacity "
+                        "on RTM channel and listens for VMGR assignations");
+
   po::options_description bot_configuration_options("Bot configuration options");
   bot_configuration_options.add_options()(
       "id", po::value<std::string>()->default_value(""), "bot id");
