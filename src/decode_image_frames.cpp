@@ -146,9 +146,10 @@ struct image_decoder_op {
                 f.timestamp.time_since_epoch())
                 .count();
 
+        // TODO: wrap avcodec_send_packet() into C++ function that returns error_condition
         int err = avcodec_send_packet(_context.get(), _packet.get());
         av_packet_unref(_packet.get());
-        if (err > 0) {
+        if (err < 0) {
           LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
           return;
         }
