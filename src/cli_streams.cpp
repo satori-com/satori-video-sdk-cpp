@@ -254,7 +254,7 @@ bool configuration::validate(const po::variables_map &vm) const {
 
 std::shared_ptr<rtm::client> configuration::rtm_client(
     const po::variables_map &vm, boost::asio::io_service &io_service,
-    boost::asio::ssl::context &ssl_context,
+    std::thread::id io_thread_id, boost::asio::ssl::context &ssl_context,
     rtm::error_callbacks &rtm_error_callbacks) const {
   if (!enable_rtm_input && !enable_rtm_output) {
     return nullptr;
@@ -267,14 +267,16 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
   const std::string port = vm["port"].as<std::string>();
   const std::string appkey = vm["appkey"].as<std::string>();
 
-  return std::make_shared<rtm::resilient_client>(
-      io_service,
-      [endpoint, port, appkey, &io_service, &ssl_context,
-       &rtm_error_callbacks](rtm::error_callbacks &callbacks) {
-        return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1,
-                               callbacks);
-      },
-      rtm_error_callbacks);
+  return std::make_shared<rtm::thread_checking_client>(
+      io_service, io_thread_id,
+      std::make_unique<rtm::resilient_client>(
+          io_service, io_thread_id,
+          [endpoint, port, appkey, &io_service, &ssl_context,
+           &rtm_error_callbacks](rtm::error_callbacks &callbacks) {
+            return rtm::new_client(endpoint, port, appkey, io_service, ssl_context, 1,
+                                   callbacks);
+          },
+          rtm_error_callbacks));
 }
 
 std::string configuration::rtm_channel(const po::variables_map &vm) const {

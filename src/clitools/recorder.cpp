@@ -62,8 +62,8 @@ int main(int argc, char* argv[]) {
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
 
-  std::shared_ptr<rtm::client> rtm_client =
-      cli_cfg.rtm_client(vm, io_service, ssl_context, error_handler);
+  std::shared_ptr<rtm::client> rtm_client = cli_cfg.rtm_client(
+      vm, io_service, std::this_thread::get_id(), ssl_context, error_handler);
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
   streams::publisher<satori::video::encoded_packet> source =
@@ -73,12 +73,16 @@ int main(int argc, char* argv[]) {
              {SIGINT, SIGTERM, SIGQUIT})
       >> streams::threaded_worker("input_buffer") >> streams::flatten()
       >> satori::video::encode_vp9(25) >> streams::threaded_worker("vp9_encoded_buffer")
-      >> streams::flatten() >> streams::do_finally([&rtm_client]() {
-          if (rtm_client) {
-            if (auto ec = rtm_client->stop()) {
-              LOG(ERROR) << "error stopping rtm client: " << ec.message();
+      >> streams::flatten() >> streams::do_finally([&io_service, &rtm_client]() {
+          io_service.post([&rtm_client]() {
+            if (rtm_client) {
+              if (auto ec = rtm_client->stop()) {
+                LOG(ERROR) << "error stopping rtm client: " << ec.message();
+              } else {
+                LOG(INFO) << "rtm client was stopped";
+              }
             }
-          }
+          });
         });
 
   if (rtm_client) {

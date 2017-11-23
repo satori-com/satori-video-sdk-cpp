@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <vector>
 
 #include "logging.h"
@@ -115,7 +116,10 @@ struct subscriber {
 
 class client : public publisher, public subscriber {
  public:
+  // TODO: return deferred<std::error_condition>
   virtual std::error_condition start() __attribute__((warn_unused_result)) = 0;
+
+  // TODO: return deferred<std::error_condition>
   virtual std::error_condition stop() __attribute__((warn_unused_result)) = 0;
 };
 
@@ -125,14 +129,16 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
                                    boost::asio::ssl::context &ssl_ctx, size_t id,
                                    error_callbacks &callbacks);
 
-// reconnects on any error.
+// Reconnects on any error.
+// It is expected that methods of this client are invoked from ASIO loop thread.
 class resilient_client : public client, error_callbacks {
  public:
   using client_factory_t =
       std::function<std::unique_ptr<client>(error_callbacks &callbacks)>;
 
   explicit resilient_client(boost::asio::io_service &io_service,
-                            client_factory_t &&factory, error_callbacks &callbacks);
+                            std::thread::id io_thread_id, client_factory_t &&factory,
+                            error_callbacks &callbacks);
 
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override;
@@ -167,13 +173,47 @@ class resilient_client : public client, error_callbacks {
   };
 
   boost::asio::io_service &_io;
+  const std::thread::id _io_thread_id;
   client_factory_t _factory;
   error_callbacks &_error_callbacks;
   std::unique_ptr<client> _client;
-  std::mutex _client_mutex;
   bool _started{false};
 
   std::vector<subscription_info> _subscriptions;
+};
+
+// Forwards requests to ASIO loop thread if necessary.
+class thread_checking_client : public client {
+ public:
+  explicit thread_checking_client(boost::asio::io_service &io,
+                                  std::thread::id io_thread_id,
+                                  std::unique_ptr<client> client);
+
+  void publish(const std::string &channel, cbor_item_t *message,
+               publish_callbacks *callbacks) override;
+
+  void subscribe_channel(const std::string &channel, const subscription &sub,
+                         subscription_callbacks &callbacks,
+                         const subscription_options *options) override;
+
+  void subscribe_filter(const std::string &filter, const subscription &sub,
+                        subscription_callbacks &callbacks,
+                        const subscription_options *options) override;
+
+  void unsubscribe(const subscription &sub) override;
+
+  channel_position position(const subscription &sub) override;
+
+  bool is_up(const subscription &sub) override;
+
+  std::error_condition start() override;
+
+  std::error_condition stop() override;
+
+ private:
+  boost::asio::io_service &_io;
+  const std::thread::id _io_thread_id;
+  std::unique_ptr<client> _client;
 };
 
 }  // namespace rtm

@@ -219,8 +219,9 @@ int main(int argc, char *argv[]) {
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   struct rtm_error_handler rtm_error_handler;
 
-  std::shared_ptr<rtm::client> rtm_client =
-      cli_cfg.rtm_client(vm, io_service, ssl_context, rtm_error_handler);
+  // TODO (needs fix): pass asio thread id instead of current
+  std::shared_ptr<rtm::client> rtm_client = cli_cfg.rtm_client(
+      vm, io_service, std::this_thread::get_id(), ssl_context, rtm_error_handler);
   if (rtm_client) {
     auto ec = rtm_client->start();
     if (ec) {
@@ -237,13 +238,16 @@ int main(int argc, char *argv[]) {
       >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
       >> streams::flatten() >> surface_to_texture(renderer)
       >> streams::threaded_worker("player.texture_buffer") >> streams::flatten()
-      >> streams::do_finally([&rtm_client]() {
-          if (rtm_client) {
-            auto ec = rtm_client->stop();
-            if (ec) {
-              LOG(ERROR) << "error stopping rtm client: " << ec.message();
+      >> streams::do_finally([&io_service, &rtm_client]() {
+          io_service.post([&rtm_client]() {
+            if (rtm_client) {
+              if (auto ec = rtm_client->stop()) {
+                LOG(ERROR) << "error stopping rtm client: " << ec.message();
+              } else {
+                LOG(INFO) << "rtm client was stopped";
+              }
             }
-          }
+          });
         });
 
   auto when_done = source->process([renderer](std::shared_ptr<SDL_Texture> &&texture) {

@@ -215,7 +215,8 @@ int bot_environment::main(int argc, char* argv[]) {
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
-  _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, ssl_context, *this);
+  _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, std::this_thread::get_id(),
+                                   ssl_context, *this);
   if (_rtm_client) {
     if (auto ec = _rtm_client->start()) {
       ABORT() << "error starting rtm client: " << ec.message();
@@ -288,15 +289,19 @@ int bot_environment::main(int argc, char* argv[]) {
                 }
                 return pkt;
               })
-            >> streams::do_finally([this, &finished]() {
+            >> streams::do_finally([this, &finished, &io_service]() {
                 finished = true;
                 _bot_instance->stop();
-                if (_rtm_client) {
-                  auto ec = _rtm_client->stop();
-                  if (ec) {
-                    LOG(ERROR) << "error stopping rtm client: " << ec.message();
+
+                io_service.post([this]() {
+                  if (_rtm_client) {
+                    if (auto ec = _rtm_client->stop()) {
+                      LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                    } else {
+                      LOG(INFO) << "rtm client was stopped";
+                    }
                   }
-                }
+                });
               });
 
   _bot_instance->start(_source, _control_source);

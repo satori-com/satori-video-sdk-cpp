@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "data.h"
 #include "rtm_client.h"
@@ -23,7 +24,7 @@ struct configuration {
 
   std::shared_ptr<rtm::client> rtm_client(
       const po::variables_map &vm, boost::asio::io_service &io_service,
-      boost::asio::ssl::context &ssl_context,
+      std::thread::id io_thread_id, boost::asio::ssl::context &ssl_context,
       rtm::error_callbacks &rtm_error_callbacks) const;
 
   std::string rtm_channel(const po::variables_map &vm) const;

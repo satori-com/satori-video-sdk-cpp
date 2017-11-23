@@ -19,6 +19,7 @@
 #include "cbor_json.h"
 #include "logging.h"
 #include "metrics.h"
+#include "threadutils.h"
 
 namespace asio = boost::asio;
 
@@ -190,6 +191,19 @@ struct subscription_impl {
   uint64_t pending_request_id{UINT64_MAX};
 };
 
+enum class client_state { Stopped = 1, Running = 2, PendingStopped = 3 };
+
+std::ostream &operator<<(std::ostream &out, client_state const &s) {
+  switch (s) {
+    case client_state::Running:
+      return out << "client_state_running";
+    case client_state::PendingStopped:
+      return out << "client_state_pending_stopped";
+    case client_state::Stopped:
+      return out << "client_state_stopped";
+  }
+}
+
 class secure_client : public client {
  public:
   explicit secure_client(const std::string &host, const std::string &port,
@@ -229,7 +243,7 @@ class secure_client : public client {
   ~secure_client() override = default;
 
   std::error_condition start() override {
-    CHECK(_client_state.load() == client_state::Stopped);
+    CHECK_EQ(_client_state.load(), client_state::Stopped);
     LOG(INFO) << "Starting secure RTM client: " << _host << ":" << _port
               << ", appkey: " << _appkey;
 
@@ -271,7 +285,7 @@ class secure_client : public client {
   }
 
   std::error_condition stop() override {
-    CHECK(_client_state == client_state::Running);
+    CHECK_EQ(_client_state, client_state::Running);
     LOG(INFO) << "Stopping secure RTM client";
 
     _client_state = client_state::PendingStopped;
@@ -296,7 +310,12 @@ class secure_client : public client {
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override {
     CHECK(!callbacks) << "not implemented";
-    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
+    if (_client_state == client_state::PendingStopped) {
+      LOG(1) << "RTM client is pending stop";
+      return;
+    }
+    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+
     CHECK_EQ(0, cbor_refcount(message));
     cbor_incref(message);
     auto decref = gsl::finally([&message]() { cbor_decref(&message); });
@@ -325,7 +344,12 @@ class secure_client : public client {
   void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
-    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
+    if (_client_state == client_state::PendingStopped) {
+      LOG(1) << "RTM client is pending stop";
+      return;
+    }
+    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+
     _subscriptions.emplace(std::make_pair(
         channel,
         subscription_impl{channel, sub, callbacks, subscription_status::PendingSubscribe,
@@ -354,7 +378,12 @@ class secure_client : public client {
   }
 
   void unsubscribe(const subscription &sub_to_delete) override {
-    CHECK(_client_state == client_state::Running) << "Secure RTM client is not running";
+    if (_client_state == client_state::PendingStopped) {
+      LOG(1) << "RTM client is pending stop";
+      return;
+    }
+    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+
     for (auto &it : _subscriptions) {
       const std::string &sub_id = it.first;
       subscription_impl &sub = it.second;
@@ -405,8 +434,14 @@ class secure_client : public client {
 
       LOG(9) << this << " async_read ec.value() = " << ec.value();
       if (ec.value() != 0) {
-        LOG(ERROR) << "asio error: " << ec.message();
-        _callbacks.on_error(client_error::AsioError);
+        if (_client_state == client_state::Running) {
+          LOG(ERROR) << this << " asio error: " << ec.message();
+          _callbacks.on_error(client_error::AsioError);
+        } else {
+          LOG(INFO) << this << " ignoring asio error: " << ec.message()
+                    << " because in state " << _client_state;
+        }
+
         return;
       }
 
@@ -453,8 +488,14 @@ class secure_client : public client {
 
         LOG(2) << this << " ping_write_handler ec.value() = " << ec.value();
         if (ec.value() != 0) {
-          LOG(ERROR) << this << " asio error: " << ec.message();
-          _callbacks.on_error(client_error::AsioError);
+          if (_client_state == client_state::Running) {
+            LOG(ERROR) << this << " asio error: " << ec.message();
+            _callbacks.on_error(client_error::AsioError);
+          } else {
+            LOG(INFO) << this << " ignoring asio error: " << ec.message()
+                      << " because in state " << _client_state;
+          }
+
           return;
         }
 
@@ -561,7 +602,6 @@ class secure_client : public client {
     }
   }
 
-  enum class client_state { Stopped = 1, Running = 2, PendingStopped = 3 };
   std::atomic<client_state> _client_state{client_state::Stopped};
 
   const std::string _host;
@@ -596,15 +636,19 @@ std::unique_ptr<client> new_client(const std::string &endpoint, const std::strin
 }
 
 resilient_client::resilient_client(asio::io_service &io_service,
+                                   std::thread::id io_thread_id,
                                    resilient_client::client_factory_t &&factory,
                                    error_callbacks &callbacks)
-    : _io(io_service), _factory(std::move(factory)), _error_callbacks(callbacks) {
-  restart();
-}
+    : _io(io_service),
+      _io_thread_id(io_thread_id),
+      _factory(std::move(factory)),
+      _error_callbacks(callbacks) {}
 
 void resilient_client::publish(const std::string &channel, cbor_item_t *message,
                                publish_callbacks *callbacks) {
-  std::lock_guard<std::mutex> guard(_client_mutex);
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   _client->publish(channel, message, callbacks);
 }
 
@@ -612,7 +656,9 @@ void resilient_client::subscribe_channel(const std::string &channel,
                                          const subscription &sub,
                                          subscription_callbacks &callbacks,
                                          const subscription_options *options) {
-  std::lock_guard<std::mutex> guard(_client_mutex);
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   _subscriptions.push_back({channel, &sub, &callbacks, options});
   _client->subscribe_channel(channel, sub, callbacks, options);
 }
@@ -621,42 +667,67 @@ void resilient_client::subscribe_filter(const std::string & /*filter*/,
                                         const subscription & /*sub*/,
                                         subscription_callbacks & /*callbacks*/,
                                         const subscription_options * /*options*/) {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   ABORT() << "not implemented";
 }
 
 void resilient_client::unsubscribe(const subscription &sub) {
-  std::lock_guard<std::mutex> guard(_client_mutex);
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   _client->unsubscribe(sub);
   std::remove_if(_subscriptions.begin(), _subscriptions.end(),
                  [&sub](const subscription_info &si) { return &sub == si.sub; });
 }
 
 channel_position resilient_client::position(const subscription &sub) {
-  std::lock_guard<std::mutex> guard(_client_mutex);
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   return _client->position(sub);
 }
 
-bool resilient_client::is_up(const subscription &sub) { return _client->is_up(sub); }
+bool resilient_client::is_up(const subscription &sub) {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
+  return _client->is_up(sub);
+}
 
 std::error_condition resilient_client::start() {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
+  if (!_client) {
+    LOG(1) << "creating new client";
+    _client = _factory(*this);
+  }
+
   _started = true;
   return _client->start();
 }
 
 std::error_condition resilient_client::stop() {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   _started = false;
   return _client->stop();
 }
 
 void resilient_client::on_error(std::error_condition ec) {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
   LOG(INFO) << "restarting rtm client because of error: " << ec.message();
-  // this post prevents deadlock in case error happens in client method.
-  _io.post([this]() { restart(); });
+  restart();
 }
 
 void resilient_client::restart() {
-  LOG(1) << "acquiring client lock";
-  std::lock_guard<std::mutex> guard(_client_mutex);
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
 
   LOG(1) << "creating new client";
   _client = _factory(*this);
@@ -678,6 +749,91 @@ void resilient_client::restart() {
   }
 
   LOG(1) << "client restart done";
+}
+
+thread_checking_client::thread_checking_client(asio::io_service &io,
+                                               std::thread::id io_thread_id,
+                                               std::unique_ptr<client> client)
+    : _io(io), _io_thread_id(io_thread_id), _client(std::move(client)) {}
+
+void thread_checking_client::publish(const std::string &channel, cbor_item_t *message,
+                                     publish_callbacks *callbacks) {
+  if (std::this_thread::get_id() != _io_thread_id) {
+    LOG(WARNING) << "Forwarding request from thread "
+                 << threadutils::get_current_thread_name();
+    _io.post([this, channel, message, callbacks]() {
+      _client->publish(channel, message, callbacks);
+    });
+    return;
+  }
+
+  _client->publish(channel, message, callbacks);
+}
+
+void thread_checking_client::subscribe_channel(const std::string &channel,
+                                               const subscription &sub,
+                                               subscription_callbacks &callbacks,
+                                               const subscription_options *options) {
+  if (std::this_thread::get_id() != _io_thread_id) {
+    LOG(WARNING) << "Forwarding request from thread "
+                 << threadutils::get_current_thread_name();
+    _io.post([this, channel, &sub, &callbacks, options]() {
+      _client->subscribe_channel(channel, sub, callbacks, options);
+    });
+    return;
+  }
+
+  _client->subscribe_channel(channel, sub, callbacks, options);
+}
+
+void thread_checking_client::subscribe_filter(const std::string &filter,
+                                              const subscription &sub,
+                                              subscription_callbacks &callbacks,
+                                              const subscription_options *options) {
+  if (std::this_thread::get_id() != _io_thread_id) {
+    LOG(WARNING) << "Forwarding request from thread "
+                 << threadutils::get_current_thread_name();
+    _io.post([this, filter, &sub, &callbacks, options]() {
+      _client->subscribe_filter(filter, sub, callbacks, options);
+    });
+    return;
+  }
+
+  _client->subscribe_filter(filter, sub, callbacks, options);
+}
+
+void thread_checking_client::unsubscribe(const subscription &sub) {
+  if (std::this_thread::get_id() != _io_thread_id) {
+    LOG(5) << "Forwarding request from thread " << threadutils::get_current_thread_name();
+    _io.post([this, &sub]() { _client->unsubscribe(sub); });
+    return;
+  }
+
+  _client->unsubscribe(sub);
+}
+
+channel_position thread_checking_client::position(const subscription & /*sub*/) {
+  ABORT() << "not implemented";
+  return channel_position{0, 0};
+}
+
+bool thread_checking_client::is_up(const subscription & /*sub*/) {
+  ABORT() << "not implemented";
+  return false;
+}
+
+std::error_condition thread_checking_client::start() {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
+  return _client->start();
+}
+
+std::error_condition thread_checking_client::stop() {
+  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
+      << "Invocation from " << threadutils::get_current_thread_name();
+
+  return _client->stop();
 }
 
 }  // namespace rtm
