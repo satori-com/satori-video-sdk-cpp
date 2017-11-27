@@ -130,7 +130,9 @@ struct image_decoder_op {
       bytes_received.Increment(f.data.size());
 
       if (!_context) {
+        LOG(WARNING) << "dropping frame because there is no codec context";
         messages_dropped.Increment();
+        return;
       }
 
       {
