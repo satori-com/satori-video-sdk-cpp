@@ -53,8 +53,10 @@ struct delay_op {
 
     void on_next(T &&t) override {
       CHECK(_active);
+      CHECK_GT(_waiting_from_src, 0);
       LOG(5) << "delay_op(" << this << ")::on_next";
 
+      _waiting_from_src--;
       _buffer.push_back(std::move(t));
 
       if (_buffer.size() == 1) {
@@ -110,23 +112,31 @@ struct delay_op {
     }
 
     void request(int n) override {
+      CHECK_GT(n, 0);
+
       if (!_active) {
         // we are still draining, ignore request.
         return;
       }
       LOG(5) << "delay_op(" << this << ")::request n=" << n;
-      _src->request(n);
+
+      CHECK_LE(n, INT_MAX - _sink_needs);
+      _sink_needs += n;
+
+      maybe_request();
     }
 
     void on_timer() {
       LOG(5) << "delay_op(" << this << ")::on_timer _cancelled=" << _cancelled
-             << " _buffer.size()=" << _buffer.size();
+             << " _buffer.size()=" << _buffer.size() << " _sink_needs=" << _sink_needs;
       if (_cancelled) {
         delete this;
         return;
       }
 
       CHECK(!_buffer.empty());
+      CHECK_GT(_sink_needs, 0);
+      _sink_needs--;
       _sink.on_next(std::move(_buffer.front()));
       _buffer.pop_front();
 
@@ -138,16 +148,22 @@ struct delay_op {
 
       if (!_buffer.empty()) {
         schedule_timer();
-      } else if (!_active) {
-        if (_error) {
-          LOG(5) << "delay_op not active, on_error";
-          _sink.on_error(_error);
-        } else if (!_cancelled) {
-          LOG(5) << "delay_op not active, on_complete";
-          _sink.on_complete();
-        }
-        delete this;
+        return;
       }
+
+      if (_active) {
+        maybe_request();
+        return;
+      }
+
+      if (_error) {
+        LOG(5) << "delay_op not active, on_error";
+        _sink.on_error(_error);
+      } else if (!_cancelled) {
+        LOG(5) << "delay_op not active, on_complete";
+        _sink.on_complete();
+      }
+      delete this;
     }
 
     void schedule_timer() {
@@ -170,6 +186,31 @@ struct delay_op {
       }
     }
 
+    void maybe_request() {
+      CHECK_GE(_sink_needs, 0);
+      CHECK_GE(_waiting_from_src, 0);
+      LOG(5) << "delay_op(" << this << ")::maybe_request _sink_needs=" << _sink_needs
+             << ", _buffer.size()=" << _buffer.size()
+             << ", _waiting_from_src=" << _waiting_from_src;
+
+      if (_sink_needs == 0) {
+        LOG(5) << "delay_op(" << this << ")::maybe_request sink doesn't need anything";
+        return;
+      }
+
+      if (_buffer.size() + _waiting_from_src >= _buffer_low_watermark) {
+        LOG(5) << "delay_op(" << this << ")::maybe_request enough items";
+        return;
+      }
+
+      int requesting = std::min(
+          _buffer_low_watermark - (int)_buffer.size() - _waiting_from_src, _sink_needs);
+      CHECK_GT(requesting, 0);
+      LOG(5) << "delay_op(" << this << ")::maybe_request requesting " << requesting;
+      _waiting_from_src += requesting;
+      _src->request(requesting);
+    }
+
     Fn _fn;
     subscriber<T> &_sink;
     boost::asio::io_service &_io;
@@ -180,6 +221,10 @@ struct delay_op {
     std::atomic<bool> _active{true};
     std::atomic<bool> _cancelled{false};
     std::error_condition _error{};
+
+    const int _buffer_low_watermark{20};
+    int _sink_needs{0};
+    int _waiting_from_src{0};
   };
 
   boost::asio::io_service &_io;
