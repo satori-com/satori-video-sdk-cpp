@@ -107,11 +107,13 @@ struct image_decoder_op {
     }
 
     void operator()(const encoded_metadata &m) {
-      LOG(1) << this << "received stream metadata";
+      LOG(INFO) << this << "received stream metadata " << m;
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
+        LOG(INFO) << "Ignoring same metadata";
         return;
       }
 
+      _current_metadata_frames_counter = 0;
       _metadata = m;
       _context = avutils::decoder_context(m.codec_name, m.codec_data);
       _packet = avutils::av_packet();
@@ -148,6 +150,11 @@ struct image_decoder_op {
                 f.timestamp.time_since_epoch())
                 .count();
 
+        if (_current_metadata_frames_counter % 1000 == 0) {
+          LOG(INFO) << "Current metadata is " << _metadata
+                    << ", frames_counter=" << _current_metadata_frames_counter;
+        }
+        _current_metadata_frames_counter++;
         // TODO: wrap avcodec_send_packet() into C++ function that returns error_condition
         int err = avcodec_send_packet(_context.get(), _packet.get());
         av_packet_unref(_packet.get());
@@ -288,6 +295,7 @@ struct image_decoder_op {
     streams::subscription *_source{nullptr};
     int _image_width{0};
     int _image_height{0};
+    uint64_t _current_metadata_frames_counter{0};
     encoded_metadata _metadata;
     std::shared_ptr<AVCodecContext> _context;
     std::shared_ptr<AVPacket> _packet;

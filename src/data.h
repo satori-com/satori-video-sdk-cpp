@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "satorivideo/video_bot.h"
 #include "satori_video.h"
+#include "satorivideo/video_bot.h"
 
 namespace satori {
 namespace video {
@@ -117,3 +117,9 @@ using owned_image_packet = boost::variant<owned_image_metadata, owned_image_fram
 
 }  // namespace video
 }  // namespace satori
+
+std::ostream &operator<<(std::ostream &out,
+                         const satori::video::network_metadata &metadata);
+
+std::ostream &operator<<(std::ostream &out,
+                         const satori::video::encoded_metadata &metadata);

@@ -78,3 +78,16 @@ std::vector<network_frame> encoded_frame::to_network(
 
 }  // namespace video
 }  // namespace satori
+
+std::ostream &operator<<(std::ostream &out,
+                         const satori::video::network_metadata &metadata) {
+  out << "(codec_name=" << metadata.codec_name << ",base64_data=" << metadata.base64_data
+      << ")";
+  return out;
+}
+
+std::ostream &operator<<(std::ostream &out,
+                         const satori::video::encoded_metadata &metadata) {
+  out << metadata.to_network();
+  return out;
+}
