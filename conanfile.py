@@ -88,3 +88,10 @@ class SatorivideoConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["satorivideo"]
+
+        # https://gcc.gnu.org/onlinedocs/gcc/Link-Options.html
+        # This option is needed for some uses of dlopen or to allow obtaining
+        # backtraces from within a program
+        if self.settings.compiler == "gcc":
+            self.cpp_info.cflags = ["-rdynamic"]
+            self.cpp_info.cppflags = ["-rdynamic"]
