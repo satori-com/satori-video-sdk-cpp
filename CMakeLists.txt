@@ -309,8 +309,13 @@ add_test(NAME ShutdownTest COMMAND bash -c "\
 ${CMAKE_BINARY_DIR}/test/test_configure_bot \
 --input-video-file=test_data/test.mp4 \
 --config-file=test_data/config.json \
+--analysis-file=test_shutdown_analysis.txt \
+--debug=test_shutdown_debug.txt \
 | tee /dev/tty \
-| grep 'bot is shutting down'")
+| grep 'bot is shutting down' \
+&& grep test_analysis_message test_shutdown_analysis.txt \
+&& grep test_debug_message test_shutdown_debug.txt \
+&& grep test_shutdown_message test_shutdown_debug.txt")
 
 add_test(NAME DefaultResolutionTest COMMAND bash -c "\
 ${CMAKE_BINARY_DIR}/test/test_bot \
@@ -375,3 +380,4 @@ add_video_test(cbor_tools_test test/cbor_tools_test.cpp)
 add_video_test(data_test test/data_test.cpp)
 add_video_test(encoding_test test/encoding_test.cpp)
 add_video_test(threadutils_test test/threadutils_test.cpp)
+add_video_test(bot_instance_test test/bot_instance_test.cpp)

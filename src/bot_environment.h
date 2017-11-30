@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/program_options.hpp>
-#include <gsl/gsl>
 #include <list>
 #include <memory>
 
@@ -21,7 +19,7 @@ struct bot_message {
   frame_id id;
 };
 
-class bot_environment : private rtm::error_callbacks {
+class bot_environment : private rtm::error_callbacks, boost::static_visitor<void> {
  public:
   static bot_environment& instance();
 
@@ -30,7 +28,9 @@ class bot_environment : private rtm::error_callbacks {
 
   rtm::publisher& publisher() { return *_rtm_client; }
 
-  void send_messages(std::list<struct bot_message>&& messages);
+  void operator()(const owned_image_metadata& metadata);
+  void operator()(const owned_image_frame& frame);
+  void operator()(struct bot_message& msg);
 
  private:
   void on_error(std::error_condition ec) override;
@@ -45,6 +45,7 @@ class bot_environment : private rtm::error_callbacks {
   std::unique_ptr<std::ofstream> _analysis_file;
   std::unique_ptr<std::ofstream> _debug_file;
 
+  // TODO: maybe make them local variables?
   streams::publisher<owned_image_packet> _source;
   streams::publisher<cbor_item_t*> _control_source;
 };

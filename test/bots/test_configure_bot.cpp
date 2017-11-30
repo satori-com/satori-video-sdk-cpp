@@ -42,7 +42,8 @@ cbor_item_t *process_command(sv::bot_context &ctx, cbor_item_t *config) {
     ctx.instance_data = new bot_state;
   } else if (action == "shutdown") {
     std::cout << "bot is shutting down\n";
-    delete static_cast<bot_state*>(ctx.instance_data);
+    delete static_cast<bot_state *>(ctx.instance_data);
+    return build_message("test_shutdown_message");
   }
 
   return nullptr;

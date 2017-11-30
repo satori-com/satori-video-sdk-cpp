@@ -9,11 +9,11 @@
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
+#include <gsl/gsl>
 
-#include "avutils.h"
 #include "bot_instance.h"
 #include "cbor_json.h"
-#include "cbor_tools.h"
+#include "cbor_tools.h"  // FIXME: this one is implicitly used by file_cbor_dump_observer
 #include "cli_streams.h"
 #include "logging_impl.h"
 #include "metrics.h"
@@ -161,23 +161,23 @@ bot_environment& bot_environment::instance() {
 
 void bot_environment::register_bot(const bot_descriptor& bot) { _bot_descriptor = bot; }
 
-void bot_environment::send_messages(std::list<struct bot_message>&& messages) {
-  for (auto&& msg : messages) {
-    CHECK_EQ(1, cbor_refcount(msg.data));
-    switch (msg.kind) {
-      case bot_message_kind::ANALYSIS:
-        _analysis_sink->on_next(cbor_move(msg.data));
-        break;
-      case bot_message_kind::CONTROL:
-        _control_sink->on_next(cbor_move(msg.data));
-        break;
-      case bot_message_kind::DEBUG:
-        _debug_sink->on_next(cbor_move(msg.data));
-        break;
-    }
-  }
+void bot_environment::operator()(const owned_image_metadata& /*metadata*/) {}
 
-  messages.clear();
+void bot_environment::operator()(const owned_image_frame& /*frame*/) {}
+
+void bot_environment::operator()(struct bot_message& msg) {
+  CHECK_EQ(1, cbor_refcount(msg.data));
+  switch (msg.kind) {
+    case bot_message_kind::ANALYSIS:
+      _analysis_sink->on_next(cbor_move(msg.data));
+      break;
+    case bot_message_kind::CONTROL:
+      _control_sink->on_next(cbor_move(msg.data));
+      break;
+    case bot_message_kind::DEBUG:
+      _debug_sink->on_next(cbor_move(msg.data));
+      break;
+  }
 }
 
 int bot_environment::main(int argc, char* argv[]) {
@@ -202,7 +202,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch") > 0;
   _bot_instance = std::make_shared<bot_instance>(
-      id, batch ? execution_mode::BATCH : execution_mode::LIVE, _bot_descriptor, *this);
+      id, batch ? execution_mode::BATCH : execution_mode::LIVE, _bot_descriptor);
 
   cbor_item_t* bot_config{nullptr};
   if (cmd_args.count("config-file") > 0) {
@@ -291,7 +291,6 @@ int bot_environment::main(int argc, char* argv[]) {
               })
             >> streams::do_finally([this, &finished, &io_service]() {
                 finished = true;
-                _bot_instance->stop();
 
                 io_service.post([this]() {
                   if (_rtm_client) {
@@ -304,7 +303,15 @@ int bot_environment::main(int argc, char* argv[]) {
                 });
               });
 
-  _bot_instance->start(_source, _control_source);
+  auto bot_input_stream = streams::publishers::merge<bot_input>(
+      std::move(_control_source)
+          >> streams::map([](cbor_item_t*&& t) { return bot_input{t}; }),
+      std::move(_source)
+          >> streams::map([](owned_image_packet&& p) { return bot_input{p}; }));
+
+  auto bot_output_stream = std::move(bot_input_stream) >> _bot_instance->run_bot();
+
+  bot_output_stream->process([this](bot_output&& o) { boost::apply_visitor(*this, o); });
 
   if (!batch_mode) {
     LOG(INFO) << "entering asio loop";

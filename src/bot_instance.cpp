@@ -1,5 +1,7 @@
 #include "bot_instance.h"
 
+#include <gsl/gsl>
+
 #include "cbor_tools.h"
 #include "metrics.h"
 #include "stopwatch.h"
@@ -27,103 +29,68 @@ cbor_item_t* build_configure_command(cbor_item_t* config) {
   cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
                      cbor_move(cbor_build_string("configure"))});
   cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
-  return cmd;
+  return cbor_move(cmd);
 }
 
 cbor_item_t* build_shutdown_command() {
   cbor_item_t* cmd = cbor_new_definite_map(2);
   cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
                      cbor_move(cbor_build_string("shutdown"))});
-  return cmd;
+  return cbor_move(cmd);
 }
 
 }  // namespace
 
-struct bot_instance::control_sub : streams::subscriber<cbor_item_t*> {
-  explicit control_sub(bot_instance* const bot) : _bot(bot) {}
-
-  ~control_sub() override {
-    if (_video_sub != nullptr) {
-      _video_sub->cancel();
-    }
-  }
-
-  void on_next(cbor_item_t*&& t) override {
-    _bot->operator()(t);
-    _video_sub->request(1);
-  }
-
-  void on_error(std::error_condition ec) override {
-    ABORT() << "Error in control stream: " << ec.message();
-  }
-
-  void on_complete() override { _video_sub = nullptr; }
-
-  void on_subscribe(streams::subscription& s) override {
-    _video_sub = &s;
-    _video_sub->request(1);
-  }
-
-  bot_instance* const _bot;
-  streams::subscription* _video_sub{nullptr};
-};
-
 bot_instance::bot_instance(const std::string& bot_id, const execution_mode execmode,
-                           const bot_descriptor& descriptor,
-                           satori::video::bot_environment& env)
+                           const bot_descriptor& descriptor)
     : _bot_id(bot_id),
       _descriptor(descriptor),
-      _env(env),
       bot_context{nullptr, &_image_metadata, execmode,
                   satori::video::metrics_registry()} {}
 
-bot_instance::~bot_instance() = default;
+streams::op<bot_input, bot_output> bot_instance::run_bot() {
+  return [this](streams::publisher<bot_input>&& src) {
+    auto main_stream =
+        std::move(src)
+        >> streams::map([this](bot_input&& p) { return boost::apply_visitor(*this, p); })
+        >> streams::flatten();
 
-void bot_instance::start(streams::publisher<owned_image_packet>& video_stream,
-                         streams::publisher<cbor_item_t*>& control_stream) {
-  _control_sub = std::make_unique<control_sub>(this);
-  control_stream->subscribe(*_control_sub);
-  // this will drain the stream in batch mode, should be last.
-  video_stream->subscribe(*this);
-}
+    // TODO: maybe initial config and shutdown message should be sent from the same place?
+    auto shutdown_stream = streams::generators<bot_output>::stateful(
+        [this]() {
+          LOG(INFO) << "shutting down bot";
+          if (_descriptor.ctrl_callback) {
+            cbor_item_t* cmd = build_shutdown_command();
+            auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
+            cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
+            if (response != nullptr) {
+              LOG(INFO) << "got shutdown response: " << response;
+              queue_message(bot_message_kind::DEBUG, response, frame_id{0, 0});
+            } else {
+              LOG(INFO) << "shutdown response is null";
+            }
+          }
 
-void bot_instance::stop() {
-  LOG(INFO) << "shutting down bot";
-  if (_descriptor.ctrl_callback) {
-    cbor_item_t* cmd = build_shutdown_command();
-    auto cbor_deleter = gsl::finally([&cmd]() {
-      cbor_decref(&cmd);
-    });
-    cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
-    if (response != nullptr) {
-      queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0, 0});
-    }
-  }
+          prepare_message_buffer_for_downstream(frame_id{0, 0});
 
-  if (_video_sub != nullptr) {
-    _video_sub->cancel();
-    _video_sub = nullptr;
-  }
-  _control_sub.reset();
+          return nullptr;
+        },
+        [this](void*, streams::observer<bot_output>& sink) {
+          if (_message_buffer.empty()) {
+            sink.on_complete();
+            return;
+          }
 
-  send_messages(frame_id{0, 0});
-}
+          LOG(INFO) << "sending shutdown";
+          struct bot_message msg = std::move(_message_buffer.front());
+          _message_buffer.pop_front();
 
-void bot_instance::on_error(std::error_condition ec) { ABORT() << ec.message(); }
+          sink.on_next(std::move(msg));
+        });
 
-void bot_instance::on_next(owned_image_packet&& packet) {
-  boost::apply_visitor(*this, packet);
-  _video_sub->request(1);
-}
-
-void bot_instance::on_complete() {
-  LOG(INFO) << "processing complete";
-  _video_sub = nullptr;
-}
-
-void bot_instance::on_subscribe(streams::subscription& s) {
-  _video_sub = &s;
-  _video_sub->request(1);
+    return streams::publishers::concat(std::move(main_stream),
+                                       std::move(shutdown_stream));
+  };
 }
 
 void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
@@ -135,9 +102,11 @@ void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* messa
   _message_buffer.push_back(newmsg);
 }
 
-void bot_instance::operator()(const owned_image_metadata& /*metadata*/) {}
+std::list<bot_output> bot_instance::operator()(const owned_image_metadata& metadata) {
+  return std::list<bot_output>{metadata};
+}
 
-void bot_instance::operator()(const owned_image_frame& frame) {
+std::list<bot_output> bot_instance::operator()(const owned_image_frame& frame) {
   LOG(1) << "process_image_frame " << frame.width << "x" << frame.height;
   stopwatch<> s;
 
@@ -162,29 +131,36 @@ void bot_instance::operator()(const owned_image_frame& frame) {
   processing_times_millis.Observe(s.millis());
   frames_processed.Increment();
 
-  send_messages(frame.id);
+  prepare_message_buffer_for_downstream(frame.id);
+
+  std::list<bot_output> result{_message_buffer.begin(), _message_buffer.end()};
+  _message_buffer.clear();
+  result.push_front(frame);
+
+  return result;
 }
 
-void bot_instance::operator()(cbor_item_t* msg) {
+std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
   // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-//  messages_received.Add({{"message_type", "control"}}).Increment();
+  //  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
   auto msg_decref = gsl::finally([&msg]() { cbor_decref(&msg); });
 
   if (cbor_isa_array(msg)) {
-    for (int i = 0; i < cbor_array_size(msg); ++i) {
-      this->operator()(cbor_array_get(msg, i));
+    std::list<bot_output> aggregated;
+    for (size_t i = 0; i < cbor_array_size(msg); ++i) {
+      aggregated.splice(aggregated.end(), this->operator()(cbor_array_get(msg, i)));
     }
-    return;
+    return aggregated;
   }
 
   if (!cbor_isa_map(msg)) {
     LOG(ERROR) << "unsupported kind of message: " << msg;
-    return;
+    return std::list<bot_output>{};
   }
 
   if (_bot_id.empty() || cbor::map(msg).get_str("to", "") != _bot_id) {
-    return;
+    return std::list<bot_output>{};
   }
 
   cbor_item_t* response = _descriptor.ctrl_callback(*this, msg);
@@ -200,25 +176,29 @@ void bot_instance::operator()(cbor_item_t* msg) {
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
   }
 
-  send_messages(frame_id{-1, -1});
+  prepare_message_buffer_for_downstream(frame_id{-1, -1});
+
+  std::list<bot_output> result{_message_buffer.begin(), _message_buffer.end()};
+  _message_buffer.clear();
+  return result;
 }
 
-void bot_instance::send_messages(const frame_id& id) {
+void bot_instance::prepare_message_buffer_for_downstream(const frame_id& id) {
   for (auto&& msg : _message_buffer) {
     // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-/*
-    switch (msg.kind) {
-      case bot_message_kind::ANALYSIS:
-        messages_sent.Add({{"message_type", "analysis"}}).Increment();
-        break;
-      case bot_message_kind::DEBUG:
-        messages_sent.Add({{"message_type", "debug"}}).Increment();
-        break;
-      case bot_message_kind::CONTROL:
-        messages_sent.Add({{"message_type", "control"}}).Increment();
-        break;
-    }
-*/
+    /*
+        switch (msg.kind) {
+          case bot_message_kind::ANALYSIS:
+            messages_sent.Add({{"message_type", "analysis"}}).Increment();
+            break;
+          case bot_message_kind::DEBUG:
+            messages_sent.Add({{"message_type", "debug"}}).Increment();
+            break;
+          case bot_message_kind::CONTROL:
+            messages_sent.Add({{"message_type", "control"}}).Increment();
+            break;
+        }
+    */
 
     cbor_item_t* data = msg.data;
 
@@ -237,7 +217,6 @@ void bot_instance::send_messages(const frame_id& id) {
                           cbor_move(cbor_build_string(_bot_id.c_str()))});
     }
   }
-  _env.send_messages(std::move(_message_buffer));
 }
 
 void bot_instance::configure(cbor_item_t* config) {
@@ -259,9 +238,10 @@ void bot_instance::configure(cbor_item_t* config) {
     cbor_decref(&cmd);
   });
 
-  LOG(INFO) << "configuring bot";
+  LOG(INFO) << "configuring bot: " << cmd;
   cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
   if (response != nullptr) {
+    // TODO: add test, probably we don't need cbor_move() here
     queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0, 0});
   }
 }
