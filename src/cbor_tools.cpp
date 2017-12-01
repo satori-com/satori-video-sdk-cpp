@@ -7,6 +7,7 @@
 namespace cbor {
 cbor_item_t *map_get(const cbor_item_t *map, const std::string &name,
                      cbor_item_t *default_value) {
+  CHECK(cbor_isa_map(map));
   if (map != nullptr) {
     for (size_t i = 0; i < cbor_map_size(map); i++) {
       cbor_item_t *key = cbor_map_handle(map)[i].key;
