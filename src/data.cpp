@@ -2,12 +2,13 @@
 
 #include "base64.h"
 #include "data.h"
+#include "logging.h"
 
 namespace satori {
 namespace video {
 
 cbor_item_t *network_frame::to_cbor() const {
-  cbor_item_t *root = cbor_new_definite_map(6);
+  cbor_item_t *root = cbor_new_indefinite_map();
 
   cbor_map_add(root, {cbor_move(cbor_build_string("d")),
                       cbor_move(cbor_build_string(base64_data.c_str()))});
@@ -33,13 +34,21 @@ cbor_item_t *network_frame::to_cbor() const {
 }
 
 cbor_item_t *network_metadata::to_cbor() const {
-  cbor_item_t *root = cbor_new_definite_map(2);
+  cbor_item_t *root = cbor_new_indefinite_map();
 
   cbor_map_add(root, {cbor_move(cbor_build_string("codecName")),
                       cbor_move(cbor_build_string(codec_name.c_str()))});
 
   cbor_map_add(root, {cbor_move(cbor_build_string("codecData")),
                       cbor_move(cbor_build_string(base64_data.c_str()))});
+
+  if (additional_data != nullptr) {
+    CHECK(cbor_isa_map(additional_data));
+    for (size_t i = 0; i < cbor_map_size(additional_data); i++) {
+      cbor_map_add(root, {cbor_incref(cbor_map_handle(additional_data)[i].key),
+                          cbor_incref(cbor_map_handle(additional_data)[i].value)});
+    }
+  }
 
   return root;
 }
@@ -50,6 +59,9 @@ network_metadata encoded_metadata::to_network() const {
   nm.codec_name = codec_name;
   if (!codec_data.empty()) {
     nm.base64_data = std::move(satori::video::encode64(codec_data));
+  }
+  if (additional_data != nullptr) {
+    nm.additional_data = cbor_incref(additional_data);
   }
 
   return nm;

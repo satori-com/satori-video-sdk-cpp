@@ -30,8 +30,15 @@ static constexpr size_t max_payload_size = 65000;
 // network representation of codec parameters, e.g. in binary data
 // is converted into base64, because RTM supports only text/json data
 struct network_metadata {
+  ~network_metadata() {
+    if (additional_data != nullptr) {
+      cbor_decref(&additional_data);
+    }
+  }
+
   std::string codec_name;
   std::string base64_data;
+  cbor_item_t *additional_data{nullptr};
 
   cbor_item_t *to_cbor() const;
 };
@@ -66,9 +73,17 @@ struct image_size {
 
 // codec parameters to decode encoded frames
 struct encoded_metadata {
+  ~encoded_metadata() {
+    if (additional_data != nullptr) {
+      cbor_decref(&additional_data);
+    }
+  }
+
   std::string codec_name;
   std::string codec_data;
   boost::optional<struct image_size> image_size;
+
+  cbor_item_t *additional_data{nullptr};
 
   network_metadata to_network() const;
 };
