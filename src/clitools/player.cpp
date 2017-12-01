@@ -1,25 +1,20 @@
 #include <boost/program_options.hpp>
+#include <gsl/gsl>
 #include <memory>
 #include <thread>
 #include "SDL2/SDL.h"
 
-#include "avutils.h"
 #include "cli_streams.h"
 #include "data.h"
 #include "logging_impl.h"
 #include "streams/streams.h"
 #include "streams/threaded_worker.h"
 #include "threadutils.h"
-#include "video_error.h"
 #include "video_streams.h"
 
 using namespace satori::video;
 
 namespace {
-
-constexpr size_t images_buffer_size = 1024;
-constexpr size_t surfaces_max_buffer_size = 1024;
-constexpr size_t textures_max_buffer_size = 1024;
 
 struct rtm_error_handler : rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
@@ -76,122 +71,138 @@ po::variables_map cli_parse(int argc, char *argv[],
   return vm;
 }
 
-std::shared_ptr<SDL_Window> create_window() {
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    LOG(ERROR) << "SDL could not initialize! SDL Error: " << SDL_GetError();
-    return nullptr;
+class sdl_window {
+ public:
+  sdl_window() {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+      ABORT() << "SDL could not initialize! SDL Error: " << SDL_GetError();
+    }
+
+    if (SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1") != SDL_TRUE) {
+      LOG(WARNING) << "Linear texture filtering not enabled!";
+    }
+
+    _ptr = SDL_CreateWindow("Satori Video Player", SDL_WINDOWPOS_UNDEFINED,
+                            SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE);
+
+    CHECK_NOTNULL(_ptr) << "Window could not be created! SDL Error: " << SDL_GetError();
   }
 
-  if (SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1") != SDL_TRUE) {
-    LOG(WARNING) << "Linear texture filtering not enabled!";
+  sdl_window(const sdl_window &) = delete;
+  sdl_window(sdl_window &&) = delete;
+
+  ~sdl_window() {
+    LOG(INFO) << "Destroying window";
+    SDL_DestroyWindow(_ptr);
   }
 
-  std::shared_ptr<SDL_Window> window(
-      SDL_CreateWindow("Satori Video Player", SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE),
-      [](SDL_Window *ptr) {
-        LOG(INFO) << "Destroying window";
-        SDL_DestroyWindow(ptr);
-      });
+ private:
+  friend class sdl_renderer;
 
-  if (!window) {
-    LOG(ERROR) << "Window could not be created! SDL Error: " << SDL_GetError();
+  SDL_Window *_ptr{nullptr};
+};
+
+class sdl_surface {
+ public:
+  explicit sdl_surface(const owned_image_frame &frame) {
+    _ptr = SDL_CreateRGBSurfaceFrom((void *)frame.plane_data[0].data(), frame.width,
+                                    frame.height, 24, frame.width * 3, 0x00ff0000,
+                                    0x0000ff00, 0x000000ff, 0x00000000);
+
+    CHECK_NOTNULL(_ptr) << "Unable to create surface! SDL Error: " << SDL_GetError();
   }
 
-  return window;
-}
+  sdl_surface(const sdl_surface &) = delete;
 
-std::shared_ptr<SDL_Renderer> create_renderer(const std::shared_ptr<SDL_Window> &window) {
-  std::shared_ptr<SDL_Renderer> renderer(
-      SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED),
-      [](SDL_Renderer *ptr) {
-        LOG(INFO) << "Destroying renderer";
-        SDL_DestroyRenderer(ptr);
-      });
+  sdl_surface(sdl_surface &&s) noexcept { std::swap(_ptr, s._ptr); }
 
-  if (!renderer) {
-    LOG(ERROR) << "Renderer could not be created! SDL Error: " << SDL_GetError();
-    return nullptr;
+  ~sdl_surface() {
+    LOG(5) << "Destroying surface";
+    if (_ptr != nullptr) {
+      SDL_FreeSurface(_ptr);
+    }
   }
 
-  SDL_SetRenderDrawColor(renderer.get(), 0xff, 0xff, 0xff, 0xff);
+ private:
+  friend class sdl_renderer;
 
-  return renderer;
-}
+  SDL_Surface *_ptr{nullptr};
+};
 
-streams::op<owned_image_packet, std::shared_ptr<SDL_Surface>> image_to_surface() {
-  return [](streams::publisher<owned_image_packet> &&src) {
+class sdl_renderer {
+ public:
+  explicit sdl_renderer(sdl_window &w) {
+    _ptr = SDL_CreateRenderer(w._ptr, -1, SDL_RENDERER_ACCELERATED);
+    CHECK_NOTNULL(_ptr) << "Renderer could not be created! SDL Error: " << SDL_GetError();
 
-    streams::publisher<std::shared_ptr<SDL_Surface>> result =
-        std::move(src) >> streams::flat_map([](owned_image_packet &&p) {
-          if (const auto *f = boost::get<owned_image_frame>(&p)) {
-            std::shared_ptr<SDL_Surface> surface(
-                SDL_CreateRGBSurfaceFrom((void *)f->plane_data[0].data(), f->width,
-                                         f->height, 24, f->width * 3, 0x00ff0000,
-                                         0x0000ff00, 0x000000ff, 0x00000000),
-                [](SDL_Surface *ptr) {
-                  LOG(5) << "Destroying surface";
-                  SDL_FreeSurface(ptr);
-                });
+    SDL_SetRenderDrawColor(_ptr, 0xff, 0xff, 0xff, 0xff);
+  }
 
-            if (!surface) {
-              LOG(ERROR) << "Unable to create surface! SDL Error: " << SDL_GetError();
-              return streams::publishers::error<std::shared_ptr<SDL_Surface>>(
-                  video_error::FrameGenerationError);
-            }
+  sdl_renderer(const sdl_renderer &) = delete;
+  sdl_renderer(sdl_renderer &&) = delete;
 
-            return streams::publishers::of({surface});
-          }
+  ~sdl_renderer() {
+    LOG(INFO) << "Destroying renderer";
+    SDL_DestroyRenderer(_ptr);
+  }
 
-          if (const auto *m = boost::get<owned_image_metadata>(&p)) {
-            return streams::publishers::empty<std::shared_ptr<SDL_Surface>>();
-          }
+  void render(sdl_surface &&surface) {
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(_ptr, surface._ptr);
+    CHECK(texture) << "Unable to create texture! SDL Error: " << SDL_GetError();
 
-          ABORT() << "unsupported variant";
-          return streams::publishers::empty<std::shared_ptr<SDL_Surface>>();
-        });
+    auto texture_destroyer = gsl::finally([texture]() {
+      LOG(5) << "Destroying texture";
+      SDL_DestroyTexture(texture);
+    });
 
-    return result;
+    SDL_RenderClear(_ptr);
+    SDL_RenderCopy(_ptr, texture, nullptr, nullptr);
+    SDL_RenderPresent(_ptr);
+  }
+
+ private:
+  SDL_Renderer *_ptr{nullptr};
+};
+
+streams::op<owned_image_packet, sdl_surface> image_to_surface() {
+  struct packet_visitor : public boost::static_visitor<streams::publisher<sdl_surface>> {
+    streams::publisher<sdl_surface> operator()(
+        const owned_image_metadata & /*metadata*/) {
+      return streams::publishers::empty<sdl_surface>();
+    }
+
+    streams::publisher<sdl_surface> operator()(const owned_image_frame &frame) {
+      std::vector<sdl_surface> result;
+      result.emplace_back(frame);
+      return streams::publishers::of(std::move(result));
+    }
+  };
+
+  struct packet_visitor packet_visitor;
+
+  return [&packet_visitor](streams::publisher<owned_image_packet> &&src) {
+    return std::move(src) >> streams::flat_map([&packet_visitor](owned_image_packet &&p) {
+             return boost::apply_visitor(packet_visitor, p);
+           });
   };
 }
 
-streams::op<std::shared_ptr<SDL_Surface>, std::shared_ptr<SDL_Texture>>
-surface_to_texture(const std::shared_ptr<SDL_Renderer> &renderer) {
-  return [renderer](streams::publisher<std::shared_ptr<SDL_Surface>> &&src) {
-
-    streams::publisher<std::shared_ptr<SDL_Texture>> result =
-        std::move(src)
-        >> streams::flat_map([renderer](std::shared_ptr<SDL_Surface> &&surface) {
-            std::shared_ptr<SDL_Texture> texture(
-                SDL_CreateTextureFromSurface(renderer.get(), surface.get()),
-                [](SDL_Texture *ptr) {
-                  LOG(5) << "Destroying texture";
-                  SDL_DestroyTexture(ptr);
-                });
-
-            if (!texture) {
-              LOG(ERROR) << "Unable to create texture! SDL Error: " << SDL_GetError();
-              return streams::publishers::error<std::shared_ptr<SDL_Texture>>(
-                  video_error::FrameGenerationError);
-            }
-
-            return streams::publishers::of({texture});
-          });
-
-    return result;
-  };
-}
-
-void run_sdl_loop() {
-  bool running{true};
-  SDL_Event e;
-  while (running) {
+void run_sdl_loop(sdl_renderer &renderer, std::queue<sdl_surface> &surfaces,
+                  std::mutex &surfaces_mutex) {
+  while (true) {
+    SDL_Event e;
     while (SDL_PollEvent(&e) != 0) {
       if (e.type == SDL_QUIT) {
-        running = false;
-      } else {
-        SDL_Delay(5);
+        return;
       }
+
+      SDL_Delay(5);
+    }
+
+    std::lock_guard<std::mutex> lock(surfaces_mutex);
+    if (!surfaces.empty()) {
+      renderer.render(std::move(surfaces.front()));
+      surfaces.pop();
     }
   }
 }
@@ -203,17 +214,8 @@ int main(int argc, char *argv[]) {
 
   init_logging(argc, argv);
 
-  std::shared_ptr<SDL_Window> window = create_window();
-  if (!window) {
-    LOG(ERROR) << "Failed to create window";
-    return -1;
-  }
-
-  std::shared_ptr<SDL_Renderer> renderer = create_renderer(window);
-  if (!renderer) {
-    LOG(ERROR) << "Failed to create renderer";
-    return -1;
-  }
+  sdl_window window;
+  sdl_renderer renderer{window};
 
   boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
@@ -231,14 +233,12 @@ int main(int argc, char *argv[]) {
 
   std::string rtm_channel = cli_cfg.rtm_channel(vm);
 
-  streams::publisher<std::shared_ptr<SDL_Texture>> source =
+  streams::publisher<sdl_surface> source =
       cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
                                 image_pixel_format::BGR)
       >> streams::threaded_worker("player.image_buffer") >> streams::flatten()
       >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
-      >> streams::flatten() >> surface_to_texture(renderer)
-      >> streams::threaded_worker("player.texture_buffer") >> streams::flatten()
-      >> streams::do_finally([&io_service, &rtm_client]() {
+      >> streams::flatten() >> streams::do_finally([&io_service, &rtm_client]() {
           io_service.post([&rtm_client]() {
             if (rtm_client) {
               if (auto ec = rtm_client->stop()) {
@@ -250,10 +250,12 @@ int main(int argc, char *argv[]) {
           });
         });
 
-  auto when_done = source->process([renderer](std::shared_ptr<SDL_Texture> &&texture) {
-    SDL_RenderClear(renderer.get());
-    SDL_RenderCopy(renderer.get(), texture.get(), nullptr, nullptr);
-    SDL_RenderPresent(renderer.get());
+  std::queue<sdl_surface> surfaces;
+  std::mutex surfaces_mutex;
+
+  auto when_done = source->process([&surfaces, &surfaces_mutex](sdl_surface &&surface) {
+    std::lock_guard<std::mutex> lock(surfaces_mutex);
+    surfaces.push(std::move(surface));
   });
   when_done.on([](std::error_condition ec) {
     if (ec) {
@@ -265,7 +267,7 @@ int main(int argc, char *argv[]) {
     io_service.run();
   })
       .detach();
-  run_sdl_loop();
+  run_sdl_loop(renderer, surfaces, surfaces_mutex);
   SDL_Quit();
 
   io_service.stop();
