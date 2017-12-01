@@ -1,5 +1,7 @@
 #include "version.h"
 
+#include <sstream>
+
 namespace satori {
 namespace video {
 
@@ -17,11 +19,13 @@ constexpr char conan_os[] = CONAN_SETTINGS_OS;
 constexpr char git_commit_hash[] = GIT_COMMIT_HASH;
 }  // namespace
 
-void log_library_version(loguru::Verbosity verbosity) {
-  VLOG(verbosity) << conan_package_name << "/" << conan_package_version
-                  << " " << conan_build_type << " (compiled " << compiled_time
-                  << " " << conan_os << " " << conan_arch << " " << conan_compiler
-                  << " " << conan_compiler_version << " " << conan_compiler_libcxx << ")";
+std::string library_version() {
+  std::ostringstream s;
+  s << conan_package_name << "/" << conan_package_version << " " << conan_build_type
+    << " (compiled " << compiled_time << " " << conan_os << " " << conan_arch << " "
+    << conan_compiler << " " << conan_compiler_version << " " << conan_compiler_libcxx
+    << ")";
+  return s.str();
 }
 
 }  // namespace video

@@ -20,7 +20,13 @@ inline void init_logging(int& argc, char* argv[]) {
   loguru::init(argc, argv);
   LOG(INFO) << "logging initialized in " << (RELEASE_MODE ? "release" : "debug")
             << " mode";
-  log_library_version(loguru::Verbosity_INFO);
+  VLOG(loguru::Verbosity_INFO) << library_version();
+
+  loguru::set_fatal_handler([](const loguru::Message& message) {
+    std::cerr << "*** This program encountered an unrecoverable error and is "
+                 "terminating, bye...\n"
+              << "*** " << library_version();
+  });
 }
 }  // namespace video
 }  // namespace satori

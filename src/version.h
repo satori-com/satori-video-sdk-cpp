@@ -1,10 +1,10 @@
 #pragma once
 
-#include "logging.h"
+#include <string>
 
 namespace satori {
 namespace video {
 
-void log_library_version(loguru::Verbosity verbosity);
+std::string library_version();
 }
 }  // namespace satori
