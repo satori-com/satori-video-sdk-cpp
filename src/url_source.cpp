@@ -28,7 +28,8 @@ struct url_source_impl {
       }
 
       read_loop();
-    }).detach();
+    })
+        .detach();
   }
 
   void stop() {
@@ -129,7 +130,7 @@ streams::publisher<encoded_packet> url_source(const std::string &url,
                return new url_source_impl(url, options, sink);
              },
              [](url_source_impl *impl) { impl->stop(); })
-         >> streams::flatten();
+         >> streams::flatten() >> repeat_metadata();
 }
 }  // namespace video
 }  // namespace satori

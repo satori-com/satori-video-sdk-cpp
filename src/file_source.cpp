@@ -159,7 +159,7 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                       io, std::chrono::milliseconds(1000 / fps));
   }
 
-  return result;
+  return std::move(result) >> repeat_metadata();
 }
 
 }  // namespace video

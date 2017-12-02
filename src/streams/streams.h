@@ -165,6 +165,11 @@ auto flatten();
 template <typename Fn>
 auto do_finally(Fn &&fn);
 
+// repeat last encountered value from the stream which satisfies the predicate every repeat_each_n_packets
+template <typename T>
+streams::op<T, T> repeat_if(uint64_t repeat_each_n_packets,
+                            std::function<bool(const T &)> &&predicate);
+
 }  // namespace streams
 }  // namespace video
 }  // namespace satori

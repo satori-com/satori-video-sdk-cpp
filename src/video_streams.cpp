@@ -66,5 +66,10 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
   };
 }
 
+streams::op<encoded_packet, encoded_packet> repeat_metadata() {
+  return streams::repeat_if<encoded_packet>(6000, [](const encoded_packet &p) {
+    return nullptr != boost::get<encoded_metadata>(&p);
+  });
+}
 }  // namespace video
 }  // namespace satori

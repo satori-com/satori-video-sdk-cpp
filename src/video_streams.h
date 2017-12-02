@@ -45,5 +45,7 @@ streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
 
 streams::op<owned_image_packet, encoded_packet> encode_as_mjpeg();
 
+streams::op<encoded_packet, encoded_packet> repeat_metadata();
+
 }  // namespace video
 }  // namespace satori

@@ -35,5 +35,25 @@ BOOST_AUTO_TEST_CASE(test_frame_ids) {
   BOOST_TEST(ids[5] == id(44810, 47582));
 }
 
+BOOST_AUTO_TEST_CASE(test_repeat_metadata) {
+  boost::asio::io_service io;
+  size_t metadata_count = 0;
+
+  auto when_done =
+      (file_source(io, "test_data/test.mp4", false, true)
+       >> streams::repeat_if<encoded_packet>(0,
+                                             [](const encoded_packet &p) {
+                                               return nullptr
+                                                      != boost::get<encoded_metadata>(&p);
+                                             }))
+          ->process([&metadata_count](encoded_packet &&pkt) {
+            if (const encoded_metadata *m = boost::get<encoded_metadata>(&pkt)) {
+              metadata_count++;
+            }
+          });
+  BOOST_TEST(when_done.ok());
+  BOOST_TEST(metadata_count == 7);
+}
+
 }  // namespace video
 }  // namespace satori

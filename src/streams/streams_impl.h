@@ -1237,6 +1237,35 @@ auto do_finally(Fn &&fn) {
 
 inline auto flatten() { return impl::flatten_op(); }
 
+template <typename T>
+streams::op<T, T> repeat_if(uint64_t repeat_each_n_packets,
+                            std::function<bool(const T &)> &&predicate) {
+  struct state {
+    std::unique_ptr<T> last_element;
+    uint64_t n_packets_ago{0};
+  };
+
+  return [repeat_each_n_packets, predicate](streams::publisher<T> &&src) {
+    auto s = new state();
+    return std::move(src)
+           >> streams::flat_map([s, repeat_each_n_packets, predicate](T &&data) {
+               if (predicate(data)) {
+                 s->n_packets_ago = 0;
+                 s->last_element = std::make_unique<T>(data);
+               } else {
+                 if (s->n_packets_ago >= repeat_each_n_packets && s->last_element) {
+                   s->n_packets_ago = 0;
+                   return streams::publishers::of({*(s->last_element), data});
+                 }
+                 s->n_packets_ago++;
+               }
+
+               return streams::publishers::of({data});
+             })
+           >> streams::do_finally([s]() { delete s; });
+  };
+}
+
 }  // namespace streams
 }  // namespace video
 }  // namespace satori
