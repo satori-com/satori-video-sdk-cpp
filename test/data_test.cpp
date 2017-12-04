@@ -54,3 +54,26 @@ BOOST_AUTO_TEST_CASE(additional_data_test) {
       "25}",
       debug_cbor.str());
 }
+
+BOOST_AUTO_TEST_CASE(network_metadata_to_cbor_refcount) {
+  sv::network_metadata nm;
+  nm.codec_name = "dummy-codec";
+  nm.base64_data = "dummy-codec-data";
+
+  const cbor_item_t* i = nm.to_cbor();
+
+  BOOST_CHECK_EQUAL(0, cbor_refcount(i));
+}
+
+BOOST_AUTO_TEST_CASE(network_frame_to_cbor_refcount) {
+  sv::network_frame nf;
+  nf.t = std::chrono::system_clock::now();
+  nf.base64_data = "dummy-frame-data";
+  nf.id = {0, 0};
+  nf.chunk = 1;
+  nf.chunks = 1;
+
+  const cbor_item_t* i = nf.to_cbor();
+
+  BOOST_CHECK_EQUAL(0, cbor_refcount(i));
+}

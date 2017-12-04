@@ -8,8 +8,7 @@
 namespace satori {
 namespace video {
 
-struct rtm_sink_impl : streams::subscriber<encoded_packet>,
-                       boost::static_visitor<void> {
+struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visitor<void> {
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                 const std::string &rtm_channel)
       : _client(client),
@@ -32,7 +31,8 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>,
 
   void operator()(const encoded_metadata &m) {
     cbor_item_t *packet = m.to_network().to_cbor();
-    _client->publish(_metadata_channel, cbor_move(packet), nullptr);
+    CHECK_EQ(cbor_refcount(packet), 0);
+    _client->publish(_metadata_channel, packet, nullptr);
   }
 
   void operator()(const encoded_frame &f) {
@@ -41,7 +41,8 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>,
 
     for (const network_frame &nf : network_frames) {
       cbor_item_t *packet = nf.to_cbor();
-      _client->publish(_frames_channel, cbor_move(packet), nullptr);
+      CHECK_EQ(cbor_refcount(packet), 0);
+      _client->publish(_frames_channel, packet, nullptr);
     }
 
     _frames_counter++;
