@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.11.03@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.13'
+    version = '0.10.14'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
@@ -77,14 +77,20 @@ class SatorivideoConan(ConanFile):
         if not self.options.with_opencv:
             excludes = "opencv"
 
+        # include
         self.copy("*.h", dst="include", src="include", excludes=excludes)
         self.copy("*.h", dst="include/satorivideo/impl",
                   src="src", excludes=excludes)
+        
+        # lib
         self.copy("*.lib", dst="lib", keep_path=False)
-        self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so", dst="lib", keep_path=False)
         self.copy("*.dylib", dst="lib", keep_path=False)
         self.copy("*.a", dst="lib", keep_path=False)
+
+        # bin
+        self.copy("*", dst="bin", src="bin", keep_path=False)
+        self.copy("*.dll", dst="bin", keep_path=False)
 
     def package_info(self):
         self.cpp_info.libs = ["satorivideo"]
