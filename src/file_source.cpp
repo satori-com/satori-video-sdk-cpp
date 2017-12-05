@@ -16,6 +16,7 @@ extern "C" {
 
 namespace satori {
 namespace video {
+namespace {
 
 struct file_source_impl {
   file_source_impl(const std::string &filename, const bool loop)
@@ -141,6 +142,29 @@ struct file_source_impl {
   bool _metadata_sent{false};
 };
 
+double get_fps(const std::string &filename) {
+  LOG(INFO) << "Reading fps from " << filename;
+
+  std::shared_ptr<AVFormatContext> format_context =
+      avutils::open_input_format_context(filename);
+  CHECK(format_context) << "Unable to open file " << filename;
+
+  const int stream_index = avutils::find_best_video_stream(format_context.get(), nullptr);
+  CHECK_GE(stream_index, 0) << "Unable to find video stream in file " << filename;
+  const AVStream *stream = format_context->streams[stream_index];
+
+  const double fps =
+      static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
+
+  CHECK_GT(fps, 0.0) << "Invalid fps for file " << filename;
+
+  LOG(INFO) << "fps=" << fps << " for file " << filename;
+
+  return fps;
+}
+
+}  // namespace
+
 streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
                                                const std::string &filename, bool loop,
                                                bool batch) {
@@ -153,10 +177,10 @@ streams::publisher<encoded_packet> file_source(boost::asio::io_service &io,
           });
 
   if (!batch) {
-    // todo: fps
-    int fps = 25;
-    result = std::move(result) >> streams::asio::interval<encoded_packet>(
-                                      io, std::chrono::milliseconds(1000 / fps));
+    const double fps = get_fps(filename);
+    result = std::move(result)
+             >> streams::asio::interval<encoded_packet>(
+                    io, std::chrono::milliseconds(static_cast<long>(1000 / fps)));
   }
 
   return std::move(result) >> repeat_metadata();

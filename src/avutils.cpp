@@ -395,9 +395,11 @@ std::shared_ptr<AVFormatContext> open_input_format_context(const std::string &ur
     return nullptr;
   }
   LOG(1) << "opened url " << url;
-  return std::shared_ptr<AVFormatContext>(format_context, [](AVFormatContext *ctx) {
+  return std::shared_ptr<AVFormatContext>(format_context, [url](AVFormatContext *ctx) {
+    LOG(INFO) << "closing url " << url;
     avformat_close_input(&ctx);
     avformat_free_context(ctx);
+    LOG(INFO) << "format context is destroyed for " << url;
   });
 }
 
