@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.11.03@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.11'
+    version = '0.10.12'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
@@ -88,6 +88,7 @@ class SatorivideoConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["satorivideo"]
+        self.env_info.path.append(os.path.join(self.package_folder, "bin"))
 
         # https://gcc.gnu.org/onlinedocs/gcc/Link-Options.html
         # This option is needed for some uses of dlopen or to allow obtaining
