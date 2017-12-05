@@ -26,6 +26,10 @@ int64_t get_int64(const cbor_item_t *item);
 
 double get_double(const cbor_item_t *item);
 
+uint64_t get_uint64(const cbor_item_t *item);
+
+cbor_item_t *build_int64(int64_t value);
+
 std::string get_string(const cbor_item_t *item);
 
 struct map {

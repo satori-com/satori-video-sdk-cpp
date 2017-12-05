@@ -96,6 +96,19 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
   }
 }
 
+uint64_t get_uint64(const cbor_item_t *item) {
+  CHECK(!cbor_isa_negint(item));
+  return cbor_get_int(item);
+}
+
+cbor_item_t *build_int64(int64_t value) {
+    cbor_item_t *res = cbor_build_uint64(abs(value));
+    if (value < 0) {
+        cbor_mark_negint(res);
+    }
+    return res;
+}
+
 int64_t get_int64(const cbor_item_t *item) {
   if (cbor_isa_negint(item)) {
     return -cbor_get_int(item);
