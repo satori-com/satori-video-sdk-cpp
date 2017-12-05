@@ -11,14 +11,21 @@ namespace video {
 namespace {
 auto& processing_times_millis =
     prometheus::BuildHistogram()
-        .Name("frame_processing_times_millis")
+        .Name("frame_batch_processing_times_millis")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
                                      60, 70, 80, 90, 100, 200, 300, 400, 500, 750});
-auto& frames_processed = prometheus::BuildCounter()
-                             .Name("frames_processed")
-                             .Register(metrics_registry())
-                             .Add({});
+auto& frame_size =
+    prometheus::BuildHistogram()
+        .Name("frame_size")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
+                                     60, 70, 80, 90, 100, 200, 300, 400, 500, 750});
+
+auto& frame_batch_processed_total = prometheus::BuildCounter()
+                                        .Name("frame_batch_processed_total")
+                                        .Register(metrics_registry())
+                                        .Add({});
 auto& messages_sent =
     prometheus::BuildCounter().Name("messages_sent").Register(metrics_registry());
 auto& messages_received =
@@ -42,7 +49,7 @@ cbor_item_t* build_shutdown_command() {
 }  // namespace
 
 bot_instance::bot_instance(const std::string& bot_id, const execution_mode execmode,
-                           const bot_descriptor& descriptor)
+                           const multiframe_bot_descriptor& descriptor)
     : _bot_id(bot_id),
       _descriptor(descriptor),
       bot_context{nullptr, &_image_metadata, execmode,
@@ -71,7 +78,7 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
             }
           }
 
-          prepare_message_buffer_for_downstream(frame_id{0, 0});
+          prepare_message_buffer_for_downstream();
 
           return nullptr;
         },
@@ -95,48 +102,77 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
 
 void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
                                  const frame_id& id) {
+  frame_id effective_frame_id =
+      (id.i1 == 0 && id.i2 == 0 && _current_frame_id.i1 != 0 && _current_frame_id.i2 != 0)
+          ? _current_frame_id
+          : id;
+
   struct bot_message newmsg {
-    message, kind, id
+    message, kind, effective_frame_id
   };
   cbor_incref(message);
   _message_buffer.push_back(newmsg);
 }
 
-std::list<bot_output> bot_instance::operator()(const owned_image_metadata& metadata) {
-  return std::list<bot_output>{metadata};
+void bot_instance::set_current_frame_id(const frame_id& id) { _current_frame_id = id; }
+
+std::vector<image_frame> bot_instance::extract_frames(
+    const std::list<bot_output>& packets) {
+  std::vector<image_frame> result;
+
+  for (const auto& p : packets) {
+    auto* frame = boost::get<owned_image_frame>(&p);
+
+    if (frame == nullptr) {
+      continue;
+    }
+
+    LOG(1) << "process_image_frame " << frame->width << "x" << frame->height;
+    if (frame->width != _image_metadata.width) {
+      _image_metadata.width = frame->width;
+      _image_metadata.height = frame->height;
+      std::copy(frame->plane_strides, frame->plane_strides + MAX_IMAGE_PLANES,
+                _image_metadata.plane_strides);
+    }
+
+    image_frame bframe;
+    bframe.id = frame->id;
+    for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
+      if (frame->plane_data[i].empty()) {
+        bframe.plane_data[i] = nullptr;
+      } else {
+        bframe.plane_data[i] = (const uint8_t*)frame->plane_data[i].data();
+      }
+    }
+    result.push_back(std::move(bframe));
+  }
+  return result;
 }
 
-std::list<bot_output> bot_instance::operator()(const owned_image_frame& frame) {
-  LOG(1) << "process_image_frame " << frame.width << "x" << frame.height;
+std::list<bot_output> bot_instance::operator()(std::queue<owned_image_packet>& pp) {
   stopwatch<> s;
+  std::list<bot_output> result;
 
-  if (frame.width != _image_metadata.width) {
-    _image_metadata.width = frame.width;
-    _image_metadata.height = frame.height;
-    std::copy(frame.plane_strides, frame.plane_strides + MAX_IMAGE_PLANES,
-              _image_metadata.plane_strides);
+  frame_size.Observe(pp.size());
+
+  while (!pp.empty()) {
+    result.emplace_back(pp.front());
+    pp.pop();
   }
 
-  image_frame bframe;
-  bframe.id = frame.id;
-  for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
-    if (frame.plane_data[i].empty()) {
-      bframe.plane_data[i] = nullptr;
-    } else {
-      bframe.plane_data[i] = (const uint8_t*)frame.plane_data[i].data();
-    }
+  std::vector<image_frame> bframes = extract_frames(result);
+
+  if (!bframes.empty()) {
+    _descriptor.img_callback(*this, gsl::span<image_frame>(bframes));
+    frame_batch_processed_total.Increment();
+
+    prepare_message_buffer_for_downstream();
+
+    std::copy(_message_buffer.begin(), _message_buffer.end(), std::back_inserter(result));
+    _message_buffer.clear();
   }
 
-  _descriptor.img_callback(*this, bframe);
   processing_times_millis.Observe(s.millis());
-  frames_processed.Increment();
-
-  prepare_message_buffer_for_downstream(frame.id);
-
-  std::list<bot_output> result{_message_buffer.begin(), _message_buffer.end()};
-  _message_buffer.clear();
-  result.push_front(frame);
-
   return result;
 }
 
@@ -176,14 +212,14 @@ std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
     queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
   }
 
-  prepare_message_buffer_for_downstream(frame_id{-1, -1});
+  prepare_message_buffer_for_downstream();
 
   std::list<bot_output> result{_message_buffer.begin(), _message_buffer.end()};
   _message_buffer.clear();
   return result;
 }
 
-void bot_instance::prepare_message_buffer_for_downstream(const frame_id& id) {
+void bot_instance::prepare_message_buffer_for_downstream() {
   for (auto&& msg : _message_buffer) {
     // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
     /*
@@ -202,13 +238,12 @@ void bot_instance::prepare_message_buffer_for_downstream(const frame_id& id) {
 
     cbor_item_t* data = msg.data;
 
-    int64_t ei1 = msg.id.i1 == 0 ? id.i1 : msg.id.i1;
-    int64_t ei2 = msg.id.i2 == 0 ? id.i1 : msg.id.i2;
-
-    if (ei1 >= 0) {
+    if (msg.id.i1 >= 0) {
       cbor_item_t* is = cbor_new_definite_array(2);
-      cbor_array_set(is, 0, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei1))));
-      cbor_array_set(is, 1, cbor_move(cbor_build_uint64(static_cast<uint64_t>(ei2))));
+      cbor_array_set(is, 0,
+                     cbor_move(cbor_build_uint64(static_cast<uint64_t>(msg.id.i1))));
+      cbor_array_set(is, 1,
+                     cbor_move(cbor_build_uint64(static_cast<uint64_t>(msg.id.i2))));
       cbor_map_add(data, {cbor_move(cbor_build_string("i")), cbor_move(is)});
     }
 

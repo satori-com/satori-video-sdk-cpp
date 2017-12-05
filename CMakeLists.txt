@@ -41,6 +41,7 @@ set(CMAKE_CXX_FLAGS "-pedantic-errors -ftemplate-backtrace-limit=99 ${CMAKE_CXX_
 add_library(satorivideo
     include/satorivideo/base.h
     include/satorivideo/video_bot.h
+    include/satorivideo/multiframe/bot.h
     src/avutils.cpp
     src/base64.cpp
     src/bot_environment.cpp
@@ -87,12 +88,12 @@ set_property(TARGET satorivideo PROPERTY CXX_STANDARD 14)
 target_link_libraries(satorivideo
     PUBLIC
         dl
+        CONAN_PKG::Gsl
         CONAN_PKG::Libcbor   # part of api interface
     PRIVATE
         CONAN_PKG::Beast
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
-        CONAN_PKG::Gsl
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp

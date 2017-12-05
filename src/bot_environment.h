@@ -5,7 +5,7 @@
 
 #include "data.h"
 #include "rtm_client.h"
-#include "satorivideo/video_bot.h"
+#include "satorivideo/multiframe/bot.h"
 #include "video_streams.h"
 
 namespace satori {
@@ -23,7 +23,7 @@ class bot_environment : private rtm::error_callbacks, boost::static_visitor<void
  public:
   static bot_environment& instance();
 
-  void register_bot(const bot_descriptor& bot);
+  void register_bot(const multiframe_bot_descriptor& bot);
   int main(int argc, char* argv[]);
 
   rtm::publisher& publisher() { return *_rtm_client; }
@@ -34,7 +34,7 @@ class bot_environment : private rtm::error_callbacks, boost::static_visitor<void
 
  private:
   void on_error(std::error_condition ec) override;
-  bot_descriptor _bot_descriptor;
+  multiframe_bot_descriptor _bot_descriptor;
   std::shared_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;
 
@@ -46,7 +46,7 @@ class bot_environment : private rtm::error_callbacks, boost::static_visitor<void
   std::unique_ptr<std::ofstream> _debug_file;
 
   // TODO: maybe make them local variables?
-  streams::publisher<owned_image_packet> _source;
+  streams::publisher<std::queue<owned_image_packet>> _source;
   streams::publisher<cbor_item_t*> _control_source;
 };
 

@@ -26,11 +26,6 @@ namespace satori {
 namespace video {
 namespace {
 
-auto& frames_dropped = prometheus::BuildCounter()
-                           .Name("frames_dropped")
-                           .Register(metrics_registry())
-                           .Add({});
-
 using variables_map = boost::program_options::variables_map;
 
 variables_map parse_command_line(int argc, char* argv[],
@@ -112,10 +107,6 @@ struct file_cbor_dump_observer : streams::observer<cbor_item_t*> {
   std::ostream& _out;
 };
 
-void log_important_counters() {
-  LOG(INFO) << "  frames_dropped=" << (size_t)frames_dropped.Value();
-}
-
 }  // namespace
 
 cbor_item_t* read_config_from_file(const std::string& config_file) {
@@ -159,7 +150,9 @@ bot_environment& bot_environment::instance() {
   return env;
 }
 
-void bot_environment::register_bot(const bot_descriptor& bot) { _bot_descriptor = bot; }
+void bot_environment::register_bot(const multiframe_bot_descriptor& bot) {
+  _bot_descriptor = bot;
+}
 
 void bot_environment::operator()(const owned_image_metadata& /*metadata*/) {}
 
@@ -225,24 +218,17 @@ int bot_environment::main(int argc, char* argv[]) {
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
-  _source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
-                                      _bot_descriptor.pixel_format);
 
+  auto single_frame_source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
+                                             _bot_descriptor.pixel_format);
   if (!batch_mode) {
-    _source = std::move(_source) >> streams::threaded_worker("processing_worker")
-              >> streams::map([](std::queue<owned_image_packet>&& pkts) {
-                  const size_t frames_to_drop = !pkts.empty() ? pkts.size() - 1 : 0;
-                  for (size_t i = 0; i < frames_to_drop; ++i) {
-                    pkts.pop();
-                  }
-                  if (frames_to_drop > 0) {
-                    LOG(1) << "dropped " << frames_to_drop << " frames";
-                    frames_dropped.Increment(frames_to_drop);
-                  }
-                  CHECK_EQ(pkts.size(), 1);
-                  return std::move(pkts);
-                })
-              >> streams::flatten();
+    _source = std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
+  } else {
+    _source = std::move(single_frame_source) >> streams::map([](owned_image_packet&& pkt) {
+                std::queue<owned_image_packet> q;
+                q.push(pkt);
+                return q;
+              });
   }
 
   if (cmd_args.count("analysis-file") > 0) {
@@ -278,14 +264,13 @@ int bot_environment::main(int argc, char* argv[]) {
   bool finished{false};
   int frames_count = 0;
 
-  _source = std::move(_source)
-            >> streams::signal_breaker<owned_image_packet>({SIGINT, SIGTERM, SIGQUIT})
-            >> streams::map([&frames_count](owned_image_packet&& pkt) {
+  _source = std::move(_source) >> streams::signal_breaker<std::queue<owned_image_packet>>(
+                                      {SIGINT, SIGTERM, SIGQUIT})
+            >> streams::map([&frames_count](std::queue<owned_image_packet>&& pkt) {
                 frames_count++;
                 constexpr int period = 100;
                 if ((frames_count % period) == 0) {
-                  LOG(INFO) << "Processed " << frames_count << " frames";
-                  log_important_counters();
+                  LOG(INFO) << "Processed " << frames_count << " multiframes";
                 }
                 return pkt;
               })
@@ -306,8 +291,9 @@ int bot_environment::main(int argc, char* argv[]) {
   auto bot_input_stream = streams::publishers::merge<bot_input>(
       std::move(_control_source)
           >> streams::map([](cbor_item_t*&& t) { return bot_input{t}; }),
-      std::move(_source)
-          >> streams::map([](owned_image_packet&& p) { return bot_input{p}; }));
+      std::move(_source) >> streams::map([](std::queue<owned_image_packet>&& p) {
+        return bot_input{p};
+      }));
 
   auto bot_output_stream = std::move(bot_input_stream) >> _bot_instance->run_bot();
 

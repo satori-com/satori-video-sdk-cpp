@@ -16,11 +16,11 @@ cbor_item_t *build_pair(const std::string &key, const std::string &value) {
   return cbor_move(message);
 }
 
-void process_image(sv::bot_context &context, const sv::image_frame &frame) {
+void process_image(sv::bot_context &context, const gsl::span<sv::image_frame> &frame) {
   sv::bot_message(context, sv::bot_message_kind::DEBUG,
-                  build_pair("dummy-debug-key", "dummy-debug-value"), frame.id);
+                  build_pair("dummy-debug-key", "dummy-debug-value"), frame[0].id);
   sv::bot_message(context, sv::bot_message_kind::ANALYSIS,
-                  build_pair("dummy-analysis-key", "dummy-analysis-value"), frame.id);
+                  build_pair("dummy-analysis-key", "dummy-analysis-value"), frame[0].id);
 }
 
 cbor_item_t *process_command(sv::bot_context & /*context*/, cbor_item_t *command) {
@@ -43,7 +43,7 @@ cbor_item_t *process_command(sv::bot_context & /*context*/, cbor_item_t *command
 }  // namespace
 
 BOOST_AUTO_TEST_CASE(basic) {
-  sv::bot_descriptor descriptor;
+  sv::multiframe_bot_descriptor descriptor;
   descriptor.pixel_format = sv::image_pixel_format::RGB0;
   descriptor.ctrl_callback = &::process_command;
   descriptor.img_callback = &::process_image;
@@ -53,9 +53,11 @@ BOOST_AUTO_TEST_CASE(basic) {
   bot_instance.configure(build_pair("dummy-key", "dummy-value"));
 
   sv::owned_image_frame frame;
+  std::queue<sv::owned_image_packet> frameq;
+  frameq.push(frame);
 
   sv::streams::publisher<sv::bot_input> bot_input_stream =
-      sv::streams::publishers::of({sv::bot_input{frame}});
+      sv::streams::publishers::of({sv::bot_input{frameq}});
 
   sv::streams::publisher<sv::bot_output> bot_output_stream =
       std::move(bot_input_stream) >> bot_instance.run_bot();
