@@ -6,7 +6,6 @@
 
 #include <satorivideo/video_bot.h>
 #include <gsl/span>
-#include <opencv2/opencv.hpp>
 #include "../video_bot.h"
 
 namespace satori {
