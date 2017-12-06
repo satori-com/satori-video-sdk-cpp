@@ -18,10 +18,10 @@ class SatorivideoConan(ConanFile):
                "Ffmpeg/3.4.0@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master", \
-               "PrometheusCpp/2017.11.03@satorivideo/master"
+               "PrometheusCpp/2017.12.06@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.15'
+    version = '0.10.16'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
