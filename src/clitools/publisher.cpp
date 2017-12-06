@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
              });
            });
 
-  source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, rtm_channel));
+  source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, io_service, rtm_channel));
 
   io_service.run();
 }

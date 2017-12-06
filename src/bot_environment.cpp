@@ -219,16 +219,18 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
 
-  auto single_frame_source = cli_cfg.decoded_publisher(cmd_args, io_service, _rtm_client, channel,
-                                             _bot_descriptor.pixel_format);
+  auto single_frame_source = cli_cfg.decoded_publisher(
+      cmd_args, io_service, _rtm_client, channel, _bot_descriptor.pixel_format);
   if (!batch_mode) {
-    _source = std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
+    _source =
+        std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
   } else {
-    _source = std::move(single_frame_source) >> streams::map([](owned_image_packet&& pkt) {
-                std::queue<owned_image_packet> q;
-                q.push(pkt);
-                return q;
-              });
+    _source =
+        std::move(single_frame_source) >> streams::map([](owned_image_packet&& pkt) {
+          std::queue<owned_image_packet> q;
+          q.push(pkt);
+          return q;
+        });
   }
 
   if (cmd_args.count("analysis-file") > 0) {
@@ -237,7 +239,8 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
     _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
   } else if (_rtm_client) {
-    _analysis_sink = &rtm::cbor_sink(_rtm_client, channel + analysis_channel_suffix);
+    _analysis_sink =
+        &rtm::cbor_sink(_rtm_client, io_service, channel + analysis_channel_suffix);
   } else {
     _analysis_sink = new file_cbor_dump_observer(std::cout);
   }
@@ -248,13 +251,14 @@ int bot_environment::main(int argc, char* argv[]) {
     _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
     _debug_sink = new file_cbor_dump_observer(*_debug_file);
   } else if (_rtm_client) {
-    _debug_sink = &rtm::cbor_sink(_rtm_client, channel + debug_channel_suffix);
+    _debug_sink =
+        &rtm::cbor_sink(_rtm_client, io_service, channel + debug_channel_suffix);
   } else {
     _debug_sink = new file_cbor_dump_observer(std::cerr);
   }
 
   if (_rtm_client) {
-    _control_sink = &rtm::cbor_sink(_rtm_client, control_channel);
+    _control_sink = &rtm::cbor_sink(_rtm_client, io_service, control_channel);
     _control_source = rtm::cbor_channel(_rtm_client, control_channel, {});
   } else {
     _control_sink = new file_cbor_dump_observer(std::cout);

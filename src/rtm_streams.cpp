@@ -4,8 +4,9 @@
 
 namespace satori {
 namespace video {
-
 namespace rtm {
+
+namespace {
 
 struct rtm_channel_impl : rtm::subscription_callbacks {
   rtm_channel_impl(const std::shared_ptr<rtm::subscriber> &subscriber,
@@ -30,12 +31,16 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
 
 struct cbor_sink_impl : streams::subscriber<cbor_item_t *> {
   cbor_sink_impl(const std::shared_ptr<rtm::publisher> &client,
-                 const std::string &channel)
-      : _client(client), _channel(channel) {}
+                 boost::asio::io_service &io_service, const std::string &channel)
+      : _client(client), _io_service(io_service), _channel(channel) {}
 
   void on_next(cbor_item_t *&&item) override {
     CHECK_EQ(0, cbor_refcount(item));
-    _client->publish(_channel, item, nullptr);
+
+    _io_service.post([ client = _client, channel = _channel, item = std::move(item) ]() {
+      client->publish(channel, item, nullptr);
+    });
+
     if (_src != nullptr) {
       _src->request(1);
     }
@@ -51,13 +56,17 @@ struct cbor_sink_impl : streams::subscriber<cbor_item_t *> {
   }
 
   const std::shared_ptr<rtm::publisher> _client;
+  boost::asio::io_service &_io_service;
   const std::string _channel;
   streams::subscription *_src{nullptr};
 };
 
+}  // namespace
+
 streams::subscriber<cbor_item_t *> &cbor_sink(
-    const std::shared_ptr<rtm::publisher> &client, const std::string &channel) {
-  return *(new cbor_sink_impl(client, channel));
+    const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
+    const std::string &channel) {
+  return *(new cbor_sink_impl(client, io_service, channel));
 }
 
 streams::publisher<cbor_item_t *> cbor_channel(

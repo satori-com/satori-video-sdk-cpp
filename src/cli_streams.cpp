@@ -384,13 +384,13 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
 
 streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
     const po::variables_map &vm, const std::shared_ptr<rtm::client> &client,
-    const std::string &channel) const {
+    boost::asio::io_service &io_service, const std::string &channel) const {
   const bool has_output_rtm_args = enable_rtm_output && check_rtm_args_provided(vm);
   const bool has_output_file_args =
       enable_file_output && check_file_output_args_provided(vm);
 
   if (has_output_rtm_args) {
-    return satori::video::rtm_sink(client, channel);
+    return satori::video::rtm_sink(client, io_service, channel);
   }
 
   if (has_output_file_args) {

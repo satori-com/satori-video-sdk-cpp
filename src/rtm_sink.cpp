@@ -8,10 +8,13 @@
 namespace satori {
 namespace video {
 
+namespace {
+
 struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visitor<void> {
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
-                const std::string &rtm_channel)
+                boost::asio::io_service &io_service, const std::string &rtm_channel)
       : _client(client),
+        _io_service(io_service),
         _frames_channel(rtm_channel),
         _metadata_channel(rtm_channel + metadata_channel_suffix) {}
 
@@ -32,7 +35,10 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visito
   void operator()(const encoded_metadata &m) {
     cbor_item_t *packet = m.to_network().to_cbor();
     CHECK_EQ(cbor_refcount(packet), 0);
-    _client->publish(_metadata_channel, packet, nullptr);
+
+    _io_service.post([ client = _client, channel = _metadata_channel, packet ]() {
+      client->publish(channel, packet, nullptr);
+    });
   }
 
   void operator()(const encoded_frame &f) {
@@ -42,7 +48,9 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visito
     for (const network_frame &nf : network_frames) {
       cbor_item_t *packet = nf.to_cbor();
       CHECK_EQ(cbor_refcount(packet), 0);
-      _client->publish(_frames_channel, packet, nullptr);
+      _io_service.post([ client = _client, channel = _frames_channel, packet ]() {
+        client->publish(channel, packet, nullptr);
+      });
     }
 
     _frames_counter++;
@@ -52,15 +60,18 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visito
   }
 
   const std::shared_ptr<rtm::publisher> _client;
+  boost::asio::io_service &_io_service;
   const std::string _frames_channel;
   const std::string _metadata_channel;
   streams::subscription *_src;
   uint64_t _frames_counter{0};
 };
+}  // namespace
 
 streams::subscriber<encoded_packet> &rtm_sink(
-    const std::shared_ptr<rtm::publisher> &client, const std::string &rtm_channel) {
-  return *(new rtm_sink_impl(client, rtm_channel));
+    const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
+    const std::string &rtm_channel) {
+  return *(new rtm_sink_impl(client, io_service, rtm_channel));
 }
 
 }  // namespace video

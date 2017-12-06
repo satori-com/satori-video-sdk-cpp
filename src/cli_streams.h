@@ -42,7 +42,7 @@ struct configuration {
 
   streams::subscriber<encoded_packet> &encoded_subscriber(
       const po::variables_map &vm, const std::shared_ptr<rtm::client> &client,
-      const std::string &channel) const;
+      boost::asio::io_service &io_service, const std::string &channel) const;
 
  public:
   bool enable_rtm_input{false};

@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.12.06@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.16'
+    version = '0.10.17'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \

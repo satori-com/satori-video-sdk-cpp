@@ -38,7 +38,8 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     bool keep_proportions);
 
 streams::subscriber<encoded_packet> &rtm_sink(
-    const std::shared_ptr<rtm::publisher> &client, const std::string &rtm_channel);
+    const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
+    const std::string &rtm_channel);
 
 streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
                                               const mkv::format_options &format_options);

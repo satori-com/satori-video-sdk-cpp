@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cbor.h>
+#include <boost/asio.hpp>
 
 #include "rtm_client.h"
 #include "streams/streams.h"
@@ -14,6 +15,7 @@ streams::publisher<cbor_item_t *> cbor_channel(
     const subscription_options &options);
 
 streams::subscriber<cbor_item_t *> &cbor_sink(const std::shared_ptr<publisher> &client,
+                                              boost::asio::io_service &io_service,
                                               const std::string &channel);
 
 }  // namespace rtm
