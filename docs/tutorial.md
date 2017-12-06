@@ -1,62 +1,79 @@
-# Satori Video C++ SDK Tutorial
+# Satori Video C++ SDK Examples
 
-Supported platforms: Mac & Linux with C++14 compiler. [Install Prerequisites](prerequisites.md)
+## Prerequisites
+* Mac OS X or Linux
+* C++14 compiler
+* Other tools. See [Prerequisites](prerequisites.md)
 
-## Building First Video Bot
-
-Clone [examples project](https://github.com/satori-com/satori-video-sdk-cpp-examples):
-
+## Clone the example code
+Clone the example code from the
+[GitHub examples project](https://github.com/satori-com/satori-video-sdk-cpp-examples):
 ```shell
-git clone git@github.com:satori-com/satori-video-sdk-cpp.git
-cd satori-video-sdk-cpp
+$ git clone git@github.com:satori-com/satori-video-sdk-cpp-examples.git
+$ cd satori-video-sdk-cpp-examples
 ```
 
-Build an empty-opencv-bot (or empty-bot if you prefer to work without `OpenCV` wrapper):
+## Build the video bot
+**Note:** The initial build needs more time than subsequent builds,
+because `conan` package manager needs to retrieve and build the necessary
+packages.
 
+**To build an empty bot with the `OpenCV` wrapper:**
 ```shell
-cd empty-opencv-bot
-mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make -j8
+$ cd empty-opencv-bot
+$ mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make -j8
 ```
 
-First time build will take significant time while `conan` fetches and builds required packages.
+**To build an an empty bot without `OpenCV`:**
+```shell
+$ cd empty-bot
+$ mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make -j8
+```
 
+**To test the empty bot:**
+Run the empty bot without arguments. The bot displays a usage summary:
+```
+$ ./empty-bot
+```
 
-## Running Video Bot
-
-Run bot without arguments to see list of available inputs.
-
-Examples:
-
-Run video bot with video file:
-
+## Bot execution examples
+**Run the video bot with a video file as input**
 ```shell
 ./empty-bot --input-video-file=my_video_file.mp4
 ```
 
-Run video bot with Satori video stream:
+**Run the video bot with a Satori video stream as input**
 ```shell
 ./empty-bot --endpoint=<satori-endpoint> --appkey=<satori-appkey> --channel=<satori-channel>
 ```
 
-Check out [Running Video Bots](using_sdk.md#running-video-bots) section in user guide for more ways to configure
-bot input or tweak its running parameters.
+See the section [Running Video Bots](using_sdk.md#running-video-bots) section in the user guide to learn more about configuring
+video bot inputs and run parameters.
 
-## Configuring Bot
+## Configure the video bot
+You can configure a video bot in the following ways:
 
-Configuration can be passed to a bot via command line argument or configuration file.
-Configuration is expected to be in `JSON` format, it will be then transformed into `CBOR` item (read about [libcbor](http://libcbor.org/))
+* **Direct:** Use command line parameters
+* **Configuration file:** Use parameters in a configuration file you specify on the command line.
+Format the file as a JSON object. The contents appear as a message in the control channel for the bot, which passes the message to
+your control channel callback function in CBOR format.
+* **Control channel:** Publish messages to the control channel for the bot. You can publish the
+data in JSON or CBOR format. The bot passes the message to your control
+channel callback function in CBOR format.
+
+To learn more about using CBOR in C++, see the documentation for [libcbor](http://libcbor.org/)).
 and passed to bot's control callback (more information [here](using_sdk.md#video-bots-architecture-and-lifecycle)).
-
-Examples:
+### Bot configuration examples
+**Pass the configuration in command line arguments:**
 ```shell
-# Passing configuration as a command line argument
-./haar-cascades-bot --input-video-file my_video_file.mp4 --config "{\"frontalface_default.xml:\": \"a face\", \"smile.xml\": \"a smile\"}"
-
-# Passing configuration as a file
-./haar-cascades-bot --input-video-file my_video_file.mp4 --config-file my_config.json
+$ ./haar-cascades-bot --input-video-file my_video_file.mp4 --config "{\"frontalface_default.xml:\": \"a face\", \"smile.xml\": \"a smile\"}"
+```
+**Pass the configuration as a file:**
+```shell
+$ ./haar-cascades-bot --input-video-file my_video_file.mp4 --config-file my_config.json
 ```
 
-Bot's control callback will get the following object:
+In both of these examples, the bot passes the following message to the control callback function:
 ```json
 {
   "action": "configure",
@@ -67,7 +84,7 @@ Bot's control callback will get the following object:
 }
 ```
 
-This example shows how to configure a bot that uses Haar cascades for object detection:
+**C++ code that configures a bot to use Haar cascades for object detection:**
 ```c++
 struct cascade {
   cv::CascadeClassifier classifier;
@@ -86,6 +103,13 @@ std::string cbor_to_string(const cbor_item_t *item) {
                      cbor_string_length(item)};
 }
 
+//
+// Control channel callback function
+// The bot invokes this callback at least once, during initialization
+// If the --config-file parameter is present on the command line that
+// invokes the bot, the bot passes the contents of the config file to
+// the function in the config parameter.
+//
 cbor_item_t *process_command(sv::bot_context &context, cbor_item_t *config) {
   CHECK_S(cbor_isa_map(config));
 
@@ -143,13 +167,13 @@ cbor_item_t *process_command(sv::bot_context &context, cbor_item_t *config) {
 }
 ```
 
-## Processing Frames
+## Process image frames
 
-Frames processing will be done by bot's image callback function
+The bot passes image frames to the image callback function you provide:
 (more information [here](using_sdk.md#video-bots-architecture-and-lifecycle)).
 
-This example shows how a bot uses Haar cascades to detect objects in images:
-```c++
+**C++ code that uses Haar cascades to detect objects in images:**
+```c
 cbor_item_t *build_object(const cv::Rect &detection, uint32_t id,
                           const cv::Size &image_size, const std::string &tag) {
   cbor_item_t *object = cbor_new_definite_map(3);
@@ -176,6 +200,11 @@ cbor_item_t *build_analysis_message(cbor_item_t *objects) {
   return analysis_message;
 }
 
+//
+// image callback function
+// The bot invokes this function every time it assembles a new frame
+// from the input channel
+//
 void process_image(sv::bot_context &context, const cv::Mat &image) {
   auto state = static_cast<struct state *>(context.instance_data);
 
@@ -202,50 +231,66 @@ void process_image(sv::bot_context &context, const cv::Mat &image) {
     return;
   }
 
+  //
+  // Publishes analysis data to the analytics subchannel for the bot
+  // Although you can call bot_message at any time, the bot aggregates
+  // the messages and publishes them when you return from your current
+  // scope to the main event loop
+  //
   bot_message(context, sv::bot_message_kind::ANALYSIS,
               cbor_move(build_analysis_message(objects)));
 }
 ```
 
-## Sending Analysis Results
-After processing is complete, bot sends an analysis message to analysis downstream by calling this function:
-```c++
+## Publish Analysis Results
+
+**To write out analysis data from the bot:**
+```c
 bot_message(context, sv::bot_message_kind::ANALYSIS, cbor_move(build_analysis_message(objects)));
 ```
 
-Analysis downstream could be one of the following (depending on bot configuration.):
- * an associated Satori analysis channel,
- * stdout,
- * or, an output file.
+Depending on your configuration, bot_message publishes the data to:
+ * An associated Satori analysis channel
+ * `stdout`
+ * An output file
 
+### Examples
+
+**Publish to the analysis subchannel:**
 ```shell
-# If a bot processes Satori video stream, then analysis results will be sent to an associated Satori analysis channel
-./my-bot --endpoint <satori-endpoint> --appkey <satori-appkey> --channel <satori-channel>
-
-# Using stdout as an analysis downstream
-./my-bot --input-video-file my_video_file.mp4
-
-# Using an output file as an analysis downstream
-./my-bot --input-video-file my_video_file.mp4 --analysis-file output_analysis_file.json
+$ ./my-bot --endpoint <satori-endpoint> --appkey <satori-appkey> --channel <satori-channel>
 ```
 
-## Deploy Video Bot
-It is recommended to use [docker](https://www.docker.com/) for packaging video processing bots.
-Bot's executable needs to be packed into a container and specified as an entry point
-(examples can be found [here](https://github.com/satori-com/satori-video-sdk-cpp-examples)).
-It is a good practice to separate building bot executables from deployment images,
-so, one docker container is responsible for building bot executable like
-[here](https://github.com/satori-com/satori-video-sdk-cpp-examples/blob/master/haar-cascades-bot/Dockerfile),
-and, another docker container contains only bot executable and environment necessary for it's execution like
-[here](https://github.com/satori-com/satori-video-sdk-cpp-examples/blob/master/haar-cascades-bot/image/Dockerfile).
-
-If no docker orchestration tool is used, then a bot could be run like this:
+**Write results to `stdout`:**
 ```shell
-docker run --rm -ti haar-cascades-bot --id sample-haar-cascades-bot --endpoint <satori-endpoint> --appkey <satori-appkey> --channel <satori-channel> --config "{\"frontalface_default.xml\": \"a face\", \"smile.xml\": \"a smile\"}"
+$ ./my-bot --input-video-file my_video_file.mp4
 ```
 
-In case of [Kubernetes](https://kubernetes.io/) there are multiple ways of deploying containers.
-For example, replication controller manifest could look like the following:
+**Write results to an output file:**
+```
+$ ./my-bot --input-video-file my_video_file.mp4 --analysis-file output_analysis_file.json
+```
+
+## Deploy the video bot
+
+Use [docker](https://www.docker.com/) to package and video bots.
+
+Pack the bot program into a docker container and specify it as an entry point.
+You can see examples [here](https://github.com/satori-com/satori-video-sdk-cpp-examples)).
+
+Use one container to build your bot executable, and another to run
+the deployed bot. For example:
+
+* [Dockerfile for *building* the `haar-cascades` example bot](https://github.com/satori-com/satori-video-sdk-cpp-examples/blob/master/haar-cascades-bot/Dockerfile),
+* [Dockerfile for *running* the `haar-cascades` example bot](https://github.com/satori-com/satori-video-sdk-cpp-examples/blob/master/haar-cascades-bot/image/Dockerfile).
+
+If no docker orchestration tool is used, then you can run a bot in `docker` like this:
+```shell
+$ docker run --rm -ti haar-cascades-bot --id sample-haar-cascades-bot --endpoint <satori-endpoint> --appkey <satori-appkey> --channel <satori-channel> --config "{\"frontalface_default.xml\": \"a face\", \"smile.xml\": \"a smile\"}"
+```
+
+If you use [Kubernetes](https://kubernetes.io/) you have several choices for deploying a container for your bot.
+For example, your replication controller manifest could look like this:
 ```yaml
 apiVersion: v1
 kind: ReplicationController

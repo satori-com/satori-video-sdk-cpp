@@ -78,24 +78,9 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+## Run a video bot
 
-### Video Bot Commands
-
-Whenever rtm message is received on `<video_channel>/control` channel, control callback
-is executed with the message.
-
-Also, the framework sends following control commands (command is specified by "action"
-attribute  in the message):
-
-| Action | Description |
-|---------|-------------|
-| `"configure"` | always sent at the start. `"body"` attribute contains configuration |
-| `"shutdown"` | always sent during normal bot shutdown |
-
-
-## Running Video Bots
-
-### Choosing Video Source
+### Choose the video source
 
 Video bots support plentora of video sources: satori video, laptop camera or video file.
 Run bot without parameters to see full list of available options.
@@ -120,10 +105,13 @@ Several input-related options can be used with any input type.
 ### Reading Bot Configuration
 
 The following implementation of `process_command` is expecting a JSON with string `model_file` key, for example:
+## Deploy a video bot
 
 ```json
 {"model_file": "mymodel.xml"}
 ```
+The Satori Video Bot API is a static C++ library. When you build your
+video bot, do a full static link, then use Docker to deploy it.
 
 ```c++
 cbor_item_t *process_command(sv::bot_context &ctx, cbor_item_t *config) {
@@ -133,6 +121,14 @@ cbor_item_t *process_command(sv::bot_context &ctx, cbor_item_t *config) {
   return nullptr;
 }
 ```
+## Debug and Profile video bots
+You can debug and profile video bots as normal C++ processes.
+Use the following tools:
+* `gdb`
+* `lldb`
+* Instruments (Mac OSX only)
+* `perf`
+* CLion
 
 This code will also perform normally on any valid JSON and without configuration at all,
 in this "default" value will be assigned to `p`.
@@ -199,16 +195,22 @@ Video bots support plethora of video sources: satori video, laptop camera or vid
 Run bot without parameters to see available options.
 
 
-## Deploying Video Bots to Cloud
+## Deploy a video bot
 
-Satori Video Bot library is a static C++ library. We recommend full static linking
-of your bot binaries and using Docker to deploy them to the cloud.
+The Satori Video Bot API is a static C++ library. When you build your
+video bot, do a full static link, then use Docker to deploy it.
 
-## Debugging and Profiling Video Bots
-Video bots can be debugged/profiled as any normal C++ process.
-We recommend following tools: gdb, lldb, (Mac) Instruments, perf, CLion.
+## Debug and Profile video bots
+You can debug and profile video bots as normal C++ processes.
+Use the following tools:
+* `gdb`
+* `lldb`
+* Instruments (Mac OSX only)
+* `perf`
+* CLion
 
-To simplify debugging in production the bot library links with gperftools' tcmalloc
+To simplify debugging in production, the bot library links with gperftools' tcmalloc
+To simplify debugging in production, the bot library links with gperftools' tcmalloc
 and profiler. This can be disabled by specifying `SatoriVideo:with_gperftools=False`.
 
 ## SDK Command Line Tools
@@ -219,38 +221,47 @@ and profiler. This can be disabled by specifying `SatoriVideo:with_gperftools=Fa
 | `satori_video_publisher` | Allows creating Satori video streams from video files or laptop camera (Mac OSX only), so other clients can subscribe to them |
 | `satori_video_recorder` | Allows recording Satori video streams into video files. [Matroska](http://matroska.org/) is the only supported video file format |
 
-### Running Player SDK CLI tool
+### Run the Player CLI tool
+
+**Watch a Satori video stream:**
 ```shell
-# Watch Satori video stream
-./satori_video_player --endpoint=<satori-endpoint> \
+$ ./satori_video_player --endpoint=<satori-endpoint> \
                       --appkey=<satori-appkey> \
                       --channel=<satori-channel>
-
-# Watch video file
-./satori_video_player --input-video-file=my_video_file.mp4
-
-# Watch video stream from laptop camera (Mac OSX only)
-./satori_video_player --input-camera
 ```
 
-### Running Publisher SDK CLI tool
+**Watch a video file:**
 ```shell
-# Create Satori video stream from video file
-./satori_video_publisher --input-video-file=my_video_file.mp4 \
+$./satori_video_player --input-video-file=my_video_file.mp4
+```
+
+**Watch video stream from a Mac OSX laptop camera (Mac OSX only)**:
+```
+$ ./satori_video_player --input-camera
+```
+
+### Run the Publisher CLI tool
+
+**Create a Satori video stream from a video file:**
+```shell
+$ ./satori_video_publisher --input-video-file=my_video_file.mp4 \
                          --endpoint=<satori-endpoint> \
                          --appkey=<satori-appkey> \
                          --channel=<satori-channel>
+```
 
-# Create Satori video stream from laptop camera
+**Create a Satori video stream from a Mac OSX laptop camera (Mac OSX only)**:
+```shell
 ./satori_video_publisher --input-camera \
                          --endpoint=<satori-endpoint> \
                          --appkey=<satori-appkey> \
                          --channel=<satori-channel>
 ```
 
-### Running Recorder SDK CLI tool
+### Run the Recorder SDK CLI tool
+
+**Record a Satori video stream into a file:**
 ```shell
-# Record Satori video stream into file
 ./satori_video_recorder --output-video-file=my_video_file.mkv \
                         --endpoint=<satori-endpoint> \
                         --appkey=<satori-appkey> \

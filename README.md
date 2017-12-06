@@ -1,20 +1,20 @@
 # Satori Video C++ SDK
 
+The Satori Video SDK provides streaming video processing tools
+based on
+[Satori RTM](https://www.satori.com/docs/using-satori/overview).
 
-Satori Video is a system of transmitting video over [Satori RTM](https://www.satori.com/docs/using-satori/overview).
-Satori Video C++ SDK provides libraries and tools to build intelligent 
-video processing bots.
-
-Supported platforms: macOS & Linux with C++14 compiler. [Install Prerequisites](docs/prerequisites.md)
-
-[Tutorial](docs/tutorial.md) 
-| [Using SDK](docs/using_sdk.md) 
-| [SDK Examples](https://github.com/satori-com/satori-video-sdk-cpp-examples) 
-| [Building SDK](docs/building_sdk.md)
-
-## Getting SDK
+The Video SDK runs on Mac OS X and Linux. It requires:
+- C++14 compiler
+- Other tools. See [Prerequisites](docs/prerequisites.md)
+## Available documentation
+- [SDK overview](docs/using_sdk.md)
+- [Build instructions](docs/building_sdk.md)
+- [Tutorial](docs/tutorial.md)
+- [Video bot examples](https://github.com/satori-com/satori-video-sdk-cpp-examples)
+## Get the SDK
 
 ![SatoriVideo/\[~0.10\]@satorivideo/master](https://img.shields.io/badge/package-SatoriVideo%2F%5B~0.10%5D%40satorivideo%2Fmaster-green.svg)
 
-The SDK is distributed using [conan](https://conan.io/) c++ package management system.
-Refer to [prerequisites](docs/prerequisites.md) for configuring satori video conan server.
+- Use the [conan](https://conan.io/) c++ package management system to get the SDK.
+- See the [Prerequisites](docs/prerequisites.md) to learn how to configure the Satori Video SDK conan server.
