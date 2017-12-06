@@ -1,6 +1,6 @@
-CONAN_SERVER?=
-CONAN_USER?=
-CONAN_PASSWORD?=
+CONAN_SERVER?=https://video-conan.api.satori.com
+CONAN_USER?=video
+CONAN_PASSWORD?=video
 CONAN_REMOTE?=video
 CONAN_UPLOAD_OPTIONS?=--all
 GIT_COMMIT_HASH?=
