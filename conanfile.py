@@ -11,7 +11,7 @@ class SatorivideoConan(ConanFile):
 
     requires = "Libcbor/0.5.0@satorivideo/master", \
                "Boost/1.65.1-05@satorivideo/master", \
-               "Openssl/1.1.0f@satorivideo/master", \
+               "Openssl/1.1.0g@satorivideo/master", \
                "Beast/123@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
                "Rapidjson/1.1.0@satorivideo/master", \
@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "PrometheusCpp/2017.11.03@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.14'
+    version = '0.10.15'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
