@@ -106,6 +106,7 @@ struct url_source_impl {
         _next_id++;
         encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
                             frame_id{_next_id, _next_id}};
+        frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
         _sink.on_next(frame);
       }
     }

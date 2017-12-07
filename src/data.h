@@ -51,6 +51,7 @@ struct network_frame {
   std::chrono::system_clock::time_point t;
   uint32_t chunk{1};
   uint32_t chunks{1};
+  bool key_frame{false};
 
   cbor_item_t *to_cbor() const;
 };

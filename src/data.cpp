@@ -30,6 +30,11 @@ cbor_item_t *network_frame::to_cbor() const {
   cbor_map_add(root,
                {cbor_move(cbor_build_string("l")), cbor_move(cbor_build_uint8(chunks))});
 
+  if (key_frame) {
+    cbor_map_add(
+        root, {cbor_move(cbor_build_string("k")), cbor_move(cbor_build_bool(key_frame))});
+  }
+
   return cbor_move(root);
 }
 
@@ -81,6 +86,7 @@ std::vector<network_frame> encoded_frame::to_network(
     frame.t = t;
     frame.chunk = static_cast<uint32_t>(i + 1);
     frame.chunks = static_cast<uint32_t>(chunks);
+    frame.key_frame = key_frame;
 
     frames.push_back(std::move(frame));
   }
