@@ -12,13 +12,13 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
   }
   if (d.IsInt()) {
     int i = d.GetInt();
-    return i > 0 ? cbor_build_uint32(i)
-                 : cbor_build_negint32(static_cast<uint32_t>(-1 - i));
+    return i >= 0 ? cbor_build_uint32(i)
+                  : cbor_build_negint32(static_cast<uint32_t>(-1 - i));
   }
   if (d.IsInt64()) {
     int64_t i = d.GetInt64();
-    return i > 0 ? cbor_build_uint64(i)
-                 : cbor_build_negint64(static_cast<uint64_t>(-1 - i));
+    return i >= 0 ? cbor_build_uint64(i)
+                  : cbor_build_negint64(static_cast<uint64_t>(-1 - i));
   }
   if (d.IsDouble()) {
     return cbor_build_float8(d.GetDouble());
