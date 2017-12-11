@@ -1,8 +1,5 @@
 #include "rtm_client.h"
 
-#include <rapidjson/error/en.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -13,6 +10,7 @@
 #include <deque>
 #include <gsl/gsl>
 #include <iostream>
+#include <json.hpp>
 #include <memory>
 #include <utility>
 
@@ -118,44 +116,35 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Register(metrics_registry())
                                        .Add({});
 
-std::string to_string(const rapidjson::Value &d) {
-  rapidjson::StringBuffer buffer;
-  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-  d.Accept(writer);
-  return std::string(buffer.GetString());
-}
-
 struct subscribe_request {
   const uint64_t id;
   const std::string channel;
   boost::optional<uint64_t> age;
   boost::optional<uint64_t> count;
 
-  void serialize_to(rapidjson::Document &document) const {
-    constexpr const char *tmpl =
-        R"({"action":"rtm/subscribe",
-            "body":{"channel":"<not_set>",
-                    "subscription_id":"<not_set>"},
-            "id": 2})";
-    document.Parse(tmpl);
-    CHECK(document.IsObject());
-    document["id"].SetInt64(id);
-    auto body = document["body"].GetObject();
-    body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
-    body["subscription_id"].SetString(channel.c_str(), channel.length(),
-                                      document.GetAllocator());
+  nlohmann::json to_json() const {
+    nlohmann::json document =
+        R"({"action":"rtm/subscribe", "body":{"channel":"<not_set>", "subscription_id":"<not_set>"}, "id": 2})"_json;
+
+    CHECK(document.is_object());
+    document["id"] = id;
+    auto &body = document["body"];
+    body["channel"] = channel;
+    body["subscription_id"] = channel;
 
     if (age || count) {
-      rapidjson::Value history(rapidjson::kObjectType);
+      nlohmann::json history;
       if (age) {
-        history.AddMember("age", *age, document.GetAllocator());
+        history.emplace("age", *age);
       }
       if (count) {
-        history.AddMember("count", *count, document.GetAllocator());
+        history.emplace("count", *count);
       }
 
-      body.AddMember("history", history, document.GetAllocator());
+      body.emplace("history", history);
     }
+
+    return document;
   }
 };
 
@@ -163,20 +152,20 @@ struct unsubscribe_request {
   const uint64_t id;
   const std::string channel;
 
-  void serialize_to(rapidjson::Document &document) const {
-    constexpr const char *tmpl =
-        R"({"action":"rtm/unsubscribe",
-            "body":{"subscription_id":"<not_set>"},
-            "id": 2})";
-    document.Parse(tmpl);
-    CHECK(document.IsObject());
-    document["id"].SetInt64(id);
-    auto body = document["body"].GetObject();
-    body["subscription_id"].SetString(channel.c_str(), channel.length(),
-                                      document.GetAllocator());
+  nlohmann::json to_json() const {
+    nlohmann::json document =
+        R"({"action":"rtm/unsubscribe", "body":{"subscription_id":"<not_set>"}, "id": 2})"_json;
+
+    CHECK(document.is_object());
+    document["id"] = id;
+    auto &body = document["body"];
+    body["subscription_id"] = channel;
+
+    return document;
   }
 };
 
+// TODO: add <<(ostream &out, sub_status)
 enum class subscription_status {
   PendingSubscribe = 1,
   Current = 2,
@@ -320,25 +309,21 @@ class secure_client : public client {
     cbor_incref(message);
     auto decref = gsl::finally([&message]() { cbor_decref(&message); });
 
-    rapidjson::Document document;
-    constexpr const char *tmpl =
-        R"({"action":"rtm/publish",
-            "body":{"channel":"<not_set>"}})";
-    document.Parse(tmpl);
-    CHECK(document.IsObject());
-    auto body = document["body"].GetObject();
-    body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
+    nlohmann::json document =
+        R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}})"_json;
 
-    body.AddMember("message", video::cbor_to_rapidjson(message, document),
-                   document.GetAllocator());
+    CHECK(document.is_object());
 
-    rapidjson::StringBuffer buf;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
-    document.Accept(writer);
+    auto &body = document["body"];
+    body["channel"] = channel;
+    body["message"] = video::cbor_to_json(message);
+
+    const std::string document_str = document.dump();
+
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
-    rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buf.GetSize());
-    rtm_bytes_written.Increment(buf.GetSize());
-    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
+    rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(document_str.size());
+    rtm_bytes_written.Increment(document_str.size());
+    _ws.write(asio::buffer(document_str));
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -355,20 +340,19 @@ class secure_client : public client {
         subscription_impl{channel, sub, callbacks, subscription_status::PendingSubscribe,
                           ++_request_id}));
 
-    rapidjson::Document document;
-    subscribe_request req{_request_id, channel};
+    subscribe_request request{_request_id, channel};
     if (options != nullptr) {
-      req.age = options->history.age;
-      req.count = options->history.count;
+      request.age = options->history.age;
+      request.count = options->history.count;
     }
-    req.serialize_to(document);
-    rapidjson::StringBuffer buf;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
-    document.Accept(writer);
-    rtm_bytes_written.Increment(buf.GetSize());
-    _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
-    LOG(1) << "requested subscribe for " << channel << ": "
-           << std::string(buf.GetString());
+
+    nlohmann::json document = request.to_json();
+    const std::string document_str = document.dump();
+
+    rtm_bytes_written.Increment(document_str.size());
+    _ws.write(asio::buffer(document_str));
+
+    LOG(1) << "requested subscribe: " << document;
   }
 
   void subscribe_filter(const std::string & /*filter*/, const subscription & /*sub*/,
@@ -391,18 +375,17 @@ class secure_client : public client {
         continue;
       }
 
-      rapidjson::Document document;
-      unsubscribe_request req{++_request_id, sub_id};
-      req.serialize_to(document);
-      rapidjson::StringBuffer buf;
-      rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
-      document.Accept(writer);
-      rtm_bytes_written.Increment(buf.GetSize());
-      _ws.write(asio::buffer(buf.GetString(), buf.GetSize()));
+      unsubscribe_request request{++_request_id, sub_id};
+      nlohmann::json document = request.to_json();
+      const std::string document_str = document.dump();
+
+      rtm_bytes_written.Increment(document_str.size());
+      _ws.write(asio::buffer(document_str));
+
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
-      LOG(1) << "requested unsubscribe for " << sub_id << ": "
-             << std::string(buf.GetString());
+
+      LOG(1) << "requested unsubscribe: " << document;
       return;
     }
     ABORT() << "didn't find subscription";
@@ -451,17 +434,17 @@ class secure_client : public client {
       rtm_bytes_read.Increment(input_size);
 
       LOG(9) << this << " async_read input_size = " << input_size;
-      rapidjson::StringStream s(input.c_str());
-      rapidjson::Document d;
-      rapidjson::ParseResult ok = d.ParseStream(s);
-      if (!ok) {
-        LOG(ERROR) << "Parse message error at offset " << ok.Offset() << ": "
-                   << GetParseError_En(ok.Code()) << ", message: " << input;
+      nlohmann::json document;
+      try {
+        document = nlohmann::json::parse(input);
+      } catch (const std::exception &e) {
+        LOG(ERROR) << "Parse message error: " << e.what() << ", message: " << input;
         _callbacks.on_error(client_error::InvalidMessage);
         return;
       }
+
       LOG(9) << this << " async_read processing input";
-      process_input(d, input_size);
+      process_input(document, input_size);
 
       LOG(9) << this << " async_read asking for read";
       ask_for_read();
@@ -505,17 +488,19 @@ class secure_client : public client {
     });
   }
 
-  void process_input(const rapidjson::Document &d, size_t byte_size) {
-    if (!d.HasMember("action")) {
-      std::cerr << "no action in pdu: " << to_string(d) << "\n";
+  void process_input(const nlohmann::json &document, size_t byte_size) {
+    CHECK(document.is_object()) << "not an object: " << document;
+
+    if (document.count("action") == 0) {
+      LOG(ERROR) << "no action in pdu: " << document;
     }
 
-    std::string action = d["action"].GetString();
+    std::string action = document["action"];
     rtm_actions_received.Add({{"action", action}}).Increment();
 
     if (action == "rtm/subscription/data") {
-      auto body = d["body"].GetObject();
-      std::string subscription_id = body["subscription_id"].GetString();
+      auto &body = document["body"];
+      std::string subscription_id = body["subscription_id"];
       auto it = _subscriptions.find(subscription_id);
       CHECK(it != _subscriptions.end());
       subscription_impl &sub = it->second;
@@ -529,76 +514,74 @@ class secure_client : public client {
       rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
 
-      for (const rapidjson::Value &m : body["messages"].GetArray()) {
-        sub.callbacks.on_data(sub.sub, cbor_move(video::rapidjson_to_cbor(m)));
+      for (auto &m : body["messages"]) {
+        sub.callbacks.on_data(sub.sub, cbor_move(video::json_to_cbor(m)));
       }
     } else if (action == "rtm/subscribe/ok") {
-      const uint64_t id = d["id"].GetInt64();
+      const uint64_t id = document["id"];
       for (auto &it : _subscriptions) {
         const std::string &sub_id = it.first;
         subscription_impl &sub = it.second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got subscribe confirmation for subscription " << sub_id
-                 << " in status " << std::to_string((int)sub.status) << ": "
-                 << to_string(d);
+                 << " in status " << std::to_string((int)sub.status) << ": " << document;
           CHECK(sub.status == subscription_status::PendingSubscribe);
           sub.pending_request_id = UINT64_MAX;
           sub.status = subscription_status::Current;
           return;
         }
       }
-      ABORT() << "got unexpected subscribe confirmation: " << to_string(d);
+      ABORT() << "got unexpected subscribe confirmation: " << document;
     } else if (action == "rtm/subscribe/error") {
-      const uint64_t id = d["id"].GetInt64();
+      const uint64_t id = document["id"];
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
-                     << std::to_string((int)sub.status) << ": " << to_string(d);
+                     << std::to_string((int)sub.status) << ": " << document;
           CHECK(sub.status == subscription_status::PendingSubscribe);
           _callbacks.on_error(client_error::SubscribeError);
           _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected subscribe error: " << to_string(d);
+      ABORT() << "got unexpected subscribe error: " << document;
     } else if (action == "rtm/unsubscribe/ok") {
-      const uint64_t id = d["id"].GetInt64();
+      const uint64_t id = document["id"];
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
-                 << " in status " << std::to_string((int)sub.status) << ": "
-                 << to_string(d);
+                 << " in status " << std::to_string((int)sub.status) << ": " << document;
           CHECK(sub.status == subscription_status::PendingUnsubscribe);
           it = _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected unsubscribe confirmation: " << to_string(d);
+      ABORT() << "got unexpected unsubscribe confirmation: " << document;
     } else if (action == "rtm/unsubscribe/error") {
-      const uint64_t id = d["id"].GetInt64();
+      const uint64_t id = document["id"];  // check type
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
                      << " in status " << std::to_string((int)sub.status) << ": "
-                     << to_string(d);
+                     << document;
           CHECK(sub.status == subscription_status::PendingUnsubscribe);
           _callbacks.on_error(client_error::UnsubscribeError);
           _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected unsubscribe error: " << to_string(d);
+      ABORT() << "got unexpected unsubscribe error: " << document;
     } else if (action == "rtm/subscription/error") {
-      LOG(ERROR) << "subscription error: " << to_string(d);
+      LOG(ERROR) << "subscription error: " << document;
       _callbacks.on_error(client_error::SubscriptionError);
     } else {
-      ABORT() << "unhandled action " << action << to_string(d);
+      ABORT() << "unsupported action: " << document;
     }
   }
 

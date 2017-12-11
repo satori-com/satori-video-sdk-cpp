@@ -1,10 +1,8 @@
-#include <rapidjson/document.h>
-#include <cstring>
+#include "video_streams.h"
+
 #include <fstream>
-#include <functional>
 #include <gsl/gsl>
-#include <iostream>
-#include <memory>
+#include <json.hpp>
 #include <string>
 #include <thread>
 
@@ -12,7 +10,6 @@
 #include "cbor_tools.h"
 #include "logging.h"
 #include "streams/asio_streams.h"
-#include "video_streams.h"
 
 namespace satori {
 namespace video {
@@ -35,10 +32,14 @@ struct read_json_impl {
       return;
     }
     LOG(4) << "line=" << line;
-    rapidjson::Document data;
-    data.Parse<0>(line.c_str()).HasParseError();
-    CHECK(data.IsObject());
-    observer.on_next(cbor_move(rapidjson_to_cbor(data)));
+    nlohmann::json data;
+    try {
+      data = nlohmann::json::parse(line);
+    } catch (const std::exception &e) {
+      ABORT() << "Unable to parse line: " << e.what() << " " << line;
+    }
+    CHECK(data.is_object());
+    observer.on_next(cbor_move(json_to_cbor(data)));
   }
 
   const std::string _filename;
@@ -59,9 +60,11 @@ static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
   auto decref = gsl::finally([&doc]() { cbor_decref(&doc); });
 
   cbor_item_t *messages = cbor::map(doc).get("messages");
+  CHECK(cbor_isa_array(messages));
   std::vector<cbor_item_t *> result;
+  auto array_handle = cbor_array_handle(messages);
   for (size_t i = 0; i < cbor_array_size(messages); ++i) {
-    result.push_back(cbor_array_get(messages, i));
+    result.push_back(cbor_incref(array_handle[i]));
   }
   return streams::publishers::of(std::move(result));
 }

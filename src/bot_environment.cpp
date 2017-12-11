@@ -1,15 +1,11 @@
 #include "bot_environment.h"
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
-#include <rapidjson/filereadstream.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
 #include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <gsl/gsl>
+#include <json.hpp>
 
 #include "bot_instance.h"
 #include "cbor_json.h"
@@ -109,40 +105,32 @@ struct file_cbor_dump_observer : streams::observer<cbor_item_t*> {
 
 }  // namespace
 
-cbor_item_t* read_config_from_file(const std::string& config_file) {
-  FILE* fp = fopen(config_file.c_str(), "r");
-  if (fp == nullptr) {
-    std::cerr << "Can't read config file " << config_file << ": " << strerror(errno)
+cbor_item_t* read_config_from_file(const std::string& config_file_name) {
+  nlohmann::json config;
+
+  try {
+    std::ifstream config_file(config_file_name);
+    config = nlohmann::json::parse(config_file);
+  } catch (const std::exception& e) {
+    std::cerr << "Can't parse config file " << config_file_name << ": " << e.what()
               << std::endl;
     exit(1);
   }
-  auto file_closer = gsl::finally([&fp]() { fclose(fp); });
 
-  char readBuffer[65536];
-  rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
-  rapidjson::Document d;
-  rapidjson::ParseResult ok = d.ParseStream(is);
-
-  if (!ok) {
-    std::cerr << "Config parse error at offset " << ok.Offset() << ": "
-              << GetParseError_En(ok.Code()) << std::endl;
-    exit(1);
-  }
-
-  return cbor_move(rapidjson_to_cbor(d));
+  return cbor_move(json_to_cbor(config));
 }
 
 cbor_item_t* read_config_from_arg(const std::string& arg) {
-  rapidjson::Document d;
-  rapidjson::ParseResult ok = d.Parse(arg.c_str());
+  nlohmann::json config;
 
-  if (!ok) {
-    std::cerr << "Config parse error at offset " << ok.Offset() << ": "
-              << GetParseError_En(ok.Code()) << std::endl;
+  try {
+    config = nlohmann::json::parse(arg);
+  } catch (const std::exception& e) {
+    std::cerr << "Can't parse config: " << e.what() << "\nArg: " << arg << std::endl;
     exit(1);
   }
 
-  return cbor_move(rapidjson_to_cbor(d));
+  return cbor_move(json_to_cbor(config));
 }
 
 bot_environment& bot_environment::instance() {

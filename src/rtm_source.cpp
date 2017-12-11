@@ -41,8 +41,13 @@ network_packet parse_network_frame(cbor_item_t *item) {
   uint32_t chunk = 1, chunks = 1;
   const cbor_item_t *c = msg.get("c");
   if (c != nullptr) {
-    chunk = cbor_get_uint32(c);
-    chunks = cbor_get_uint32(msg.get("l"));
+    const cbor_item_t *l = msg.get("l");
+    CHECK(!cbor_isa_negint(c));
+    CHECK(!cbor_isa_negint(l));
+    CHECK_LE(cbor_int_get_width(c), CBOR_INT_32);
+    CHECK_LE(cbor_int_get_width(l), CBOR_INT_32);
+    chunk = static_cast<uint32_t>(cbor_get_int(c));
+    chunks = static_cast<uint32_t>(cbor_get_int(l));
   }
 
   const cbor_item_t *k = msg.get("k");

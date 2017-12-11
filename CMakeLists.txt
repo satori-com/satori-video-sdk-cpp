@@ -98,7 +98,6 @@ target_link_libraries(satorivideo
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
-        CONAN_PKG::Rapidjson
     )
 target_include_directories(satorivideo PUBLIC include)
 target_compile_definitions(satorivideo PRIVATE CONAN_PACKAGE_VERSION="${CONAN_PACKAGE_VERSION}")
@@ -158,7 +157,6 @@ target_link_libraries(satori_video_publisher
         CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
-        CONAN_PKG::Rapidjson
         CONAN_PKG::PrometheusCpp
         )
 
@@ -177,7 +175,6 @@ target_link_libraries(satori_video_recorder
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
-        CONAN_PKG::Rapidjson
         )
 
 add_executable(satori_video_player src/clitools/player.cpp)
@@ -195,7 +192,6 @@ target_link_libraries(satori_video_player
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
-        CONAN_PKG::Rapidjson
         CONAN_PKG::SDL
         )
 
@@ -213,7 +209,6 @@ target_link_libraries(test_configure_bot
         CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
-        CONAN_PKG::Rapidjson
         )
 
 
@@ -255,7 +250,6 @@ function(add_video_test TEST_NAME TEST_FILE)
             CONAN_PKG::Loguru
             CONAN_PKG::Openssl
             CONAN_PKG::PrometheusCpp
-            CONAN_PKG::Rapidjson
         )
     add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME})
 endfunction()
