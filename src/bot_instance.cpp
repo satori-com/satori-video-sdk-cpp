@@ -133,7 +133,6 @@ std::vector<image_frame> bot_instance::extract_frames(
       continue;
     }
 
-    LOG(1) << "process_image_frame " << frame->width << "x" << frame->height;
     if (frame->width != _image_metadata.width) {
       _image_metadata.width = frame->width;
       _image_metadata.height = frame->height;
@@ -169,6 +168,9 @@ std::list<bot_output> bot_instance::operator()(std::queue<owned_image_packet>& p
   std::vector<image_frame> bframes = extract_frames(result);
 
   if (!bframes.empty()) {
+    LOG(1) << "process " << bframes.size() << " frames " << _image_metadata.width << "x"
+           << _image_metadata.height;
+
     _descriptor.img_callback(*this, gsl::span<image_frame>(bframes));
     frame_batch_processed_total.Increment();
 
