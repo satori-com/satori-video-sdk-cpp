@@ -27,6 +27,7 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
     cbor_item_t* message = cbor_new_definite_array(d.Size());
     for (auto& m : d.GetArray()) {
       cbor_item_t* item = json_to_cbor(m);
+      CHECK_EQ(1, cbor_refcount(item));
       CHECK(cbor_array_push(message, cbor_move(item)));
     }
     return message;
@@ -36,7 +37,9 @@ cbor_item_t* json_to_cbor(const rapidjson::Value& d) {
     for (auto& m : d.GetObject()) {
       cbor_item_t* key = json_to_cbor(m.name);
       cbor_item_t* value = json_to_cbor(m.value);
-      cbor_map_add(message, {cbor_move(key), cbor_move(value)});
+      CHECK_EQ(1, cbor_refcount(key));
+      CHECK_EQ(1, cbor_refcount(value));
+      CHECK(cbor_map_add(message, {cbor_move(key), cbor_move(value)}));
     }
     return message;
   }

@@ -37,14 +37,14 @@ cbor_item_t* build_configure_command(cbor_item_t* config) {
   cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
                      cbor_move(cbor_build_string("configure"))});
   cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
-  return cbor_move(cmd);
+  return cmd;
 }
 
 cbor_item_t* build_shutdown_command() {
   cbor_item_t* cmd = cbor_new_definite_map(2);
   cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
                      cbor_move(cbor_build_string("shutdown"))});
-  return cbor_move(cmd);
+  return cmd;
 }
 
 }  // namespace
@@ -69,6 +69,7 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
           LOG(INFO) << "shutting down bot";
           if (_descriptor.ctrl_callback) {
             cbor_item_t* cmd = build_shutdown_command();
+            CHECK_EQ(1, cbor_refcount(cmd));
             auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
             cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
             if (response != nullptr) {
@@ -103,15 +104,19 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
 
 void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
                                  const frame_id& id) {
+  cbor_incref(message);
+  auto message_decref = gsl::finally([&message]() { cbor_decref(&message); });
+
+  cbor_item_t* message_copy = cbor_copy(message);
+  CHECK_EQ(1, cbor_refcount(message_copy));
   frame_id effective_frame_id =
       (id.i1 == 0 && id.i2 == 0 && _current_frame_id.i1 != 0 && _current_frame_id.i2 != 0)
           ? _current_frame_id
           : id;
 
   struct bot_message newmsg {
-    message, kind, effective_frame_id
+    cbor_move(message_copy), kind, effective_frame_id
   };
-  cbor_incref(message);
   _message_buffer.push_back(newmsg);
 }
 
@@ -204,13 +209,14 @@ std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
 
   if (response != nullptr) {
     CHECK(cbor_isa_map(response)) << "bot response is not a map: " << response;
+
     cbor_item_t* request_id = cbor::map(msg).get("request_id");
     if (request_id != nullptr) {
       cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
                               cbor_move(cbor_copy(request_id))});
     }
 
-    queue_message(bot_message_kind::CONTROL, cbor_move(response), frame_id{0, 0});
+    queue_message(bot_message_kind::CONTROL, response, frame_id{0, 0});
   }
 
   prepare_message_buffer_for_downstream();
@@ -266,9 +272,12 @@ void bot_instance::configure(cbor_item_t* config) {
   if (config == nullptr) {
     LOG(INFO) << "using empty bot configuration";
     config = cbor_new_definite_map(0);
+  } else {
+    cbor_incref(config);
   }
 
   cbor_item_t* cmd = build_configure_command(config);
+  CHECK_EQ(1, cbor_refcount(cmd));
   auto cbor_deleter = gsl::finally([&config, &cmd]() {
     cbor_decref(&config);
     cbor_decref(&cmd);
@@ -277,8 +286,7 @@ void bot_instance::configure(cbor_item_t* config) {
   LOG(INFO) << "configuring bot: " << cmd;
   cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
   if (response != nullptr) {
-    // TODO: add test, probably we don't need cbor_move() here
-    queue_message(bot_message_kind::DEBUG, cbor_move(response), frame_id{0, 0});
+    queue_message(bot_message_kind::DEBUG, response, frame_id{0, 0});
   }
 }
 

@@ -129,7 +129,7 @@ cbor_item_t* read_config_from_file(const std::string& config_file) {
     exit(1);
   }
 
-  return json_to_cbor(d);
+  return cbor_move(json_to_cbor(d));
 }
 
 cbor_item_t* read_config_from_arg(const std::string& arg) {
@@ -142,7 +142,7 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
     exit(1);
   }
 
-  return json_to_cbor(d);
+  return cbor_move(json_to_cbor(d));
 }
 
 bot_environment& bot_environment::instance() {
@@ -159,16 +159,16 @@ void bot_environment::operator()(const owned_image_metadata& /*metadata*/) {}
 void bot_environment::operator()(const owned_image_frame& /*frame*/) {}
 
 void bot_environment::operator()(struct bot_message& msg) {
-  CHECK_EQ(1, cbor_refcount(msg.data));
+  CHECK_EQ(0, cbor_refcount(msg.data));
   switch (msg.kind) {
     case bot_message_kind::ANALYSIS:
-      _analysis_sink->on_next(cbor_move(msg.data));
+      _analysis_sink->on_next(std::move(msg.data));
       break;
     case bot_message_kind::CONTROL:
-      _control_sink->on_next(cbor_move(msg.data));
+      _control_sink->on_next(std::move(msg.data));
       break;
     case bot_message_kind::DEBUG:
-      _debug_sink->on_next(cbor_move(msg.data));
+      _debug_sink->on_next(std::move(msg.data));
       break;
   }
 }
