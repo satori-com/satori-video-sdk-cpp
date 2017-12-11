@@ -9,19 +9,20 @@ class SatorivideoConan(ConanFile):
 
     options = {"with_opencv": [True, False], "with_gperftools": [True, False]}
 
-    requires = "Libcbor/0.5.0@satorivideo/master", \
+    requires = "Beast/123@satorivideo/master", \
                "Boost/1.65.1-05@satorivideo/master", \
-               "Openssl/1.1.0g@satorivideo/master", \
-               "Beast/123@satorivideo/master", \
-               "Gsl/20017.07.27@satorivideo/master", \
-               "Rapidjson/1.1.0@satorivideo/master", \
                "Ffmpeg/3.4.0@satorivideo/master", \
+               "Gsl/20017.07.27@satorivideo/master", \
+               "Json/2.1.1@satorivideo/master", \
+               "Libcbor/0.5.0@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
-               "SDL/2.0.5@satorivideo/master", \
-               "PrometheusCpp/2017.12.06@satorivideo/master"
+               "Openssl/1.1.0g@satorivideo/master", \
+               "PrometheusCpp/2017.12.06@satorivideo/master", \
+               "Rapidjson/1.1.0@satorivideo/master", \
+               "SDL/2.0.5@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.20'
+    version = '0.10.21'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \

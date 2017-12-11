@@ -129,7 +129,7 @@ cbor_item_t* read_config_from_file(const std::string& config_file) {
     exit(1);
   }
 
-  return cbor_move(json_to_cbor(d));
+  return cbor_move(rapidjson_to_cbor(d));
 }
 
 cbor_item_t* read_config_from_arg(const std::string& arg) {
@@ -142,7 +142,7 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
     exit(1);
   }
 
-  return cbor_move(json_to_cbor(d));
+  return cbor_move(rapidjson_to_cbor(d));
 }
 
 bot_environment& bot_environment::instance() {

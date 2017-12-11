@@ -329,7 +329,7 @@ class secure_client : public client {
     auto body = document["body"].GetObject();
     body["channel"].SetString(channel.c_str(), channel.length(), document.GetAllocator());
 
-    body.AddMember("message", video::cbor_to_json(message, document),
+    body.AddMember("message", video::cbor_to_rapidjson(message, document),
                    document.GetAllocator());
 
     rapidjson::StringBuffer buf;
@@ -530,7 +530,7 @@ class secure_client : public client {
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
 
       for (const rapidjson::Value &m : body["messages"].GetArray()) {
-        sub.callbacks.on_data(sub.sub, cbor_move(video::json_to_cbor(m)));
+        sub.callbacks.on_data(sub.sub, cbor_move(video::rapidjson_to_cbor(m)));
       }
     } else if (action == "rtm/subscribe/ok") {
       const uint64_t id = d["id"].GetInt64();

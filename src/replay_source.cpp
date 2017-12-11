@@ -38,7 +38,7 @@ struct read_json_impl {
     rapidjson::Document data;
     data.Parse<0>(line.c_str()).HasParseError();
     CHECK(data.IsObject());
-    observer.on_next(cbor_move(json_to_cbor(data)));
+    observer.on_next(cbor_move(rapidjson_to_cbor(data)));
   }
 
   const std::string _filename;

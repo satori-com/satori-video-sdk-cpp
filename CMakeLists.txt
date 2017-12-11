@@ -94,6 +94,7 @@ target_link_libraries(satorivideo
         CONAN_PKG::Beast
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
@@ -153,10 +154,11 @@ target_link_libraries(satori_video_publisher
         satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Gsl
+        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl
         CONAN_PKG::PrometheusCpp
         )
 
@@ -170,12 +172,12 @@ target_link_libraries(satori_video_recorder
         satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Gsl
+        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
-        CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl
-        CONAN_PKG::Loguru
         CONAN_PKG::PrometheusCpp
+        CONAN_PKG::Rapidjson
         )
 
 add_executable(satori_video_player src/clitools/player.cpp)
@@ -187,13 +189,14 @@ target_link_libraries(satori_video_player
         PRIVATE
         satorivideo
         CONAN_PKG::Boost
-        CONAN_PKG::Gsl
-        CONAN_PKG::Loguru
-        CONAN_PKG::Rapidjson
-        CONAN_PKG::Openssl
-        CONAN_PKG::SDL
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Gsl
+        CONAN_PKG::Json
+        CONAN_PKG::Loguru
+        CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
+        CONAN_PKG::Rapidjson
+        CONAN_PKG::SDL
         )
 
 add_executable(test_configure_bot test/bots/test_configure_bot.cpp)
@@ -206,10 +209,12 @@ target_link_libraries(test_configure_bot
         satorivideo
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
+        CONAN_PKG::Gsl
+        CONAN_PKG::Json
+        CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::Rapidjson
-        CONAN_PKG::Gsl
-        CONAN_PKG::Loguru)
+        )
 
 
 add_executable(test_bot test/bots/test_bot.cpp)
@@ -244,12 +249,13 @@ function(add_video_test TEST_NAME TEST_FILE)
         PRIVATE
             satorivideo
             CONAN_PKG::Boost
-            CONAN_PKG::Loguru
+            CONAN_PKG::Ffmpeg
             CONAN_PKG::Gsl
-            CONAN_PKG::Rapidjson
+            CONAN_PKG::Json
+            CONAN_PKG::Loguru
             CONAN_PKG::Openssl
             CONAN_PKG::PrometheusCpp
-            CONAN_PKG::Ffmpeg
+            CONAN_PKG::Rapidjson
         )
     add_test(${TEST_NAME} ${CMAKE_BINARY_DIR}/test/${TEST_NAME})
 endfunction()
@@ -383,3 +389,4 @@ add_video_test(encoding_test test/encoding_test.cpp)
 add_video_test(threadutils_test test/threadutils_test.cpp)
 add_video_test(bot_instance_test test/bot_instance_test.cpp)
 add_video_test(cbor_to_json_test test/cbor_to_json_test.cpp)
+add_video_test(json_to_cbor_test test/json_to_cbor_test.cpp)
