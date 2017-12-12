@@ -37,6 +37,14 @@ auto &receive_frame_millis =
         .Name("decoder_receive_frame_millis")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0, 1, 2, 5, 10, 20, 50, 100});
+auto &send_packet_errors = prometheus::BuildCounter()
+                               .Name("decoder_send_packet_errors")
+                               .Register(metrics_registry())
+                               .Add({});
+auto &receive_frame_errors = prometheus::BuildCounter()
+                                 .Name("decoder_receive_frame_errors")
+                                 .Register(metrics_registry())
+                                 .Add({});
 
 struct image_decoder_op {
   image_decoder_op(image_pixel_format pixel_format, int bounding_width,
@@ -92,6 +100,7 @@ struct image_decoder_op {
         int err = avcodec_send_packet(_context.get(), nullptr);
         if (err < 0) {
           LOG(ERROR) << "avcodec_send_packet final error: " << avutils::error_msg(err);
+          send_packet_errors.Increment();
           deliver_on_error(video_error::FrameGenerationError);
           return;
         }
@@ -160,6 +169,7 @@ struct image_decoder_op {
         av_packet_unref(_packet.get());
         if (err < 0) {
           LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(err);
+          send_packet_errors.Increment();
           return;
         }
         send_packet_millis.Observe(s.millis());
@@ -204,6 +214,7 @@ struct image_decoder_op {
             return video_error::EndOfStreamError;
           default:
             LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
+            receive_frame_errors.Increment();
             deliver_on_error(video_error::FrameGenerationError);
             return video_error::FrameGenerationError;
         }

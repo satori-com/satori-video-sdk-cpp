@@ -365,7 +365,7 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
   bool keep_proportions = vm["keep-proportions"].as<bool>();
 
   streams::publisher<owned_image_packet> source =
-      encoded_publisher(vm, io_service, client, channel)
+      encoded_publisher(vm, io_service, client, channel) >> report_frame_dynamics()
       >> decode_image_frames(resolution->width, resolution->height, pixel_format,
                              keep_proportions);
 
