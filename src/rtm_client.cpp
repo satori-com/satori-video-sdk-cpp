@@ -165,12 +165,22 @@ struct unsubscribe_request {
   }
 };
 
-// TODO: add <<(ostream &out, sub_status)
 enum class subscription_status {
   PendingSubscribe = 1,
   Current = 2,
   PendingUnsubscribe = 3
 };
+
+std::ostream &operator<<(std::ostream &out, subscription_status const &s) {
+  switch (s) {
+    case subscription_status::PendingSubscribe:
+      return out << "PendingSubscribe";
+    case subscription_status::Current:
+      return out << "Current";
+    case subscription_status::PendingUnsubscribe:
+      return out << "PendingUnsubscribe";
+  }
+}
 
 struct subscription_impl {
   const std::string channel;
@@ -185,11 +195,11 @@ enum class client_state { Stopped = 1, Running = 2, PendingStopped = 3 };
 std::ostream &operator<<(std::ostream &out, client_state const &s) {
   switch (s) {
     case client_state::Running:
-      return out << "client_state_running";
+      return out << "Running";
     case client_state::PendingStopped:
-      return out << "client_state_pending_stopped";
+      return out << "PendingStopped";
     case client_state::Stopped:
-      return out << "client_state_stopped";
+      return out << "Stopped";
   }
 }
 
@@ -240,7 +250,7 @@ class secure_client : public client {
 
     auto endpoints = _tcp_resolver.resolve({_host, _port}, ec);
     if (ec.value() != 0) {
-      LOG(ERROR) << "can't resolve endpoint: " << ec.message();
+      LOG(ERROR) << "can't resolve endpoint: [" << ec << "] " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
 
@@ -249,20 +259,31 @@ class secure_client : public client {
     // tcp connect
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
     if (ec.value() != 0) {
-      LOG(ERROR) << "can't connect: " << ec.message();
+      LOG(ERROR) << "can't connect: [" << ec << "] " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
 
     // ssl handshake
-    _ws.next_layer().handshake(boost::asio::ssl::stream_base::client);
-
-    // upgrade to ws.
-    _ws.handshake(_host, "/v2?appkey=" + _appkey, ec);
+    _ws.next_layer().handshake(boost::asio::ssl::stream_base::client, ec);
     if (ec.value() != 0) {
-      LOG(ERROR) << "can't upgrade to websocket protocol: " << ec.message();
+      LOG(ERROR) << "can't handshake SSL: [" << ec << "] " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
-    LOG(1) << "Websocket open";
+
+    // upgrade to ws.
+    boost::beast::websocket::response_type ws_upgrade_response;
+    _ws.handshake_ex(ws_upgrade_response, _host + ":" + _port, "/v2?appkey=" + _appkey,
+                     [this](boost::beast::websocket::request_type &ws_upgrade_request) {
+                       LOG(INFO) << "websocket upgrade request:\n" << ws_upgrade_request;
+                     },
+                     ec);
+    LOG(INFO) << "websocket upgrade response:\n" << ws_upgrade_response;
+    if (ec.value() != 0) {
+      LOG(ERROR) << "can't upgrade to websocket protocol: [" << ec << "] "
+                 << ec.message();
+      return make_error_condition(client_error::AsioError);
+    }
+    LOG(INFO) << "websocket open";
 
     _ws.control_callback(_control_callback);
 
@@ -281,14 +302,13 @@ class secure_client : public client {
     boost::system::error_code ec;
     _ping_timer.cancel(ec);
     if (ec.value() != 0) {
-      LOG(ERROR) << "can't stop ping timer: " << ec.message();
+      LOG(ERROR) << "can't stop ping timer: [" << ec << "] " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
 
-    ec.clear();
     _ws.next_layer().next_layer().close(ec);
     if (ec.value() != 0) {
-      LOG(ERROR) << "can't close: " << ec.message();
+      LOG(ERROR) << "can't close: [" << ec << "] " << ec.message();
       return make_error_condition(client_error::AsioError);
     }
 
@@ -323,7 +343,11 @@ class secure_client : public client {
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(document_str.size());
     rtm_bytes_written.Increment(document_str.size());
-    _ws.write(asio::buffer(document_str));
+    boost::system::error_code ec;
+    _ws.write(asio::buffer(document_str), ec);
+    if (ec.value() != 0) {
+      LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
+    }
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -350,7 +374,11 @@ class secure_client : public client {
     const std::string document_str = document.dump();
 
     rtm_bytes_written.Increment(document_str.size());
-    _ws.write(asio::buffer(document_str));
+    boost::system::error_code ec;
+    _ws.write(asio::buffer(document_str), ec);
+    if (ec.value() != 0) {
+      LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
+    }
 
     LOG(1) << "requested subscribe: " << document;
   }
@@ -380,7 +408,12 @@ class secure_client : public client {
       const std::string document_str = document.dump();
 
       rtm_bytes_written.Increment(document_str.size());
-      _ws.write(asio::buffer(document_str));
+
+      boost::system::error_code ec;
+      _ws.write(asio::buffer(document_str), ec);
+      if (ec.value() != 0) {
+        LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
+      }
 
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PendingUnsubscribe;
@@ -415,14 +448,14 @@ class secure_client : public client {
         return;
       }
 
-      LOG(9) << this << " async_read ec.value() = " << ec.value();
+      LOG(9) << this << " async_read ec=" << ec;
       if (ec.value() != 0) {
         if (_client_state == client_state::Running) {
-          LOG(ERROR) << this << " asio error: " << ec.message();
+          LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
           _callbacks.on_error(client_error::AsioError);
         } else {
-          LOG(INFO) << this << " ignoring asio error: " << ec.message()
-                    << " because in state " << _client_state;
+          LOG(INFO) << this << " ignoring asio error because in state " << _client_state
+                    << ": [" << ec << "] " << ec.message();
         }
 
         return;
@@ -469,14 +502,14 @@ class secure_client : public client {
           return;
         }
 
-        LOG(2) << this << " ping_write_handler ec.value() = " << ec.value();
+        LOG(2) << this << " ping_write_handler ec=" << ec;
         if (ec.value() != 0) {
           if (_client_state == client_state::Running) {
-            LOG(ERROR) << this << " asio error: " << ec.message();
+            LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
             _callbacks.on_error(client_error::AsioError);
           } else {
-            LOG(INFO) << this << " ignoring asio error: " << ec.message()
-                      << " because in state " << _client_state;
+            LOG(INFO) << this << " ignoring asio error because in state " << _client_state
+                      << ": [" << ec << "] " << ec.message();
           }
 
           return;
@@ -524,7 +557,7 @@ class secure_client : public client {
         subscription_impl &sub = it.second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got subscribe confirmation for subscription " << sub_id
-                 << " in status " << std::to_string((int)sub.status) << ": " << document;
+                 << " in status " << sub.status << ": " << document;
           CHECK(sub.status == subscription_status::PendingSubscribe);
           sub.pending_request_id = UINT64_MAX;
           sub.status = subscription_status::Current;
@@ -539,7 +572,7 @@ class secure_client : public client {
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
-                     << std::to_string((int)sub.status) << ": " << document;
+                     << sub.status << ": " << document;
           CHECK(sub.status == subscription_status::PendingSubscribe);
           _callbacks.on_error(client_error::SubscribeError);
           _subscriptions.erase(it);
@@ -554,7 +587,7 @@ class secure_client : public client {
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
-                 << " in status " << std::to_string((int)sub.status) << ": " << document;
+                 << " in status " << sub.status << ": " << document;
           CHECK(sub.status == subscription_status::PendingUnsubscribe);
           it = _subscriptions.erase(it);
           return;
@@ -568,8 +601,7 @@ class secure_client : public client {
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
-                     << " in status " << std::to_string((int)sub.status) << ": "
-                     << document;
+                     << " in status " << sub.status << ": " << document;
           CHECK(sub.status == subscription_status::PendingUnsubscribe);
           _callbacks.on_error(client_error::UnsubscribeError);
           _subscriptions.erase(it);
