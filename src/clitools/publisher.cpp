@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
   satori::video::cli_streams::configuration cli_cfg;
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
+  cli_cfg.enable_url_input = true;
   cli_cfg.enable_rtm_output = true;
   cli_cfg.enable_generic_output_options = true;
 

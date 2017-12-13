@@ -167,6 +167,7 @@ int bot_environment::main(int argc, char* argv[]) {
   cli_cfg.enable_file_input = true;
   cli_cfg.enable_camera_input = true;
   cli_cfg.enable_generic_input_options = true;
+  cli_cfg.enable_url_input = true;
   cli_cfg.enable_file_batch_mode = true;
 
   auto cmd_args = parse_command_line(argc, argv, cli_cfg);
