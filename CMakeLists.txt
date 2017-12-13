@@ -123,7 +123,6 @@ if (CONAN_OPENCV_ROOT)
     target_link_libraries(satorivideo PUBLIC CONAN_PKG::Opencv)
     target_sources(satorivideo PRIVATE
             include/satorivideo/opencv/opencv_bot.h
-            include/satorivideo/opencv/opencv_impl.h
             include/satorivideo/opencv/opencv_utils.h
             src/opencv/opencv_bot.cpp
             src/opencv/opencv_utils.cpp
