@@ -38,7 +38,6 @@ int main(int argc, char* argv[]) {
   cli_cfg.enable_camera_input = true;
   cli_cfg.enable_generic_input_options = true;
   cli_cfg.enable_file_output = true;
-  cli_cfg.enable_file_batch_mode = true;
 
   po::options_description cli_options = cli_cfg.to_boost();
   cli_options.add(generic);
