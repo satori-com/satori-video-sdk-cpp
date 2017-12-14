@@ -64,6 +64,7 @@ add_library(satorivideo
     src/rtm_source.cpp
     src/rtm_streams.cpp
     src/satori_video.h
+    src/statsutils.cpp
     src/stopwatch.h
     src/streams/asio_streams.h
     src/streams/asio_streams_impl.h

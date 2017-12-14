@@ -6,6 +6,7 @@
 #include "base64.h"
 #include "logging.h"
 #include "metrics.h"
+#include "statsutils.h"
 #include "video_error.h"
 #include "video_streams.h"
 
@@ -13,8 +14,6 @@ namespace satori {
 namespace video {
 
 namespace {
-
-namespace accum = boost::accumulators;
 
 auto &frame_chunks_mismatch = prometheus::BuildCounter()
                                   .Name("network_decoder_frame_chunks_mismatch")
@@ -58,6 +57,17 @@ auto &frame_arrival_time_jitter =
         .Add({}, std::vector<double>{0,  1,   2,   3,   4,   5,   6,   7,  8,  9,
                                      10, 15,  20,  25,  30,  40,  50,  60, 70, 80,
                                      90, 100, 150, 200, 250, 300, 400, 500});
+
+auto &frame_delivery_delay_millis =
+    prometheus::BuildHistogram()
+        .Name("frame_delivery_delay_millis")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0,    1,     2,     3,     4,     5,    6,    7,
+                                     8,    9,     10,    15,    20,    25,   30,   40,
+                                     50,   60,    70,    80,    90,    100,  150,  200,
+                                     250,  300,   400,   500,   600,   700,  800,  900,
+                                     1000, 2000,  3000,  4000,  5000,  6000, 7000, 8000,
+                                     9000, 10000, 15000, 20000, 30000, 60000});
 
 }  // namespace
 
@@ -137,48 +147,40 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
       } else {
         const double timestamp_delta =
             std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         f.timestamp - _last_frame_timestamp)
+                         f.timestamp - _last_timestamp)
                          .count());
         const double arrival_time_delta =
             std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         arrival_time - _last_frame_arrival_time)
+                         arrival_time - _last_arrival_time)
                          .count());
 
-        frame_id_deltas.Observe(std::abs(f.id.i1 - _last_frame_id.i1));
+        frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
         frame_timestamp_delta_millis.Observe(timestamp_delta);
         frame_arrival_time_delta_millis.Observe(arrival_time_delta);
+        frame_delivery_delay_millis.Observe(
+            std::abs(timestamp_delta - arrival_time_delta));
 
-        _timestamp_variance_accum(timestamp_delta);
-        _arrival_time_variance_accum(arrival_time_delta);
+        _timestamp_jitter.emplace(timestamp_delta);
+        _arrival_time_jitter.emplace(arrival_time_delta);
 
-        frame_timestamp_jitter.Observe(standard_deviation(_timestamp_variance_accum));
-        frame_arrival_time_jitter.Observe(
-            standard_deviation(_arrival_time_variance_accum));
+        frame_timestamp_jitter.Observe(_timestamp_jitter.value());
+        frame_arrival_time_jitter.Observe(_arrival_time_jitter.value());
       }
 
-      _last_frame_id = f.id;
-      _last_frame_timestamp = f.timestamp;
-      _last_frame_arrival_time = arrival_time;
+      _last_id = f.id;
+      _last_timestamp = f.timestamp;
+      _last_arrival_time = arrival_time;
     }
 
    private:
-    // TODO: prometheus can probably calculate standard deviation on it's own.
-    double standard_deviation(
-        accum::accumulator_set<double, accum::stats<accum::tag::variance>> &accumulator) {
-      auto n = static_cast<double>(accum::count(accumulator));
-      return std::sqrt((accum::variance(accumulator) * n) / n - 1);
-    }
-
     bool _first_frame{true};
-    frame_id _last_frame_id;
-    std::chrono::system_clock::time_point _last_frame_timestamp;
-    std::chrono::system_clock::time_point _last_frame_arrival_time;
+    frame_id _last_id;
+    std::chrono::system_clock::time_point _last_timestamp;
+    std::chrono::system_clock::time_point _last_arrival_time;
 
-    // TODO: might be nicer to have sliding time windows
-    accum::accumulator_set<double, accum::stats<accum::tag::variance>>
-        _timestamp_variance_accum{accum::tag::rolling_window::window_size = 25};
-    accum::accumulator_set<double, accum::stats<accum::tag::variance>>
-        _arrival_time_variance_accum{accum::tag::rolling_window::window_size = 25};
+    // TODO: prometheus can probably calculate standard deviation on it's own.
+    statsutils::std_dev _timestamp_jitter{1000};
+    statsutils::std_dev _arrival_time_jitter{1000};
   };
 
   return [](streams::publisher<encoded_packet> &&src) {
