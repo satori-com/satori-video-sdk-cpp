@@ -1,7 +1,7 @@
 #include "metrics.h"
 
-#include <boost/timer/timer.hpp>
 #include <prometheus/exposer.h>
+#include <prometheus/text_serializer.h>
 #include <boost/timer/timer.hpp>
 #include <chrono>
 
@@ -11,12 +11,15 @@
 
 #include "logging.h"
 
+namespace po = boost::program_options;
+
 namespace satori {
 namespace video {
 
 namespace {
 
 const auto process_metrics_update_period = boost::posix_time::seconds(1);
+const auto metrics_push_period = boost::posix_time::seconds(10);
 
 auto& process_current_allocated_bytes = prometheus::BuildGauge()
     .Name("process_current_allocated_bytes")
@@ -47,11 +50,6 @@ auto& process_start_time = prometheus::BuildGauge()
                                .Name("process_start_time")
                                .Register(metrics_registry())
                                .Add({});
-
-std::shared_ptr<prometheus::Registry> metrics_registry_shared_ptr() {
-  static auto registry = std::make_shared<prometheus::Registry>();
-  return registry;
-}
 
 #ifdef HAS_GPERFTOOLS
 void report_tcmalloc_metrics() {
@@ -86,21 +84,12 @@ void report_tcmalloc_metrics() {
 void report_tcmalloc_metrics() {}
 #endif
 
-void report_process_metrics_impl(boost::asio::deadline_timer *timer, boost::timer::cpu_timer *cpu_timer) {
-  timer->expires_from_now(process_metrics_update_period);
-  timer->async_wait([timer, cpu_timer](const boost::system::error_code ec) {
-    if (ec.value() != 0) {
-      LOG(ERROR) << ec.message();
-      return;
-    }
-
-    report_process_metrics_impl(timer, cpu_timer);
-  });
-
+void report_process_metrics() {
   report_tcmalloc_metrics();
+  static boost::timer::cpu_timer cpu_timer;
 
   // scrape cpu timer
-  const boost::timer::cpu_times &times = cpu_timer->elapsed();
+  const boost::timer::cpu_times& times = cpu_timer.elapsed();
   process_cpu_system_time_sec.Increment(
       times.system / 1e9 - process_cpu_system_time_sec.Value()
   );
@@ -112,29 +101,143 @@ void report_process_metrics_impl(boost::asio::deadline_timer *timer, boost::time
   );
 }
 
+class metrics {
+ public:
+  void init(const boost::program_options::variables_map& cmd_args,
+            boost::asio::io_service& io_service) {
+    _bind_address = cmd_args["metrics-bind-address"].as<std::string>();
+    _push_channel = cmd_args["metrics-push-channel"].as<std::string>();
+    _io_service = &io_service;
+    start_updating_process_metrics();
+  }
+
+  void expose_metrics(rtm::publisher* publisher) {
+    if (!_bind_address.empty()) {
+      expose_http_metrics();
+    }
+
+    if (!_push_channel.empty()) {
+      CHECK(_io_service);
+      CHECK(publisher) << "rtm publisher not provided";
+      _publisher = publisher;
+      _push_timer = new boost::asio::deadline_timer(*_io_service);
+      push_metrics();
+    }
+  }
+
+  void expose_http_metrics() const {
+    try {
+      auto exposer = new prometheus::Exposer(_bind_address);
+      exposer->RegisterCollectable(_registry);
+      LOG(INFO) << "Metrics exposed on " << _bind_address << "/metrics";
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Can't start metrics server on " << _bind_address << " : "
+                 << e.what();
+    }
+  }
+
+  prometheus::Registry& registry() { return *_registry; }
+
+  void stop() {
+    if (_push_timer != nullptr) {
+      _push_timer->cancel();
+    }
+    if (_update_process_metrics_timer != nullptr) {
+      _update_process_metrics_timer->cancel();
+    }
+  }
+
+ private:
+  void push_metrics() {
+    _push_timer->expires_from_now(metrics_push_period);
+    _push_timer->async_wait([this](const boost::system::error_code ec) {
+      if (ec.value() != 0) {
+        LOG(ERROR) << "timer error: " << ec << " " << ec.message();
+        delete _push_timer;
+        return;
+      }
+
+      push_metrics();
+    });
+
+    prometheus::TextSerializer serializer;
+    std::string data = serializer.Serialize(metrics_registry().Collect());
+    LOG(1) << "pushing metrics " << data.size() << " bytes";
+
+    cbor_item_t* msg = cbor_new_indefinite_map();
+    cbor_map_add(msg, {cbor_move(cbor_build_string("content")),
+                       cbor_move(cbor_build_string(data.c_str()))});
+    cbor_map_add(msg, {cbor_move(cbor_build_string("content-type")),
+                       cbor_move(cbor_build_string("text/plain"))});
+
+    _publisher->publish(_push_channel, cbor_move(msg));
+  }
+
+  void start_updating_process_metrics() {
+    auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
+    process_start_time.Set(
+        std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
+    _update_process_metrics_timer = new boost::asio::deadline_timer(*_io_service);
+    update_process_metrics();
+  }
+
+  void update_process_metrics() {
+    _update_process_metrics_timer->expires_from_now(process_metrics_update_period);
+    _update_process_metrics_timer->async_wait([this](const boost::system::error_code ec) {
+      if (ec.value() != 0) {
+        LOG(ERROR) << "timer error: " << ec << " " << ec.message();
+        delete _update_process_metrics_timer;
+        return;
+      }
+
+      update_process_metrics();
+    });
+
+    report_process_metrics();
+  }
+
+  std::shared_ptr<prometheus::Registry> _registry{
+      std::make_shared<prometheus::Registry>()};
+
+  std::string _bind_address;
+  std::string _push_channel;
+  boost::asio::io_service* _io_service{nullptr};
+  rtm::publisher* _publisher{nullptr};
+
+  boost::asio::deadline_timer* _push_timer{nullptr};
+  boost::asio::deadline_timer* _update_process_metrics_timer{nullptr};
+};
+
+metrics& global_metrics() {
+  static metrics m;
+  return m;
+}
+
 }  // namespace
 
-prometheus::Registry& metrics_registry() { return *metrics_registry_shared_ptr(); }
+prometheus::Registry& metrics_registry() { return global_metrics().registry(); }
 
-void expose_metrics(const std::string& bind_address) {
-  try {
-    auto exposer = new prometheus::Exposer(bind_address);
-    exposer->RegisterCollectable(metrics_registry_shared_ptr());
-    LOG(INFO) << "Metrics exposed on " << bind_address << "/metrics";
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "Can't start metrics server on " << bind_address << " : " << e.what();
-  }
+po::options_description metrics_options() {
+  po::options_description options("Monitoring options");
+  options.add_options()("metrics-bind-address",
+                        po::value<std::string>()->default_value(""),
+                        "address:port for metrics server.");
+  options.add_options()("metrics-push-channel",
+                        po::value<std::string>()->default_value(""),
+                        "rtm channel to push metrics to.");
+
+  return options;
+}
+void init_metrics(const po::variables_map& cmd_args,
+                  boost::asio::io_service& io_service) {
+  global_metrics().init(cmd_args, io_service);
 }
 
-void report_process_metrics(boost::asio::io_service &io) {
-  auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
-  process_start_time.Set(
-      std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
-
-  auto timer = new boost::asio::deadline_timer(io);
-  auto cpu_timer = new boost::timer::cpu_timer();
-  report_process_metrics_impl(timer, cpu_timer);
+void expose_metrics(rtm::publisher* publisher) {
+  global_metrics().expose_metrics(publisher);
 }
+
+void stop_metrics() { global_metrics().stop(); }
 
 }  // namespace video
 }  // namespace satori

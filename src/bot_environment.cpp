@@ -32,9 +32,6 @@ variables_map parse_command_line(int argc, char* argv[],
   generic.add_options()("help", "produce help message");
   generic.add_options()(",v", po::value<std::string>(),
                         "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
-  generic.add_options()("metrics-bind-address",
-                        po::value<std::string>()->default_value(""),
-                        "socket bind address:port for metrics server");
 
   po::options_description bot_configuration_options("Bot configuration options");
   bot_configuration_options.add_options()(
@@ -53,7 +50,10 @@ variables_map parse_command_line(int argc, char* argv[],
       "saves debug messages to a file instead of sending to a channel");
 
   po::options_description cli_options = cli_cfg.to_boost();
-  cli_options.add(bot_configuration_options).add(bot_execution_options).add(generic);
+  cli_options.add(bot_configuration_options)
+      .add(bot_execution_options)
+      .add(metrics_options())
+      .add(generic);
 
   po::variables_map vm;
 
@@ -174,12 +174,7 @@ int bot_environment::main(int argc, char* argv[]) {
   init_logging(argc, argv);
 
   boost::asio::io_service io_service;
-
-  std::string metrics_bind_address = cmd_args["metrics-bind-address"].as<std::string>();
-  if (!metrics_bind_address.empty()) {
-    expose_metrics(metrics_bind_address);
-    report_process_metrics(io_service);
-  }
+  init_metrics(cmd_args, io_service);
 
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch") > 0;
@@ -204,6 +199,7 @@ int bot_environment::main(int argc, char* argv[]) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
   }
+  expose_metrics(_rtm_client.get());
 
   const std::string channel = cli_cfg.rtm_channel(cmd_args);
   const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
@@ -270,6 +266,7 @@ int bot_environment::main(int argc, char* argv[]) {
                 finished = true;
 
                 io_service.post([this]() {
+                  stop_metrics();
                   if (_rtm_client) {
                     if (auto ec = _rtm_client->stop()) {
                       LOG(ERROR) << "error stopping rtm client: " << ec.message();
