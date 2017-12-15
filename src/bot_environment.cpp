@@ -257,8 +257,7 @@ int bot_environment::main(int argc, char* argv[]) {
   bool finished{false};
   int frames_count = 0;
 
-  _source = std::move(_source) >> streams::signal_breaker<std::queue<owned_image_packet>>(
-                                      {SIGINT, SIGTERM, SIGQUIT})
+  _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
             >> streams::map([&frames_count](std::queue<owned_image_packet>&& pkt) {
                 frames_count++;
                 constexpr int period = 100;

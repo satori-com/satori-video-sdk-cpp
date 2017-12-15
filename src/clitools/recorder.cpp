@@ -68,8 +68,7 @@ int main(int argc, char* argv[]) {
   streams::publisher<satori::video::encoded_packet> source =
       cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
                                 image_pixel_format::RGB0)
-      >> streams::signal_breaker<satori::video::owned_image_packet>(
-             {SIGINT, SIGTERM, SIGQUIT})
+      >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
       >> streams::threaded_worker("input_buffer") >> streams::flatten()
       >> satori::video::encode_vp9(25) >> streams::threaded_worker("vp9_encoded_buffer")
       >> streams::flatten() >> streams::do_finally([&io_service, &rtm_client]() {
