@@ -1,4 +1,4 @@
-CONAN_SERVER?=https://video-conan.api.satori.com
+CONAN_SERVER?=http://video-conan.api.satori.com
 CONAN_USER?=video
 CONAN_PASSWORD?=video
 CONAN_REMOTE?=video
