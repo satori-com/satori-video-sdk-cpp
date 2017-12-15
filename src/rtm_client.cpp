@@ -34,23 +34,23 @@ struct client_error_category : std::error_category {
   const char *name() const noexcept override { return "rtm-client"; }
   std::string message(int ev) const override {
     switch (static_cast<client_error>(ev)) {
-      case client_error::Unknown:
+      case client_error::UNKNOWN:
         return "unknown error";
-      case client_error::NotConnected:
+      case client_error::NOT_CONNECTED:
         return "client is not connected";
-      case client_error::ResponseParsingError:
+      case client_error::RESPONSE_PARSING_ERROR:
         return "error parsing response";
-      case client_error::InvalidResponse:
+      case client_error::INVALID_RESPONSE:
         return "invalid response";
-      case client_error::SubscriptionError:
+      case client_error::SUBSCRIPTION_ERROR:
         return "subscription error";
-      case client_error::SubscribeError:
+      case client_error::SUBSCRIBE_ERROR:
         return "subscribe error";
-      case client_error::UnsubscribeError:
+      case client_error::UNSUBSCRIBE_ERROR:
         return "unsubscribe error";
-      case client_error::AsioError:
+      case client_error::ASIO_ERROR:
         return "asio error";
-      case client_error::InvalidMessage:
+      case client_error::INVALID_MESSAGE:
         return "invalid message";
     }
   }
@@ -63,9 +63,9 @@ std::error_condition make_error_condition(client_error e) {
 
 namespace {
 
-constexpr int READ_BUFFER_SIZE = 100000;
+constexpr int read_buffer_size = 100000;
 
-const boost::posix_time::minutes WS_PING_INTERVAL{1};
+const boost::posix_time::minutes ws_ping_interval{1};
 
 auto &rtm_actions_received = prometheus::BuildCounter()
                                  .Name("rtm_actions_received_total")
@@ -166,19 +166,19 @@ struct unsubscribe_request {
 };
 
 enum class subscription_status {
-  PendingSubscribe = 1,
-  Current = 2,
-  PendingUnsubscribe = 3
+  PENDING_SUBSCRIBE = 1,
+  CURRENT = 2,
+  PENDING_UNSUBSCRIBE = 3
 };
 
 std::ostream &operator<<(std::ostream &out, subscription_status const &s) {
   switch (s) {
-    case subscription_status::PendingSubscribe:
-      return out << "PendingSubscribe";
-    case subscription_status::Current:
-      return out << "Current";
-    case subscription_status::PendingUnsubscribe:
-      return out << "PendingUnsubscribe";
+    case subscription_status::PENDING_SUBSCRIBE:
+      return out << "PENDING_SUBSCRIBE";
+    case subscription_status::CURRENT:
+      return out << "CURRENT";
+    case subscription_status::PENDING_UNSUBSCRIBE:
+      return out << "PENDING_UNSUBSCRIBE";
   }
 }
 
@@ -190,16 +190,16 @@ struct subscription_impl {
   uint64_t pending_request_id{UINT64_MAX};
 };
 
-enum class client_state { Stopped = 1, Running = 2, PendingStopped = 3 };
+enum class client_state { STOPPED = 1, RUNNING = 2, PENDING_STOPPED = 3 };
 
 std::ostream &operator<<(std::ostream &out, client_state const &s) {
   switch (s) {
-    case client_state::Running:
-      return out << "Running";
-    case client_state::PendingStopped:
-      return out << "PendingStopped";
-    case client_state::Stopped:
-      return out << "Stopped";
+    case client_state::RUNNING:
+      return out << "RUNNING";
+    case client_state::PENDING_STOPPED:
+      return out << "PENDING_STOPPED";
+    case client_state::STOPPED:
+      return out << "STOPPED";
   }
 }
 
@@ -242,7 +242,7 @@ class secure_client : public client {
   ~secure_client() override = default;
 
   std::error_condition start() override {
-    CHECK_EQ(_client_state.load(), client_state::Stopped);
+    CHECK_EQ(_client_state.load(), client_state::STOPPED);
     LOG(INFO) << "Starting secure RTM client: " << _host << ":" << _port
               << ", appkey: " << _appkey;
 
@@ -251,23 +251,23 @@ class secure_client : public client {
     auto endpoints = _tcp_resolver.resolve({_host, _port}, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't resolve endpoint: [" << ec << "] " << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
 
-    _ws.read_message_max(READ_BUFFER_SIZE);
+    _ws.read_message_max(read_buffer_size);
 
     // tcp connect
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't connect: [" << ec << "] " << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
 
     // ssl handshake
     _ws.next_layer().handshake(boost::asio::ssl::stream_base::client, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't handshake SSL: [" << ec << "] " << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
 
     // upgrade to ws.
@@ -281,7 +281,7 @@ class secure_client : public client {
     if (ec.value() != 0) {
       LOG(ERROR) << "can't upgrade to websocket protocol: [" << ec << "] "
                  << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
     LOG(INFO) << "websocket open";
 
@@ -289,27 +289,27 @@ class secure_client : public client {
 
     arm_ping_timer();
 
-    _client_state = client_state::Running;
+    _client_state = client_state::RUNNING;
     ask_for_read();
     return {};
   }
 
   std::error_condition stop() override {
-    CHECK_EQ(_client_state, client_state::Running);
+    CHECK_EQ(_client_state, client_state::RUNNING);
     LOG(INFO) << "Stopping secure RTM client";
 
-    _client_state = client_state::PendingStopped;
+    _client_state = client_state::PENDING_STOPPED;
     boost::system::error_code ec;
     _ping_timer.cancel(ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't stop ping timer: [" << ec << "] " << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
 
     _ws.next_layer().next_layer().close(ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't close: [" << ec << "] " << ec.message();
-      return make_error_condition(client_error::AsioError);
+      return make_error_condition(client_error::ASIO_ERROR);
     }
 
     _ws.control_callback();
@@ -319,11 +319,11 @@ class secure_client : public client {
   void publish(const std::string &channel, cbor_item_t *message,
                publish_callbacks *callbacks) override {
     CHECK(!callbacks) << "not implemented";
-    if (_client_state == client_state::PendingStopped) {
+    if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
     }
-    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+    CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
     CHECK_EQ(0, cbor_refcount(message));
     cbor_incref(message);
@@ -353,15 +353,15 @@ class secure_client : public client {
   void subscribe_channel(const std::string &channel, const subscription &sub,
                          subscription_callbacks &callbacks,
                          const subscription_options *options) override {
-    if (_client_state == client_state::PendingStopped) {
+    if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
     }
-    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+    CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
     _subscriptions.emplace(std::make_pair(
         channel,
-        subscription_impl{channel, sub, callbacks, subscription_status::PendingSubscribe,
+        subscription_impl{channel, sub, callbacks, subscription_status::PENDING_SUBSCRIBE,
                           ++_request_id}));
 
     subscribe_request request{_request_id, channel};
@@ -390,11 +390,11 @@ class secure_client : public client {
   }
 
   void unsubscribe(const subscription &sub_to_delete) override {
-    if (_client_state == client_state::PendingStopped) {
+    if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
     }
-    CHECK_EQ(_client_state, client_state::Running) << "RTM client is not running";
+    CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
     for (auto &it : _subscriptions) {
       const std::string &sub_id = it.first;
@@ -416,7 +416,7 @@ class secure_client : public client {
       }
 
       sub.pending_request_id = _request_id;
-      sub.status = subscription_status::PendingUnsubscribe;
+      sub.status = subscription_status::PENDING_UNSUBSCRIBE;
 
       LOG(1) << "requested unsubscribe: " << document;
       return;
@@ -441,18 +441,18 @@ class secure_client : public client {
       LOG(9) << this << " async_read";
       if (ec == boost::asio::error::operation_aborted) {
         LOG(9) << this << " async_read operation is aborted/cancelled";
-        CHECK(_client_state == client_state::PendingStopped);
+        CHECK(_client_state == client_state::PENDING_STOPPED);
         LOG(INFO) << "Got stop request for async_read loop";
-        _client_state = client_state::Stopped;
+        _client_state = client_state::STOPPED;
         _subscriptions.clear();
         return;
       }
 
       LOG(9) << this << " async_read ec=" << ec;
       if (ec.value() != 0) {
-        if (_client_state == client_state::Running) {
+        if (_client_state == client_state::RUNNING) {
           LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
-          _callbacks.on_error(client_error::AsioError);
+          _callbacks.on_error(client_error::ASIO_ERROR);
         } else {
           LOG(INFO) << this << " ignoring asio error because in state " << _client_state
                     << ": [" << ec << "] " << ec.message();
@@ -472,7 +472,7 @@ class secure_client : public client {
         document = nlohmann::json::parse(input);
       } catch (const std::exception &e) {
         LOG(ERROR) << "Parse message error: " << e.what() << ", message: " << input;
-        _callbacks.on_error(client_error::InvalidMessage);
+        _callbacks.on_error(client_error::INVALID_MESSAGE);
         return;
       }
 
@@ -487,7 +487,7 @@ class secure_client : public client {
   void arm_ping_timer() {
     LOG(2) << this << " setting ws ping timer";
 
-    _ping_timer.expires_from_now(WS_PING_INTERVAL);
+    _ping_timer.expires_from_now(ws_ping_interval);
     _ping_timer.async_wait([this](const boost::system::error_code &ec) {
       rtm_pings_sent_total.Increment();
       auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
@@ -504,9 +504,9 @@ class secure_client : public client {
 
         LOG(2) << this << " ping_write_handler ec=" << ec;
         if (ec.value() != 0) {
-          if (_client_state == client_state::Running) {
+          if (_client_state == client_state::RUNNING) {
             LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
-            _callbacks.on_error(client_error::AsioError);
+            _callbacks.on_error(client_error::ASIO_ERROR);
           } else {
             LOG(INFO) << this << " ignoring asio error because in state " << _client_state
                       << ": [" << ec << "] " << ec.message();
@@ -537,9 +537,9 @@ class secure_client : public client {
       auto it = _subscriptions.find(subscription_id);
       CHECK(it != _subscriptions.end());
       subscription_impl &sub = it->second;
-      CHECK(sub.status == subscription_status::Current
-            || sub.status == subscription_status::PendingUnsubscribe);
-      if (sub.status == subscription_status::PendingUnsubscribe) {
+      CHECK(sub.status == subscription_status::CURRENT
+            || sub.status == subscription_status::PENDING_UNSUBSCRIBE);
+      if (sub.status == subscription_status::PENDING_UNSUBSCRIBE) {
         LOG(2) << "Got data for subscription pending deletion";
         return;
       }
@@ -558,9 +558,9 @@ class secure_client : public client {
         if (sub.pending_request_id == id) {
           LOG(1) << "got subscribe confirmation for subscription " << sub_id
                  << " in status " << sub.status << ": " << document;
-          CHECK(sub.status == subscription_status::PendingSubscribe);
+          CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
           sub.pending_request_id = UINT64_MAX;
-          sub.status = subscription_status::Current;
+          sub.status = subscription_status::CURRENT;
           return;
         }
       }
@@ -573,8 +573,8 @@ class secure_client : public client {
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
                      << sub.status << ": " << document;
-          CHECK(sub.status == subscription_status::PendingSubscribe);
-          _callbacks.on_error(client_error::SubscribeError);
+          CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
+          _callbacks.on_error(client_error::SUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
         }
@@ -588,7 +588,7 @@ class secure_client : public client {
         if (sub.pending_request_id == id) {
           LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
                  << " in status " << sub.status << ": " << document;
-          CHECK(sub.status == subscription_status::PendingUnsubscribe);
+          CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
           it = _subscriptions.erase(it);
           return;
         }
@@ -602,8 +602,8 @@ class secure_client : public client {
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
                      << " in status " << sub.status << ": " << document;
-          CHECK(sub.status == subscription_status::PendingUnsubscribe);
-          _callbacks.on_error(client_error::UnsubscribeError);
+          CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
+          _callbacks.on_error(client_error::UNSUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
         }
@@ -611,13 +611,13 @@ class secure_client : public client {
       ABORT() << "got unexpected unsubscribe error: " << document;
     } else if (action == "rtm/subscription/error") {
       LOG(ERROR) << "subscription error: " << document;
-      _callbacks.on_error(client_error::SubscriptionError);
+      _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
     } else {
       ABORT() << "unsupported action: " << document;
     }
   }
 
-  std::atomic<client_state> _client_state{client_state::Stopped};
+  std::atomic<client_state> _client_state{client_state::STOPPED};
 
   const std::string _host;
   const std::string _port;
@@ -629,7 +629,7 @@ class secure_client : public client {
   boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
   uint64_t _request_id{0};
-  boost::beast::multi_buffer _read_buffer{READ_BUFFER_SIZE};
+  boost::beast::multi_buffer _read_buffer{read_buffer_size};
   std::map<std::string, subscription_impl> _subscriptions;
   boost::asio::deadline_timer _ping_timer;
   std::function<void(boost::beast::websocket::frame_type type,

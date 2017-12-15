@@ -131,8 +131,8 @@ BOOST_AUTO_TEST_CASE(parse_image_size) {
   BOOST_CHECK_EQUAL(245, s->height);
 
   s = avutils::parse_image_size("original");
-  BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_WIDTH, s->width);
-  BOOST_CHECK_EQUAL(ORIGINAL_IMAGE_HEIGHT, s->height);
+  BOOST_CHECK_EQUAL(original_image_width, s->width);
+  BOOST_CHECK_EQUAL(original_image_height, s->height);
 }
 
 BOOST_AUTO_TEST_CASE(av_frame_to_image) {

@@ -27,21 +27,21 @@ struct file_source_impl {
 
     _fmt_ctx = avutils::open_input_format_context(_filename);
     if (!_fmt_ctx) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
 
     LOG(1) << "File " << _filename << " is open";
 
     _stream_idx = avutils::find_best_video_stream(_fmt_ctx.get(), &_dec);
     if (_stream_idx < 0) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     _stream = _fmt_ctx->streams[_stream_idx];
 
     LOG(1) << "Allocating codec context...";
     _dec_ctx = avutils::decoder_context(_dec);
     if (!_dec_ctx) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     LOG(1) << "Codec context is allocated";
 
@@ -51,7 +51,7 @@ struct file_source_impl {
     if ((ret = avcodec_parameters_to_context(_dec_ctx.get(), _stream->codecpar)) < 0) {
       LOG(ERROR) << "Failed to copy codec parameters to codec context:"
                  << avutils::error_msg(ret);
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     LOG(1) << "Codec parameters were copied to codec context";
 
@@ -60,9 +60,9 @@ struct file_source_impl {
     if ((ret = avcodec_open2(_dec_ctx.get(), _dec, &opts)) < 0) {
       LOG(ERROR) << "*** Failed to open video codec:" << avutils::error_msg(ret);
       if (ret == AVERROR_EOF) {
-        return video_error::EndOfStreamError;
+        return video_error::END_OF_STREAM_ERROR;
       }
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     LOG(1) << "Video codec is open";
     return {};
@@ -71,7 +71,7 @@ struct file_source_impl {
   void generate_one(streams::observer<encoded_packet> &observer) {
     if (_fmt_ctx == nullptr) {
       if (auto err = init()) {
-        if (err == video_error::EndOfStreamError) {
+        if (err == video_error::END_OF_STREAM_ERROR) {
           observer.on_complete();
         } else {
           observer.on_error(err);
@@ -103,7 +103,7 @@ struct file_source_impl {
         return;
       }
 
-      observer.on_error(video_error::FrameGenerationError);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
       return;
     }
 

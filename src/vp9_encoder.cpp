@@ -37,7 +37,7 @@ struct vp9_encoder {
     av_dict_free(&codec_options);
     if (ret < 0) {
       return streams::publishers::error<encoded_packet>(
-          video_error::StreamInitializationError);
+          video_error::STREAM_INITIALIZATION_ERROR);
     }
 
     // TODO: make align parameterizable
@@ -48,7 +48,7 @@ struct vp9_encoder {
     _sws_context = avutils::sws_context(_tmp_frame, _frame);
     if (_sws_context == nullptr) {
       return streams::publishers::error<encoded_packet>(
-          video_error::StreamInitializationError);
+          video_error::STREAM_INITIALIZATION_ERROR);
     }
 
     encoded_metadata m;
@@ -88,7 +88,7 @@ struct vp9_encoder {
 
       if (ret < 0) {
         return streams::publishers::error<encoded_packet>(
-            video_error::FrameGenerationError);
+            video_error::FRAME_GENERATION_ERROR);
       }
 
       encoded_frame frame;

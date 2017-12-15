@@ -90,7 +90,7 @@ class error_or {
 
   T &&move() {
     check_ok();
-    _ec = stream_error::ValueWasMoved;
+    _ec = stream_error::VALUE_WAS_MOVED;
     return std::move(_s.t);
   }
 

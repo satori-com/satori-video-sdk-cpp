@@ -305,12 +305,12 @@ struct timeout_op {
             LOG(5) << "timeout_op(" << this << ") timer operation cancelled";
           } else {
             LOG(ERROR) << "ASIO ERROR: " << ec.message();
-            send_error_downstream(stream_error::AsioError);
+            send_error_downstream(stream_error::ASIO_ERROR);
           }
           return;
         }
         LOG(1) << "timeout_op(" << this << ") timeout detected, sending error upstream";
-        send_error_downstream(stream_error::Timeout);
+        send_error_downstream(stream_error::TIMEOUT);
       });
     }
 

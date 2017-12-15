@@ -82,8 +82,8 @@ void copy_image_to_av_frame(const owned_image_frame &image,
 owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame);
 
 struct allocated_image {
-  uint8_t *data[MAX_IMAGE_PLANES];
-  int linesize[MAX_IMAGE_PLANES];
+  uint8_t *data[max_image_planes];
+  int linesize[max_image_planes];
 };
 
 std::shared_ptr<allocated_image> allocate_image(int width, int height,

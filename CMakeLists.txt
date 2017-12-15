@@ -76,8 +76,9 @@ add_library(satorivideo
     src/streams/streams.cpp
     src/streams/streams_impl.h
     src/streams/threaded_worker.h
+    src/streams/type_traits.h
+    src/streams/type_traits.h
     src/threadutils.cpp
-    src/type_traits.h
     src/url_source.cpp
     src/version.cpp
     src/video_bot.cpp

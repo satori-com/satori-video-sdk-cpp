@@ -136,13 +136,13 @@ std::vector<image_frame> bot_instance::extract_frames(
     if (frame->width != _image_metadata.width) {
       _image_metadata.width = frame->width;
       _image_metadata.height = frame->height;
-      std::copy(frame->plane_strides, frame->plane_strides + MAX_IMAGE_PLANES,
+      std::copy(frame->plane_strides, frame->plane_strides + max_image_planes,
                 _image_metadata.plane_strides);
     }
 
     image_frame bframe;
     bframe.id = frame->id;
-    for (int i = 0; i < MAX_IMAGE_PLANES; ++i) {
+    for (int i = 0; i < max_image_planes; ++i) {
       if (frame->plane_data[i].empty()) {
         bframe.plane_data[i] = nullptr;
       } else {

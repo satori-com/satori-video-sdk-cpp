@@ -13,7 +13,7 @@ struct function_traits<ReturnType (ClassType::*)(Args...)>
 
 template <typename ReturnType, typename... Args>
 struct function_traits<ReturnType (*)(Args...)> {
-  enum { arity = sizeof...(Args) };
+  enum { ARITY = sizeof...(Args) };
   using result_type = ReturnType;
 
   template <size_t i>

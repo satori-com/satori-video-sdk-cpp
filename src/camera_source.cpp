@@ -137,7 +137,7 @@ struct camera_source_impl {
   void generate_one(streams::observer<owned_image_packet> &observer) {
     if (!_format_context) {
       if (init() < 0) {
-        observer.on_error(video_error::StreamInitializationError);
+        observer.on_error(video_error::STREAM_INITIALIZATION_ERROR);
         return;
       }
     }
@@ -153,20 +153,20 @@ struct camera_source_impl {
     int ret = av_read_frame(_format_context.get(), &_av_packet);
     if (ret < 0) {
       LOG(ERROR) << "Failed to read frame: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FrameGenerationError);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
       return;
     }
 
     if ((ret = avcodec_send_packet(_decoder_context.get(), &_av_packet)) != 0) {
       LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FrameGenerationError);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
       return;
     }
 
     if ((ret = avcodec_receive_frame(_decoder_context.get(), _decoded_av_frame.get()))
         != 0) {
       LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FrameGenerationError);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
       return;
     }
 

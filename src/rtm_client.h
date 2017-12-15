@@ -24,15 +24,15 @@ namespace rtm {
 enum class client_error : unsigned char {
   // 0 - not used, success.
 
-  Unknown = 1,
-  NotConnected = 2,
-  ResponseParsingError = 3,
-  InvalidResponse = 4,
-  SubscriptionError = 5,
-  SubscribeError = 6,
-  UnsubscribeError = 7,
-  AsioError = 8,
-  InvalidMessage = 9
+  UNKNOWN = 1,
+  NOT_CONNECTED = 2,
+  RESPONSE_PARSING_ERROR = 3,
+  INVALID_RESPONSE = 4,
+  SUBSCRIPTION_ERROR = 5,
+  SUBSCRIBE_ERROR = 6,
+  UNSUBSCRIBE_ERROR = 7,
+  ASIO_ERROR = 8,
+  INVALID_MESSAGE = 9
 };
 
 std::error_condition make_error_condition(client_error e);

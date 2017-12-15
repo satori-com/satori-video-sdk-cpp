@@ -252,7 +252,7 @@ class deferred_impl_base {
 
   typename impl_types<T>::callback_type _resolve_cb;
 
-  deferred_impl_base() : _value(std::error_condition(stream_error::NotInitialized)) {}
+  deferred_impl_base() : _value(std::error_condition(stream_error::NOT_INITIALIZED)) {}
 
   deferred_impl_base(value_t value) : _value(std::move(value)), _resolved(true) {}
 

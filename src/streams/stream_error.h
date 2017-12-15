@@ -14,10 +14,10 @@ constexpr bool is_error_condition() {
 }
 
 enum class stream_error : uint8_t {
-  ValueWasMoved = 1,
-  NotInitialized = 2,
-  Timeout = 3,
-  AsioError = 4
+  VALUE_WAS_MOVED = 1,
+  NOT_INITIALIZED = 2,
+  TIMEOUT = 3,
+  ASIO_ERROR = 4
 };
 
 std::error_condition make_error_condition(stream_error e);

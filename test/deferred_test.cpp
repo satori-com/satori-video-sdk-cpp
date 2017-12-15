@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(deferred_resolve_error_test) {
   });
 
   BOOST_TEST(value == "");
-  i.resolve(std::error_condition(stream_error::NotInitialized));
+  i.resolve(std::error_condition(stream_error::NOT_INITIALIZED));
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
@@ -50,7 +50,7 @@ BOOST_AUTO_TEST_CASE(deferred_map_error_test) {
   });
 
   BOOST_TEST(value == "");
-  i.resolve(std::error_condition(stream_error::NotInitialized));
+  i.resolve(std::error_condition(stream_error::NOT_INITIALIZED));
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(deferred_then_error_test) {
     value = s1.error_message();
   });
 
-  i.resolve(std::error_condition(stream_error::NotInitialized));
+  i.resolve(std::error_condition(stream_error::NOT_INITIALIZED));
   // then block is not executed when there's error.
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
@@ -113,7 +113,7 @@ BOOST_AUTO_TEST_CASE(deferred_already_resolved) {
 }
 
 BOOST_AUTO_TEST_CASE(deferred_error_resolved) {
-  deferred<int> i{std::error_condition(stream_error::NotInitialized)};
+  deferred<int> i{std::error_condition(stream_error::NOT_INITIALIZED)};
 
   std::string value;
   i.on([&value](error_or<int> i1) {
@@ -145,7 +145,7 @@ BOOST_AUTO_TEST_CASE(deferred_void_error_resolve) {
     value = s.message();
   });
 
-  v.fail(std::error_condition(stream_error::NotInitialized));
+  v.fail(std::error_condition(stream_error::NOT_INITIALIZED));
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE(deferred_map_to_void_error) {
     value = s.message();
   });
 
-  i.resolve(std::error_condition(stream_error::NotInitialized));
+  i.resolve(std::error_condition(stream_error::NOT_INITIALIZED));
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
@@ -234,7 +234,7 @@ BOOST_AUTO_TEST_CASE(deferred_map_void_error) {
     value = s.error_message();
   });
 
-  v.fail(stream_error::NotInitialized);
+  v.fail(stream_error::NOT_INITIALIZED);
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }
 
@@ -298,6 +298,6 @@ BOOST_AUTO_TEST_CASE(deferred_then_void_error) {
     value = s.error_message();
   });
 
-  v.fail(stream_error::NotInitialized);
+  v.fail(stream_error::NOT_INITIALIZED);
   BOOST_TEST(value.find("not initialized") != std::string::npos);
 }

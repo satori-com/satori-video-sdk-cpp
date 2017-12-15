@@ -99,7 +99,7 @@ struct image_decoder_op {
           decoder_errors
               .Add({{"err", std::to_string(err)}, {"call", "avcodec_send_packet"}})
               .Increment();
-          deliver_on_error(video_error::FrameGenerationError);
+          deliver_on_error(video_error::FRAME_GENERATION_ERROR);
           return;
         }
         drain();
@@ -126,7 +126,7 @@ struct image_decoder_op {
       _packet = avutils::av_packet();
       _frame = avutils::av_frame();
       if (!_context || !_packet || !_frame) {
-        deliver_on_error(video_error::StreamInitializationError);
+        deliver_on_error(video_error::STREAM_INITIALIZATION_ERROR);
         return;
       }
 
@@ -158,7 +158,7 @@ struct image_decoder_op {
                 .count();
 
         if (_current_metadata_frames_counter % 1000 == 0) {
-          LOG(INFO) << "Current metadata is " << _metadata
+          LOG(INFO) << "CURRENT metadata is " << _metadata
                     << ", frames_counter=" << _current_metadata_frames_counter;
         }
         _current_metadata_frames_counter++;
@@ -191,7 +191,7 @@ struct image_decoder_op {
       }
 
       auto ec = receive_frame();
-      if (ec == video_error::FrameNotReadyError) {
+      if (ec == video_error::FRAME_NOT_READY_ERROR) {
         LOG(4) << this << " frame not ready, requesting next";
         _source->request(1);
       }
@@ -207,18 +207,18 @@ struct image_decoder_op {
         switch (err) {
           case AVERROR(EAGAIN):
             LOG(4) << this << " eagain";
-            return video_error::FrameNotReadyError;
+            return video_error::FRAME_NOT_READY_ERROR;
           case AVERROR_EOF:
             LOG(4) << this << " eof";
             deliver_on_complete();
-            return video_error::EndOfStreamError;
+            return video_error::END_OF_STREAM_ERROR;
           default:
             LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(err);
             decoder_errors
                 .Add({{"err", std::to_string(err)}, {"call", "avcodec_receive_frame"}})
                 .Increment();
-            deliver_on_error(video_error::FrameGenerationError);
-            return video_error::FrameGenerationError;
+            deliver_on_error(video_error::FRAME_GENERATION_ERROR);
+            return video_error::FRAME_GENERATION_ERROR;
         }
       }
       receive_frame_millis.Observe(s.millis());
@@ -229,7 +229,7 @@ struct image_decoder_op {
     void deliver_frame() {
       if (!_image) {
         if (!init_image()) {
-          deliver_on_error(video_error::StreamInitializationError);
+          deliver_on_error(video_error::STREAM_INITIALIZATION_ERROR);
           return;
         }
       }
@@ -248,7 +248,7 @@ struct image_decoder_op {
           std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
       // TODO: use avutils::copy_av_frame_to_image() maybe?
-      for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
+      for (uint8_t i = 0; i < max_image_planes; i++) {
         const auto plane_stride = static_cast<uint32_t>(_image->linesize[i]);
         const uint8_t *plane_data = _image->data[i];
         frame.plane_strides[i] = plane_stride;
@@ -264,9 +264,9 @@ struct image_decoder_op {
 
     bool init_image() {
       _image_width =
-          _bounding_width != ORIGINAL_IMAGE_WIDTH ? _bounding_width : _frame->width;
+          _bounding_width != original_image_width ? _bounding_width : _frame->width;
       _image_height =
-          _bounding_height != ORIGINAL_IMAGE_HEIGHT ? _bounding_height : _frame->height;
+          _bounding_height != original_image_height ? _bounding_height : _frame->height;
 
       if (_keep_proportions) {
         double frame_ratio = (double)_frame->width / (double)_frame->height;

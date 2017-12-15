@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_CASE(error_or_conversions) {
   error_or<int> i1(10);
   i1.check_ok();
 
-  error_or<int> i2 = std::error_condition(stream_error::NotInitialized);
+  error_or<int> i2 = std::error_condition(stream_error::NOT_INITIALIZED);
   i2.check_not_ok();
 
   const int i = -100;
@@ -71,8 +71,8 @@ BOOST_AUTO_TEST_CASE(error_or_constructor_destructor_test) {
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 
-  ptr =
-      std::make_unique<error_or<foo>>(std::error_condition(stream_error::NotInitialized));
+  ptr = std::make_unique<error_or<foo>>(
+      std::error_condition(stream_error::NOT_INITIALIZED));
   BOOST_TEST(constructor == 1);
   BOOST_TEST(destructor == 1);
 

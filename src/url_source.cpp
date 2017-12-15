@@ -52,16 +52,16 @@ struct url_source_impl {
     int err = av_dict_parse_string(&options_dict, options.c_str(), "=", ";", 0);
     if (err < 0) {
       LOG(ERROR) << "can't parse options: " << options;
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     _input_context = avutils::open_input_format_context(_url, nullptr, options_dict);
     if (!_input_context) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
 
     _stream_idx = avutils::find_best_video_stream(_input_context.get(), &_decoder);
     if (_stream_idx < 0) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
     AVStream *stream = _input_context->streams[_stream_idx];
 
@@ -69,21 +69,21 @@ struct url_source_impl {
 
     _decoder_context = avutils::decoder_context(_decoder);
     if (!_decoder_context) {
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
 
     int ret = avcodec_parameters_to_context(_decoder_context.get(), stream->codecpar);
     if (ret < 0) {
       LOG(ERROR) << "failed to copy codec parameters to codec context:"
                  << avutils::error_msg(ret);
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
 
     AVDictionary *opts = nullptr;
     ret = avcodec_open2(_decoder_context.get(), _decoder, &opts);
     if (ret < 0) {
       LOG(ERROR) << "failed to open video codec:" << avutils::error_msg(ret);
-      return video_error::StreamInitializationError;
+      return video_error::STREAM_INITIALIZATION_ERROR;
     }
 
     _sink.on_next(encoded_metadata{

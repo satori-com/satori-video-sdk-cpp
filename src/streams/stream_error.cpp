@@ -10,13 +10,13 @@ struct stream_error_category : std::error_category {
   const char *name() const noexcept override { return "video_error"; }
   std::string message(int ev) const override {
     switch (static_cast<stream_error>(ev)) {
-      case stream_error::ValueWasMoved:
+      case stream_error::VALUE_WAS_MOVED:
         return "value was moved";
-      case stream_error::NotInitialized:
+      case stream_error::NOT_INITIALIZED:
         return "not initialized";
-      case stream_error::AsioError:
+      case stream_error::ASIO_ERROR:
         return "asio error";
-      case stream_error::Timeout:
+      case stream_error::TIMEOUT:
         return "timeout";
     }
   }

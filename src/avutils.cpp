@@ -407,7 +407,7 @@ void copy_image_to_av_frame(const owned_image_frame &image,
                             const std::shared_ptr<AVFrame> &frame) {
   CHECK_EQ(image.width, frame->width) << "Image and frame widhts don't match";
   CHECK_EQ(image.height, frame->height) << "Image and frame heights don't match";
-  for (int i = 0; i < MAX_IMAGE_PLANES; i++) {
+  for (int i = 0; i < max_image_planes; i++) {
     if (image.plane_strides[i] > 0) {
       memcpy(frame->data[i], image.plane_data[i].data(), image.plane_data[i].size());
     }
@@ -421,7 +421,7 @@ owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
   image.height = static_cast<uint16_t>(frame->height);
   image.pixel_format = to_image_pixel_format(static_cast<AVPixelFormat>(frame->format));
 
-  for (uint8_t i = 0; i < MAX_IMAGE_PLANES; i++) {
+  for (uint8_t i = 0; i < max_image_planes; i++) {
     const auto plane_stride = static_cast<uint32_t>(frame->linesize[i]);
     image.plane_strides[i] = plane_stride;
     if (plane_stride > 0) {
@@ -435,8 +435,8 @@ owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
 
 std::shared_ptr<allocated_image> allocate_image(int width, int height,
                                                 image_pixel_format pixel_format) {
-  uint8_t *data[MAX_IMAGE_PLANES];
-  int linesize[MAX_IMAGE_PLANES];
+  uint8_t *data[max_image_planes];
+  int linesize[max_image_planes];
 
   int bytes =
       av_image_alloc(data, linesize, width, height, to_av_pixel_format(pixel_format), 1);
@@ -457,7 +457,7 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
 
 boost::optional<image_size> parse_image_size(const std::string &str) {
   if (str == "original") {
-    return image_size{ORIGINAL_IMAGE_WIDTH, ORIGINAL_IMAGE_HEIGHT};
+    return image_size{original_image_width, original_image_height};
   }
 
   int width;

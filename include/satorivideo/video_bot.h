@@ -34,7 +34,7 @@ EXPORT struct frame_id {
   int64_t i2;
 };
 
-constexpr uint8_t MAX_IMAGE_PLANES = 4;
+constexpr uint8_t max_image_planes = 4;
 
 // If an image uses packed pixel format like packed RGB or packed YUV,
 // then it has only a single plane, e.g. all it's data is within plane_data[0].
@@ -44,14 +44,14 @@ constexpr uint8_t MAX_IMAGE_PLANES = 4;
 // plane_data[2]. A stride is a plane size with alignment.
 EXPORT struct image_frame {
   frame_id id;
-  const uint8_t *plane_data[MAX_IMAGE_PLANES];
+  const uint8_t *plane_data[max_image_planes];
 };
 
 // Metadata contains information which is unchangeable for a channel
 EXPORT struct image_metadata {
   uint16_t width;
   uint16_t height;
-  uint32_t plane_strides[MAX_IMAGE_PLANES];
+  uint32_t plane_strides[max_image_planes];
 };
 
 // In batch mode, framework is waiting for each frame to be processed

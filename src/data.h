@@ -63,8 +63,8 @@ network_packet parse_network_metadata(cbor_item_t *item);
 network_packet parse_network_frame(cbor_item_t *item);
 
 // Used to tell not to downscale original video stream
-constexpr int16_t ORIGINAL_IMAGE_WIDTH = -1;
-constexpr int16_t ORIGINAL_IMAGE_HEIGHT = -1;
+constexpr int16_t original_image_width = -1;
+constexpr int16_t original_image_height = -1;
 
 // image size
 struct image_size {
@@ -124,8 +124,8 @@ struct owned_image_frame {
   // image capture time
   std::chrono::system_clock::time_point timestamp;
 
-  std::string plane_data[MAX_IMAGE_PLANES];
-  uint32_t plane_strides[MAX_IMAGE_PLANES];
+  std::string plane_data[max_image_planes];
+  uint32_t plane_strides[max_image_planes];
 };
 
 // algebraic type to support flow of image data using streams API

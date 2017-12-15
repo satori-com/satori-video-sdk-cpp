@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "../logging.h"
-#include "../type_traits.h"
+#include "type_traits.h"
 
 namespace satori {
 namespace video {
