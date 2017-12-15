@@ -119,7 +119,8 @@ struct threaded_worker_op {
 
       void die() override {
         LOG(2) << this << " " << _name << " die";
-        CHECK(std::this_thread::get_id() == _worker_thread->get_id());
+        LOG(INFO) << "invoking die() from " << threadutils::get_current_thread_name()
+                  << ", this worker thread " << _name;
         _active = false;
       }
 
@@ -157,7 +158,7 @@ struct threaded_worker_op {
       std::mutex _mutex;
       std::condition_variable _on_send;
 
-      bool _active{true};
+      std::atomic_bool _active{true};
       bool _complete{false};
       bool _cancelled{false};
       std::error_condition _ec;

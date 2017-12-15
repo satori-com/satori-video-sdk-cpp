@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include "../signal_utils.h"
+#include "../threadutils.h"
 #include "streams.h"
 
 namespace satori {
@@ -20,7 +21,8 @@ struct signal_breaker_op {
   struct instance : subscriber<T>, subscription {
     instance(signal_breaker_op &&op, subscriber<T> &sink) : _sink(sink) {
       signal::register_handler(op._signals, [this](int /*signal*/) {
-        LOG(INFO) << " breaking the stream";
+        LOG(INFO) << " breaking the stream, in thread "
+                  << threadutils::get_current_thread_name();
         if (_source_sub != nullptr) {
           LOG(INFO) << "cancelling upstream subscription";
           _source_sub->cancel();
