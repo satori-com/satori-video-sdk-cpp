@@ -1,5 +1,6 @@
 #include <thread>
 #include "avutils.h"
+#include "metrics.h"
 #include "threadutils.h"
 #include "video_error.h"
 #include "video_streams.h"
@@ -10,6 +11,12 @@ extern "C" {
 
 namespace satori {
 namespace video {
+
+namespace {
+auto &frames_total = prometheus::BuildCounter()
+                         .Name("url_source_frames_total")
+                         .Register(metrics_registry());
+}
 
 struct url_source_impl {
   url_source_impl(const std::string &url, const std::string &options,
@@ -107,6 +114,7 @@ struct url_source_impl {
         encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
                             frame_id{_next_id, _next_id}};
         frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
+        frames_total.Add({{"url", _url}}).Increment();
         _sink.on_next(frame);
       }
     }
