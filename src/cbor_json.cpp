@@ -136,7 +136,7 @@ nlohmann::json cbor_to_json(const cbor_item_t* item) {
     }
 
     case CBOR_TYPE_ARRAY: {
-      nlohmann::json array;
+      nlohmann::json array = nlohmann::json::array();
       for (size_t i = 0; i < cbor_array_size(item); i++) {
         array.emplace_back(cbor_to_json(cbor_array_handle(item)[i]));
       }
@@ -144,7 +144,7 @@ nlohmann::json cbor_to_json(const cbor_item_t* item) {
     }
 
     case CBOR_TYPE_MAP: {
-      nlohmann::json map;
+      nlohmann::json map = nlohmann::json::object();
       for (size_t i = 0; i < cbor_map_size(item); i++) {
         map.emplace(cbor_to_json(cbor_map_handle(item)[i].key),
                     cbor_to_json(cbor_map_handle(item)[i].value));

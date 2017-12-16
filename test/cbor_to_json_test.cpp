@@ -202,3 +202,33 @@ BOOST_AUTO_TEST_CASE(map_test) {
   BOOST_CHECK_EQUAL("Accord", j["car"]["model"]);
   BOOST_CHECK_EQUAL(2000, j["car"]["year"]);
 }
+
+BOOST_AUTO_TEST_CASE(empty_array) {
+  cbor_item_t *detections = cbor_new_indefinite_array();
+  cbor_item_t *analysis_message = cbor_new_indefinite_map();
+  cbor_map_add(analysis_message,
+               {cbor_move(cbor_build_string("detected_objects")), cbor_move(detections)});
+
+  nlohmann::json j = sv::cbor_to_json(analysis_message);
+
+  auto &detected_objects = j["detected_objects"];
+
+  BOOST_CHECK(!detected_objects.is_null());
+  BOOST_CHECK(detected_objects.is_array());
+  BOOST_CHECK_EQUAL(0, detected_objects.size());
+}
+
+BOOST_AUTO_TEST_CASE(empty_map) {
+  cbor_item_t *detection = cbor_new_indefinite_map();
+  cbor_item_t *analysis_message = cbor_new_indefinite_map();
+  cbor_map_add(analysis_message,
+               {cbor_move(cbor_build_string("detection")), cbor_move(detection)});
+
+  nlohmann::json j = sv::cbor_to_json(analysis_message);
+
+  auto &detected_objects = j["detection"];
+
+  BOOST_CHECK(!detected_objects.is_null());
+  BOOST_CHECK(detected_objects.is_object());
+  BOOST_CHECK_EQUAL(0, detected_objects.size());
+}
