@@ -14,6 +14,7 @@
 #include "logging_impl.h"
 #include "metrics.h"
 #include "rtm_streams.h"
+#include "signal_utils.h"
 #include "streams/asio_streams.h"
 #include "streams/signal_breaker.h"
 #include "streams/threaded_worker.h"
@@ -198,6 +199,22 @@ int bot_environment::main(int argc, char* argv[]) {
     if (auto ec = _rtm_client->start()) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
+
+    // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
+    // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+    signal::register_handler(
+        {SIGINT, SIGTERM, SIGQUIT},
+        [&io_service, rtm_client = _rtm_client, id ](int /*signal*/) {
+          cbor_item_t* die_note = cbor_new_definite_map(2);
+          cbor_map_add(die_note, {cbor_move(cbor_build_string("bot_id")),
+                                  cbor_move(cbor_build_string(id.c_str()))});
+          cbor_map_add(die_note, {cbor_move(cbor_build_string("note")),
+                                  cbor_move(cbor_build_string("see you in next life"))});
+
+          io_service.post([ rtm_client, die_note = cbor_move(die_note) ]() {
+            rtm_client->publish("test", die_note);
+          });
+        });
   }
   expose_metrics(_rtm_client.get());
 
