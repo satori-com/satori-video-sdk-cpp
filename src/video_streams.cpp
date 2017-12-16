@@ -52,7 +52,7 @@ auto &frame_arrival_time_delta_millis =
 
 auto &frame_arrival_time_jitter =
     prometheus::BuildHistogram()
-        .Name("frame_arrival_time_itter")
+        .Name("frame_arrival_time_jitter")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,  1,   2,   3,   4,   5,   6,   7,  8,  9,
                                      10, 15,  20,  25,  30,  40,  50,  60, 70, 80,
@@ -68,6 +68,12 @@ auto &frame_delivery_delay_millis =
                                      250,  300,   400,   500,   600,   700,  800,  900,
                                      1000, 2000,  3000,  4000,  5000,  6000, 7000, 8000,
                                      9000, 10000, 15000, 20000, 30000, 60000});
+
+auto &frame_chunks =
+    prometheus::BuildHistogram()
+        .Name("frame_chunks")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20});
 
 }  // namespace
 
@@ -93,14 +99,16 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
       _aggregated_data.append(nf.base64_data);
       if (nf.chunk == 1) {
         _id = nf.id;
+        _arrival_time = nf.arrival_time;
       }
 
       if (nf.chunk == nf.chunks) {
         encoded_frame frame;
         frame.data = decode64(_aggregated_data);
         frame.id = _id;
-        frame.timestamp = nf.t;
+        frame.timestamp = _arrival_time;
         reset();
+        frame_chunks.Observe(nf.chunks);
         return streams::publishers::of({encoded_packet{frame}});
       }
 
@@ -116,6 +124,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
 
     uint8_t _chunk{1};
     frame_id _id;
+    std::chrono::system_clock::time_point _arrival_time;
     std::string _aggregated_data;
   };
 
@@ -140,8 +149,6 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
     void operator()(const encoded_metadata & /*m*/) {}
 
     void operator()(const encoded_frame &f) {
-      const auto arrival_time = std::chrono::system_clock::now();
-
       if (_first_frame) {
         _first_frame = false;
       } else {
@@ -151,7 +158,7 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
                          .count());
         const double arrival_time_delta =
             std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         arrival_time - _last_arrival_time)
+                         f.arrival_time - _last_arrival_time)
                          .count());
 
         frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
@@ -169,7 +176,7 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
 
       _last_id = f.id;
       _last_timestamp = f.timestamp;
-      _last_arrival_time = arrival_time;
+      _last_arrival_time = f.arrival_time;
     }
 
    private:

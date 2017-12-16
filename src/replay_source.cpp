@@ -70,8 +70,9 @@ static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
 }
 
 streams::publisher<network_packet> read_metadata(const std::string &metadata_file) {
-  return read_json(metadata_file) >> streams::head()
-         >> streams::map(&parse_network_metadata);
+  return read_json(metadata_file) >> streams::head() >> streams::map([](cbor_item_t *t) {
+           return network_packet{parse_network_metadata(t)};
+         });
 }
 
 static double get_timestamp(const cbor_item_t *item) {
@@ -103,7 +104,9 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
             >> streams::do_finally([last_time]() { delete last_time; });
   }
   auto frames = std::move(items) >> streams::flat_map(&get_messages)
-                >> streams::map(&parse_network_frame);
+                >> streams::map([](cbor_item_t *t) {
+                    return network_packet{parse_network_frame(t)};
+                  });
 
   return streams::publishers::concat(std::move(metadata), std::move(frames));
 }

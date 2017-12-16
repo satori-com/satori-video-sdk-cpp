@@ -80,8 +80,14 @@ struct publisher {
 // Subscription interface of RTM.
 struct subscription {};
 
+struct channel_data {
+  cbor_item_t *payload;
+  std::chrono::system_clock::time_point arrival_time;
+};
+
 struct subscription_callbacks : error_callbacks {
-  virtual void on_data(const subscription & /*subscription*/, cbor_item_t * /*unused*/) {}
+  virtual void on_data(const subscription & /*subscription*/,
+                       channel_data && /*unused*/) {}
 };
 
 struct history_options {

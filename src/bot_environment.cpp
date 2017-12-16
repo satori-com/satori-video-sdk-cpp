@@ -244,7 +244,9 @@ int bot_environment::main(int argc, char* argv[]) {
 
   if (_rtm_client) {
     _control_sink = &rtm::cbor_sink(_rtm_client, io_service, control_channel);
-    _control_source = rtm::cbor_channel(_rtm_client, control_channel, {});
+    _control_source =
+        rtm::cbor_channel(_rtm_client, control_channel, {})
+        >> streams::map([](rtm::channel_data&& t) { return std::move(t.payload); });
   } else {
     _control_sink = new file_cbor_dump_observer(std::cout);
     _control_source = streams::publishers::empty<cbor_item_t*>();

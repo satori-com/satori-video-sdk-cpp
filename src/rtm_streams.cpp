@@ -11,21 +11,21 @@ namespace {
 struct rtm_channel_impl : rtm::subscription_callbacks {
   rtm_channel_impl(const std::shared_ptr<rtm::subscriber> &subscriber,
                    const std::string &channel, const rtm::subscription_options &options,
-                   streams::observer<cbor_item_t *> &sink)
+                   streams::observer<channel_data> &sink)
       : _subscriber(subscriber), _sink(sink) {
     _subscriber->subscribe_channel(channel, _subscription, *this, &options);
   }
 
   ~rtm_channel_impl() override { _subscriber->unsubscribe(_subscription); }
 
-  void on_data(const rtm::subscription & /*sub*/, cbor_item_t *data) override {
+  void on_data(const rtm::subscription & /*sub*/, channel_data &&data) override {
     _sink.on_next(std::move(data));
   }
 
   void on_error(std::error_condition ec) override { _sink.on_error(ec); }
 
   const std::shared_ptr<rtm::subscriber> _subscriber;
-  streams::observer<cbor_item_t *> &_sink;
+  streams::observer<channel_data> &_sink;
   rtm::subscription _subscription;
 };
 
@@ -69,11 +69,11 @@ streams::subscriber<cbor_item_t *> &cbor_sink(
   return *(new cbor_sink_impl(client, io_service, channel));
 }
 
-streams::publisher<cbor_item_t *> cbor_channel(
+streams::publisher<channel_data> cbor_channel(
     const std::shared_ptr<rtm::subscriber> &subscriber, const std::string &channel,
     const rtm::subscription_options &options) {
-  return streams::generators<cbor_item_t *>::async<rtm_channel_impl>(
-             [subscriber, channel, options](streams::observer<cbor_item_t *> &observer) {
+  return streams::generators<channel_data>::async<rtm_channel_impl>(
+             [subscriber, channel, options](streams::observer<channel_data> &observer) {
                return new rtm_channel_impl(subscriber, channel, options, observer);
              },
              [](rtm_channel_impl *impl) { delete impl; })

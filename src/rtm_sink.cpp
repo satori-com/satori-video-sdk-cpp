@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "data.h"
+#include "metrics.h"
 #include "satori_video.h"
 #include "streams/streams.h"
 #include "video_streams.h"
@@ -9,6 +10,14 @@ namespace satori {
 namespace video {
 
 namespace {
+
+auto &frame_publish_delay_microseconds =
+    prometheus::BuildHistogram()
+        .Name("frame_publish_delay_microseconds")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0,    1,    5,     10,    25,    50,    100,
+                                     250,  500,  750,   1000,  2000,  3000,  4000,
+                                     5000, 7500, 10000, 25000, 50000, 100000});
 
 struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visitor<void> {
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
@@ -48,7 +57,14 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visito
     for (const network_frame &nf : network_frames) {
       cbor_item_t *packet = nf.to_cbor();
       CHECK_EQ(cbor_refcount(packet), 0);
-      _io_service.post([ client = _client, channel = _frames_channel, packet ]() {
+      _io_service.post([
+        client = _client, channel = _frames_channel, packet, timestamp = f.timestamp
+      ]() {
+        const auto before_publish = std::chrono::system_clock::now();
+        frame_publish_delay_microseconds.Observe(
+            std::chrono::duration_cast<std::chrono::microseconds>(before_publish
+                                                                  - timestamp)
+                .count());
         client->publish(channel, packet, nullptr);
       });
     }

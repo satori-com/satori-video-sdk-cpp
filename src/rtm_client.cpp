@@ -116,6 +116,14 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Register(metrics_registry())
                                        .Add({});
 
+auto &rtm_publish_time_microseconds =
+    prometheus::BuildHistogram()
+        .Name("rtm_publish_time_microseconds")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0,    1,    5,     10,    25,    50,    100,
+                                     250,  500,  750,   1000,  2000,  3000,  4000,
+                                     5000, 7500, 10000, 25000, 50000, 100000});
+
 struct subscribe_request {
   const uint64_t id;
   const std::string channel;
@@ -343,8 +351,15 @@ class secure_client : public client {
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(document_str.size());
     rtm_bytes_written.Increment(document_str.size());
+
     boost::system::error_code ec;
+    const auto before_publish = std::chrono::system_clock::now();
     _ws.write(asio::buffer(document_str), ec);
+    const auto after_publish = std::chrono::system_clock::now();
+    rtm_publish_time_microseconds.Observe(
+        std::chrono::duration_cast<std::chrono::microseconds>(after_publish
+                                                              - before_publish)
+            .count());
     if (ec.value() != 0) {
       LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
     }
@@ -438,6 +453,8 @@ class secure_client : public client {
   void ask_for_read() {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
                                         unsigned long) {
+      const auto arrival_time = std::chrono::system_clock::now();
+
       LOG(9) << this << " async_read";
       if (ec == boost::asio::error::operation_aborted) {
         LOG(9) << this << " async_read operation is aborted/cancelled";
@@ -477,7 +494,7 @@ class secure_client : public client {
       }
 
       LOG(9) << this << " async_read processing input";
-      process_input(document, input_size);
+      process_input(document, input_size, arrival_time);
 
       LOG(9) << this << " async_read asking for read";
       ask_for_read();
@@ -521,7 +538,8 @@ class secure_client : public client {
     });
   }
 
-  void process_input(const nlohmann::json &document, size_t byte_size) {
+  void process_input(const nlohmann::json &document, size_t byte_size,
+                     std::chrono::system_clock::time_point arrival_time) {
     CHECK(document.is_object()) << "not an object: " << document;
 
     if (document.count("action") == 0) {
@@ -548,7 +566,8 @@ class secure_client : public client {
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
 
       for (auto &m : body["messages"]) {
-        sub.callbacks.on_data(sub.sub, cbor_move(video::json_to_cbor(m)));
+        channel_data data{cbor_move(video::json_to_cbor(m)), arrival_time};
+        sub.callbacks.on_data(sub.sub, std::move(data));
       }
     } else if (action == "rtm/subscribe/ok") {
       const uint64_t id = document["id"];

@@ -10,7 +10,7 @@ namespace satori {
 namespace video {
 namespace rtm {
 
-streams::publisher<cbor_item_t *> cbor_channel(
+streams::publisher<channel_data> cbor_channel(
     const std::shared_ptr<rtm::subscriber> &subscriber, const std::string &channel,
     const subscription_options &options);
 
