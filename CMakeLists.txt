@@ -58,6 +58,8 @@ add_library(satorivideo
     src/metrics.cpp
     src/mkv_options.h
     src/mkv_sink.cpp
+    src/pool_controller.h
+    src/pool_controller.cpp
     src/replay_source.cpp
     src/rtm_client.cpp
     src/rtm_sink.cpp

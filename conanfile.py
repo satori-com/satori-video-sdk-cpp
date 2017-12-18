@@ -21,7 +21,7 @@ class SatorivideoConan(ConanFile):
                "SDL/2.0.5@satorivideo/master"
 
     license = "proprietary"
-    version = '0.10.33'
+    version = '0.10.34'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
