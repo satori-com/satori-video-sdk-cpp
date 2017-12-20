@@ -8,11 +8,11 @@ namespace video {
 namespace streams {
 publisher<std::string> read_lines(const std::string &filename) {
   struct state {
-    std::ifstream _input;
+    std::ifstream input;
 
     void generate_one(streams::observer<std::string> &observer) {
       std::string line;
-      if (!std::getline(_input, line)) {
+      if (!std::getline(input, line)) {
         observer.on_complete();
         return;
       }

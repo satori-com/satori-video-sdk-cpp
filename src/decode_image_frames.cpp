@@ -42,7 +42,8 @@ auto &receive_frame_millis =
 auto &decoder_errors =
     prometheus::BuildCounter().Name("decoder_errors_total").Register(metrics_registry());
 
-struct image_decoder_op {
+class image_decoder_op {
+ public:
   image_decoder_op(image_pixel_format pixel_format, int bounding_width,
                    int bounding_height, bool keep_proportions)
       : _pixel_format(pixel_format),
@@ -51,12 +52,13 @@ struct image_decoder_op {
         _keep_proportions(keep_proportions) {}
 
   template <typename T>
-  struct instance : streams::subscriber<encoded_packet>,
-                    streams::impl::drain_source_impl<owned_image_packet>,
-                    boost::static_visitor<void> {
+  class instance : public streams::subscriber<encoded_packet>,
+                   streams::impl::drain_source_impl<owned_image_packet>,
+                   boost::static_visitor<void> {
     static_assert(std::is_same<T, encoded_packet>::value, "types mismatch");
     using value_t = owned_image_packet;
 
+   public:
     static streams::publisher<owned_image_packet> apply(
         streams::publisher<encoded_packet> &&source, image_decoder_op &&op) {
       return streams::publisher<owned_image_packet>(
@@ -77,6 +79,7 @@ struct image_decoder_op {
       }
     }
 
+   private:
     void on_subscribe(streams::subscription &s) override {
       LOG(4) << "on_subscribe";
       _source = &s;
@@ -113,6 +116,7 @@ struct image_decoder_op {
       deliver_on_error(ec);
     }
 
+   public:
     void operator()(const encoded_metadata &m) {
       LOG(INFO) << this << "received stream metadata " << m;
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
@@ -176,6 +180,7 @@ struct image_decoder_op {
       }
     }
 
+   private:
     bool drain_impl() override {
       LOG(4) << this << " drain_impl needs=" << needs();
       if (!_context) {
@@ -317,6 +322,7 @@ struct image_decoder_op {
     std::shared_ptr<SwsContext> _sws_context;
   };
 
+ private:
   const image_pixel_format _pixel_format;
   const int _bounding_width;
   const int _bounding_height;

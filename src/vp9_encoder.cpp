@@ -11,7 +11,8 @@ extern "C" {
 namespace satori {
 namespace video {
 
-struct vp9_encoder {
+class vp9_encoder {
+ public:
   vp9_encoder(uint8_t lag_in_frames) : _lag_in_frames(lag_in_frames) {}
 
   streams::publisher<encoded_packet> init(const owned_image_frame &f) {
@@ -72,6 +73,7 @@ struct vp9_encoder {
     return encode_frame(f);
   }
 
+ private:
   streams::publisher<encoded_packet> encode_frame(const owned_image_frame &f) {
     avutils::copy_image_to_av_frame(f, _tmp_frame);
     avutils::sws_scale(_sws_context, _tmp_frame, _frame);

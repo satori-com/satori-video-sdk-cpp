@@ -85,9 +85,11 @@ variables_map parse_command_line(int argc, char* argv[],
 }
 
 // todo: move this reusable class out.
-struct file_cbor_dump_observer : streams::observer<cbor_item_t*> {
+class file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
+ public:
   explicit file_cbor_dump_observer(std::ostream& out) : _out(out) {}
 
+ private:
   void on_next(cbor_item_t*&& t) override {
     CHECK_EQ(0, cbor_refcount(t));
     cbor_incref(t);

@@ -8,7 +8,8 @@ namespace rtm {
 
 namespace {
 
-struct rtm_channel_impl : rtm::subscription_callbacks {
+class rtm_channel_impl : rtm::subscription_callbacks {
+ public:
   rtm_channel_impl(const std::shared_ptr<rtm::subscriber> &subscriber,
                    const std::string &channel, const rtm::subscription_options &options,
                    streams::observer<channel_data> &sink)
@@ -18,6 +19,7 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
 
   ~rtm_channel_impl() override { _subscriber->unsubscribe(_subscription); }
 
+ private:
   void on_data(const rtm::subscription & /*sub*/, channel_data &&data) override {
     _sink.on_next(std::move(data));
   }
@@ -29,11 +31,13 @@ struct rtm_channel_impl : rtm::subscription_callbacks {
   rtm::subscription _subscription;
 };
 
-struct cbor_sink_impl : streams::subscriber<cbor_item_t *> {
+class cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
+ public:
   cbor_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                  boost::asio::io_service &io_service, const std::string &channel)
       : _client(client), _io_service(io_service), _channel(channel) {}
 
+ private:
   void on_next(cbor_item_t *&&item) override {
     CHECK_EQ(0, cbor_refcount(item));
 

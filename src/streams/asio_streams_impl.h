@@ -29,11 +29,13 @@ inline boost::posix_time::time_duration to_boost(
 }
 
 template <typename Fn>
-struct delay_op {
+class delay_op {
+ public:
   delay_op(boost::asio::io_service &io, Fn &&fn) : _io(io), _fn(fn) {}
 
   template <typename T>
-  struct instance : subscriber<T>, subscription {
+  class instance : public subscriber<T>, subscription {
+   public:
     using value_t = T;
 
     static publisher<T> apply(publisher<T> &&src, delay_op &&op) {
@@ -51,6 +53,7 @@ struct delay_op {
       LOG(5) << "delay_op(" << this << ")::~delay_op";
     }
 
+   private:
     void on_next(T &&t) override {
       CHECK(_active);
       CHECK_GT(_waiting_from_src, 0);
@@ -227,16 +230,19 @@ struct delay_op {
     int _waiting_from_src{0};
   };
 
+ private:
   boost::asio::io_service &_io;
   Fn _fn;
 };
 
-struct timeout_op {
+class timeout_op {
+ public:
   timeout_op(boost::asio::io_service &io, std::chrono::milliseconds time)
       : _io(io), _time(time) {}
 
   template <typename T>
-  struct instance : subscriber<T>, subscription {
+  class instance : public subscriber<T>, subscription {
+   public:
     using value_t = T;
 
     static publisher<T> apply(publisher<T> &&src, timeout_op &&op) {
@@ -249,6 +255,7 @@ struct timeout_op {
       LOG(5) << "timeout_op(" << this << ")";
     }
 
+   private:
     void request(int n) override {
       LOG(5) << "timeout_op(" << this << ")::request " << n;
       CHECK(_src);
@@ -329,6 +336,7 @@ struct timeout_op {
     std::unique_ptr<boost::asio::deadline_timer> _timer;
   };
 
+ private:
   boost::asio::io_service &_io;
   const std::chrono::milliseconds _time;
 };

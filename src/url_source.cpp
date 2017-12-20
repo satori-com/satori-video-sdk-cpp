@@ -18,7 +18,8 @@ auto &frames_total = prometheus::BuildCounter()
                          .Register(metrics_registry());
 }
 
-struct url_source_impl {
+class url_source_impl {
+ public:
   url_source_impl(const std::string &url, const std::string &options,
                   streams::observer<encoded_packet> &sink)
       : _url(url), _sink(sink) {
@@ -94,6 +95,7 @@ struct url_source_impl {
     return {};
   }
 
+ private:
   void read_loop() {
     while (_active) {
       int ret = av_read_frame(_input_context.get(), &_pkt);

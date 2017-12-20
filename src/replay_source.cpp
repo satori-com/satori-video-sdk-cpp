@@ -14,7 +14,8 @@
 namespace satori {
 namespace video {
 
-struct read_json_impl {
+class read_json_impl {
+ public:
   explicit read_json_impl(const std::string &filename)
       : _filename(filename), _input(filename) {}
 
@@ -42,6 +43,7 @@ struct read_json_impl {
     observer.on_next(cbor_move(json_to_cbor(data)));
   }
 
+ private:
   const std::string _filename;
   std::ifstream _input;
 };

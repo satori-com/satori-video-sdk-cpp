@@ -31,7 +31,8 @@ uint8_t system_framerate() {
 namespace satori {
 namespace video {
 
-struct camera_source_impl {
+class camera_source_impl {
+ public:
   explicit camera_source_impl(const std::string &resolution)
       : _resolution(resolution),
         _framerate(std::to_string(system_framerate())),
@@ -39,6 +40,55 @@ struct camera_source_impl {
 
   ~camera_source_impl() = default;
 
+  void generate_one(streams::observer<owned_image_packet> &observer) {
+    if (!_format_context) {
+      if (init() < 0) {
+        observer.on_error(video_error::STREAM_INITIALIZATION_ERROR);
+        return;
+      }
+    }
+
+    if (!_metadata_sent) {
+      send_metadata(observer);
+      return;
+    }
+
+    av_init_packet(&_av_packet);
+    auto release = gsl::finally([this]() { av_packet_unref(&_av_packet); });
+
+    int ret = av_read_frame(_format_context.get(), &_av_packet);
+    if (ret < 0) {
+      LOG(ERROR) << "Failed to read frame: " << avutils::error_msg(ret);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
+      return;
+    }
+
+    if ((ret = avcodec_send_packet(_decoder_context.get(), &_av_packet)) != 0) {
+      LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(ret);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
+      return;
+    }
+
+    if ((ret = avcodec_receive_frame(_decoder_context.get(), _decoded_av_frame.get()))
+        != 0) {
+      LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(ret);
+      observer.on_error(video_error::FRAME_GENERATION_ERROR);
+      return;
+    }
+
+    avutils::sws_scale(_sws_context, _decoded_av_frame, _converted_av_frame);
+
+    owned_image_frame frame = avutils::to_image_frame(_converted_av_frame);
+    frame.id = {_last_pos, _av_packet.pos};
+    auto ts = 1000 * _av_packet.pts * _stream->time_base.num / _stream->time_base.den;
+    frame.timestamp =
+        std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
+
+    observer.on_next(std::move(frame));
+    _last_pos = _av_packet.pos + 1 /* because our intervals are [i1, i2] */;
+  }
+
+ private:
   AVInputFormat *input_format() {
     if (PLATFORM_APPLE) {
       AVInputFormat *result = av_find_input_format("avfoundation");
@@ -132,54 +182,6 @@ struct camera_source_impl {
     LOG(1) << "Allocated sws context";
 
     return 0;
-  }
-
-  void generate_one(streams::observer<owned_image_packet> &observer) {
-    if (!_format_context) {
-      if (init() < 0) {
-        observer.on_error(video_error::STREAM_INITIALIZATION_ERROR);
-        return;
-      }
-    }
-
-    if (!_metadata_sent) {
-      send_metadata(observer);
-      return;
-    }
-
-    av_init_packet(&_av_packet);
-    auto release = gsl::finally([this]() { av_packet_unref(&_av_packet); });
-
-    int ret = av_read_frame(_format_context.get(), &_av_packet);
-    if (ret < 0) {
-      LOG(ERROR) << "Failed to read frame: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FRAME_GENERATION_ERROR);
-      return;
-    }
-
-    if ((ret = avcodec_send_packet(_decoder_context.get(), &_av_packet)) != 0) {
-      LOG(ERROR) << "avcodec_send_packet error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FRAME_GENERATION_ERROR);
-      return;
-    }
-
-    if ((ret = avcodec_receive_frame(_decoder_context.get(), _decoded_av_frame.get()))
-        != 0) {
-      LOG(ERROR) << "avcodec_receive_frame error: " << avutils::error_msg(ret);
-      observer.on_error(video_error::FRAME_GENERATION_ERROR);
-      return;
-    }
-
-    avutils::sws_scale(_sws_context, _decoded_av_frame, _converted_av_frame);
-
-    owned_image_frame frame = avutils::to_image_frame(_converted_av_frame);
-    frame.id = {_last_pos, _av_packet.pos};
-    auto ts = 1000 * _av_packet.pts * _stream->time_base.num / _stream->time_base.den;
-    frame.timestamp =
-        std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
-
-    observer.on_next(std::move(frame));
-    _last_pos = _av_packet.pos + 1 /* because our intervals are [i1, i2] */;
   }
 
   void send_metadata(streams::observer<owned_image_packet> &observer) {

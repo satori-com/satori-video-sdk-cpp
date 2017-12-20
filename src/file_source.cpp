@@ -18,7 +18,8 @@ namespace satori {
 namespace video {
 namespace {
 
-struct file_source_impl {
+class file_source_impl {
+ public:
   file_source_impl(const std::string &filename, const bool loop)
       : _filename(filename), _loop(loop), _start(std::chrono::system_clock::now()) {}
 
@@ -128,6 +129,7 @@ struct file_source_impl {
     _metadata_sent = true;
   }
 
+ private:
   const std::string _filename;
   const bool _loop{false};
 

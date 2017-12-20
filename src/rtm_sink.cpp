@@ -19,27 +19,15 @@ auto &frame_publish_delay_microseconds =
                                      250,  500,  750,   1000,  2000,  3000,  4000,
                                      5000, 7500, 10000, 25000, 50000, 100000});
 
-struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visitor<void> {
+class rtm_sink_impl : public streams::subscriber<encoded_packet>,
+                      boost::static_visitor<void> {
+ public:
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                 boost::asio::io_service &io_service, const std::string &rtm_channel)
       : _client(client),
         _io_service(io_service),
         _frames_channel(rtm_channel),
         _metadata_channel(rtm_channel + metadata_channel_suffix) {}
-
-  void on_next(encoded_packet &&packet) override {
-    boost::apply_visitor(*this, packet);
-    _src->request(1);
-  }
-
-  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
-
-  void on_complete() override { delete this; }
-
-  void on_subscribe(streams::subscription &s) override {
-    _src = &s;
-    _src->request(1);
-  }
 
   void operator()(const encoded_metadata &m) {
     cbor_item_t *packet = m.to_network().to_cbor();
@@ -73,6 +61,21 @@ struct rtm_sink_impl : streams::subscriber<encoded_packet>, boost::static_visito
     if (_frames_counter % 100 == 0) {
       LOG(INFO) << "published " << _frames_counter << " frames to " << _frames_channel;
     }
+  }
+
+ private:
+  void on_next(encoded_packet &&packet) override {
+    boost::apply_visitor(*this, packet);
+    _src->request(1);
+  }
+
+  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
+
+  void on_complete() override { delete this; }
+
+  void on_subscribe(streams::subscription &s) override {
+    _src = &s;
+    _src->request(1);
   }
 
   const std::shared_ptr<rtm::publisher> _client;

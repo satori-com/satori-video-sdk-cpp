@@ -16,8 +16,8 @@ struct function_traits<ReturnType (*)(Args...)> {
   enum { ARITY = sizeof...(Args) };
   using result_type = ReturnType;
 
-  template <size_t i>
+  template <size_t I>
   struct arg {
-    using type = typename std::tuple_element<i, std::tuple<Args...>>::type;
+    using type = typename std::tuple_element<I, std::tuple<Args...>>::type;
   };
 };

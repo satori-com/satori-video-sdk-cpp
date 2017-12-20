@@ -23,14 +23,12 @@ namespace streams {
 template <typename T>
 template <typename OnNext>
 deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
-  struct sub : subscriber<T> {
-    OnNext _on_next;
-    deferred<void> _when_done;
-    subscription *_source{nullptr};
-
+  class sub : public subscriber<T> {
+   public:
     sub(OnNext &&on_next, deferred<void> when_done)
         : _on_next(std::move(on_next)), _when_done(std::move(when_done)) {}
 
+   private:
     void on_next(T &&t) override { _on_next(std::move(t)); }
 
     void on_complete() override {
@@ -48,6 +46,10 @@ deferred<void> publisher_impl<T>::process(OnNext &&on_next) {
       _source = &s;
       _source->request(INT_MAX);
     }
+
+    OnNext _on_next;
+    deferred<void> _when_done;
+    subscription *_source{nullptr};
   };
 
   deferred<void> when_done;
@@ -67,7 +69,8 @@ struct strip_publisher<publisher<T>> {
 
 // special type of source that needs to be pull-drained.
 template <typename T>
-struct drain_source_impl : subscription {
+class drain_source_impl : public subscription {
+ public:
   drain_source_impl(streams::subscriber<T> &sink) : _sink(sink) {}
 
   long needs() const { return _requested - _delivered; }
@@ -176,38 +179,36 @@ struct drain_source_impl : subscription {
 template <typename StartFn, typename StopFn>
 struct async_generator_impl {
   async_generator_impl(StartFn &&start_fn, StopFn &&stop_fn)
-      : _start_fn(std::move(start_fn)), _stop_fn(std::move(stop_fn)) {}
+      : start_fn(std::move(start_fn)), stop_fn(std::move(stop_fn)) {}
   async_generator_impl(const async_generator_impl &) = delete;
   async_generator_impl(async_generator_impl &&other) noexcept
-      : _start_fn(std::move(other._start_fn)), _stop_fn(std::move(other._stop_fn)) {}
+      : start_fn(std::move(other.start_fn)), stop_fn(std::move(other.stop_fn)) {}
 
-  StartFn _start_fn;
-  StopFn _stop_fn;
+  StartFn start_fn;
+  StopFn stop_fn;
 };
 
 template <typename T, typename State, typename AsyncGeneratorImpl>
-struct async_publisher_impl : publisher_impl<std::queue<T>> {
+class async_publisher_impl : public publisher_impl<std::queue<T>> {
+ public:
   explicit async_publisher_impl(AsyncGeneratorImpl &&generator)
       : _generator(std::move(generator)) {}
 
   using sub_base_t = drain_source_impl<std::queue<T>>;
 
-  struct sub : sub_base_t, observer<T> {
-    AsyncGeneratorImpl _generator;
-    std::mutex _mutex;
-    std::queue<T> _queue;
-    State *_state{nullptr};
-
+  class sub : public sub_base_t, observer<T> {
+   public:
     sub(subscriber<std::queue<T>> &sink, AsyncGeneratorImpl &&generator)
         : sub_base_t(sink), _generator(std::move(generator)) {}
 
     ~sub() override {
-      _generator._stop_fn(_state);
+      _generator.stop_fn(_state);
       _state = nullptr;
     }
 
-    void init() { _state = _generator._start_fn(*this); }
+    void init() { _state = _generator.start_fn(*this); }
 
+   private:
     void on_next(T &&t) override {
       {
         LOG(5) << "async_publisher_impl::sub::on_next";
@@ -240,8 +241,14 @@ struct async_publisher_impl : publisher_impl<std::queue<T>> {
       sub_base_t::deliver_on_next(std::move(tmp));
       return true;
     }
+
+    AsyncGeneratorImpl _generator;
+    std::mutex _mutex;
+    std::queue<T> _queue;
+    State *_state{nullptr};
   };
 
+ private:
   void subscribe(subscriber<std::queue<T>> &s) override {
     LOG(5) << "async_publisher_impl::subscribe";
     auto inst = new sub(s, std::move(_generator));
@@ -264,9 +271,11 @@ struct empty_publisher : publisher_impl<T>, subscription {
 };
 
 template <typename T>
-struct error_publisher : publisher_impl<T>, subscription {
+class error_publisher : public publisher_impl<T>, subscription {
+ public:
   explicit error_publisher(std::error_condition ec) : _ec(ec) {}
 
+ private:
   void subscribe(subscriber<T> &s) override {
     s.on_subscribe(*this);
     s.on_error(_ec);
@@ -317,30 +326,30 @@ publisher<T> range_impl(T from, T to) {
 template <typename CreateFn, typename GenFn>
 struct generator_impl {
   generator_impl(CreateFn &&create_fn, GenFn &&gen_fn)
-      : _create_fn(std::move(create_fn)), _gen_fn(std::move(gen_fn)) {}
+      : create_fn(std::move(create_fn)), gen_fn(std::move(gen_fn)) {}
   generator_impl(const generator_impl &) = delete;
   generator_impl(generator_impl &&other) noexcept
-      : _create_fn(std::move(other._create_fn)), _gen_fn(std::move(other._gen_fn)){};
+      : create_fn(std::move(other.create_fn)), gen_fn(std::move(other.gen_fn)){};
 
-  CreateFn _create_fn;
-  GenFn _gen_fn;
+  CreateFn create_fn;
+  GenFn gen_fn;
 };
 
 template <typename T, typename State, typename Generator>
-struct generator_publisher : publisher_impl<T> {
+class generator_publisher : public publisher_impl<T> {
+ public:
   using value_t = T;
 
-  struct sub : drain_source_impl<T>, observer<T> {
-    Generator _gen;
-    std::unique_ptr<State> _state;
-
+  class sub : public drain_source_impl<T>, observer<T> {
+   public:
     explicit sub(Generator &&gen, subscriber<T> &sink)
-        : drain_source_impl<T>(sink), _gen(std::move(gen)), _state(_gen._create_fn()) {}
+        : drain_source_impl<T>(sink), _gen(std::move(gen)), _state(_gen.create_fn()) {}
 
     ~sub() override { LOG(5) << "generator(" << this << ")::~generator"; }
 
+   private:
     bool drain_impl() override {
-      _gen._gen_fn(_state.get(), *this);
+      _gen.gen_fn(_state.get(), *this);
       return true;
     }
 
@@ -355,12 +364,16 @@ struct generator_publisher : publisher_impl<T> {
       LOG(5) << "generator(" << this << ")::on_complete";
       drain_source_impl<T>::deliver_on_complete();
     }
+
+    Generator _gen;
+    std::unique_ptr<State> _state;
   };
 
   explicit generator_publisher(Generator &&gen) : _gen(std::move(gen)) {
     LOG(5) << "generator_publisher(" << this << ")::ctor";
   }
 
+ private:
   void subscribe(subscriber<value_t> &s) override {
     CHECK(!_subscribed) << "single subscription only";
     _subscribed = true;
@@ -373,20 +386,23 @@ struct generator_publisher : publisher_impl<T> {
 
 // TODO: need to fix, this is a very dumb implementation of merge_op
 template <typename T>
-struct merge_publisher : publisher_impl<T> {
+class merge_publisher : public publisher_impl<T> {
+ public:
   using upstream_id = int;
 
   template <typename T1>
   struct downstream;
 
   template <typename T1>
-  struct upstream : subscriber<T> {
+  class upstream : public subscriber<T> {
+   public:
     upstream(upstream_id id, downstream<T> &d) : id(id), _d(d) {
       LOG(5) << this << " merge_publisher::upstream::ctor";
     }
 
     ~upstream() override { LOG(5) << this << " merge_publisher::upstream::dtor"; }
 
+   private:
     void on_subscribe(subscription &s) override {
       CHECK(!_subscribed);
       LOG(5) << this << " merge_publisher::upstream::on_subscribe";
@@ -412,6 +428,7 @@ struct merge_publisher : publisher_impl<T> {
       delete this;
     }
 
+   public:
     const upstream_id id;
 
    private:
@@ -420,7 +437,8 @@ struct merge_publisher : publisher_impl<T> {
   };
 
   template <typename T1>
-  struct downstream : subscription {
+  class downstream : public subscription {
+   public:
     downstream(subscriber<T> &sink, size_t expected_number_of_upstreams)
         : _sink(&sink), _expected_number_of_upstreams(expected_number_of_upstreams) {
       LOG(5) << this << " merge_publisher::downstream::ctor";
@@ -502,6 +520,7 @@ struct merge_publisher : publisher_impl<T> {
       _call_stack_depth--;
     }
 
+   private:
     void request(int n) override {
       LOG(5) << this << " merge_publisher::downstream::request " << n;
       _call_stack_depth++;
@@ -633,6 +652,7 @@ struct merge_publisher : publisher_impl<T> {
     LOG(5) << this << " merge_publisher::ctor";
   }
 
+ private:
   void subscribe(subscriber<T> &s) override {
     LOG(5) << this << " merge_publisher::subscribe";
     CHECK(!_subscribed) << "already subscribed";
@@ -653,7 +673,8 @@ struct merge_publisher : publisher_impl<T> {
 // operators -------
 
 template <typename S, typename T, typename Op>
-struct op_publisher : publisher_impl<T> {
+class op_publisher : public publisher_impl<T> {
+ public:
   using value_t = T;
 
   op_publisher(publisher<S> &&source, Op &&op)
@@ -662,6 +683,7 @@ struct op_publisher : publisher_impl<T> {
   op_publisher(publisher<S> &&source, const Op &op)
       : _source(std::move(source)), _op(op) {}
 
+ private:
   void subscribe(subscriber<value_t> &sink) override {
     using instance_t = typename Op::template instance<S>;
     auto instance = new instance_t(std::move(_op), sink);
@@ -673,11 +695,13 @@ struct op_publisher : publisher_impl<T> {
 };
 
 template <typename Fn>
-struct map_op {
+class map_op {
   using T = typename function_traits<std::decay_t<Fn>>::result_type;
 
+ public:
   template <typename S>
-  struct instance : subscriber<S>, private subscription {
+  class instance : public subscriber<S>, private subscription {
+   public:
     using value_t = T;
 
     static publisher<value_t> apply(publisher<S> &&source, map_op<Fn> &&op) {
@@ -685,13 +709,10 @@ struct map_op {
           new op_publisher<S, T, map_op<Fn>>(std::move(source), std::move(op)));
     }
 
-    Fn _fn;
-    subscriber<T> &_sink;
-    subscription *_source{nullptr};
-
     instance(map_op<Fn> &&op, subscriber<T> &sink)
         : _fn(std::move(op._fn)), _sink(sink) {}
 
+   private:
     void on_next(S &&t) override { _sink.on_next(_fn(std::move(t))); }
 
     void on_error(std::error_condition ec) override {
@@ -716,37 +737,36 @@ struct map_op {
       _source->cancel();
       delete this;
     }
+
+    Fn _fn;
+    subscriber<T> &_sink;
+    subscription *_source{nullptr};
   };
 
   explicit map_op(Fn &&fn) : _fn(fn) {}
 
+ private:
   Fn _fn;
 };
 
 template <typename Fn>
-struct flat_map_op {
+class flat_map_op {
   using Tx = typename function_traits<Fn>::result_type;
   using T = typename impl::strip_publisher<Tx>::type;
 
+ public:
   explicit flat_map_op(Fn &&fn) : _fn(std::move(fn)) {}
 
   template <typename S>
-  struct instance : drain_source_impl<T>, subscriber<S> {
+  class instance : public subscriber<S>, drain_source_impl<T> {
     using value_t = T;
+    class fwd_sub;
 
+   public:
     static publisher<value_t> apply(publisher<S> &&source, flat_map_op<Fn> &&op) {
       return publisher<value_t>(
           new op_publisher<S, T, flat_map_op<Fn>>(std::move(source), std::move(op)));
     }
-
-    struct fwd_sub;
-
-    Fn _fn;
-    subscription *_source{nullptr};
-    bool _active{true};
-    bool _source_complete{false};
-    bool _requested_next{false};
-    fwd_sub *_fwd_sub{nullptr};
 
     instance(flat_map_op<Fn> &&op, subscriber<value_t> &sink)
         : drain_source_impl<T>(sink), _fn(std::move(op._fn)) {}
@@ -761,6 +781,7 @@ struct flat_map_op {
       }
     }
 
+   private:
     void on_subscribe(subscription &s) override {
       CHECK(!_source);
       _source = &s;
@@ -842,13 +863,18 @@ struct flat_map_op {
       drain_source_impl<T>::deliver_on_error(ec);
     }
 
-    struct fwd_sub : subscriber<T>, subscription {
-      instance *_instance;
-      subscription *_source{nullptr};
-      int _waiting_from_upstream{0};
-
+    class fwd_sub : public subscriber<T>, subscription {
+     public:
       explicit fwd_sub(instance *i) : _instance(i) {}
 
+      void cancel() override {
+        if (_source) {
+          _source->cancel();
+        }
+        delete this;
+      }
+
+     private:
       void on_subscribe(subscription &s) override {
         CHECK(!_source);
         _source = &s;
@@ -886,13 +912,19 @@ struct flat_map_op {
         _source->request(n);
       }
 
-      void cancel() override {
-        if (_source) {
-          _source->cancel();
-        }
-        delete this;
-      }
+      friend class instance;
+
+      instance *_instance;
+      subscription *_source{nullptr};
+      int _waiting_from_upstream{0};
     };
+
+    Fn _fn;
+    subscription *_source{nullptr};
+    bool _active{true};
+    bool _source_complete{false};
+    bool _requested_next{false};
+    fwd_sub *_fwd_sub{nullptr};
   };
 
  private:
@@ -900,23 +932,22 @@ struct flat_map_op {
 };
 
 template <typename Predicate>
-struct take_while_op {
+class take_while_op {
+ public:
   take_while_op(Predicate &&p) : _p(p) {}
 
   template <typename T>
-  struct instance : subscriber<T>, private subscription {
+  class instance : public subscriber<T>, private subscription {
+   public:
     static publisher<T> apply(publisher<T> &&source, take_while_op<Predicate> &&op) {
       return publisher<T>(new op_publisher<T, T, take_while_op<Predicate>>(
           std::move(source), std::move(op)));
     }
 
-    Predicate _p;
-    subscriber<T> &_sink;
-    subscription *_source{nullptr};
-
     instance(take_while_op<Predicate> &&op, subscriber<T> &sink)
         : _p(std::move(op._p)), _sink(sink) {}
 
+   private:
     void on_next(T &&t) override {
       LOG(5) << "take_while::on_next";
       if (!_p(t)) {
@@ -949,8 +980,13 @@ struct take_while_op {
       _source->cancel();
       delete this;
     }
+
+    Predicate _p;
+    subscriber<T> &_sink;
+    subscription *_source{nullptr};
   };
 
+ private:
   Predicate _p;
 };
 
@@ -958,14 +994,17 @@ struct take_op {
   explicit take_op(int count) : _n(count) {}
 
   template <typename S>
-  struct instance : subscriber<S>, subscription {
+  class instance : public subscriber<S>, subscription {
     using value_t = S;
+
+   public:
     instance(take_op &&op, subscriber<value_t> &sink) : _n(op._n), _sink(sink) {}
 
     static publisher<value_t> apply(publisher<S> &&source, take_op &&op) {
       return publisher<value_t>(new op_publisher<S, S, take_op>(std::move(source), op));
     }
 
+   private:
     void on_next(S &&s) override {
       _sink.on_next(std::move(s));
       _received++;
@@ -1008,6 +1047,7 @@ struct take_op {
       delete this;
     }
 
+   private:
     const int _n;
     std::atomic<long> _received{0};
     std::atomic<long> _requested{0};
@@ -1020,7 +1060,8 @@ struct take_op {
 };
 
 template <typename S, typename T>
-struct lift_op {
+class lift_op {
+ public:
   explicit lift_op(op<S, T> fn) : _fn(fn) {}
 
   template <typename S1>
@@ -1033,17 +1074,20 @@ struct lift_op {
     }
   };
 
+ private:
   op<S, T> _fn;
 };
 
 template <typename Fn>
-struct do_finally_op {
+class do_finally_op {
+ public:
   explicit do_finally_op(Fn &&fn) : _fn(std::move(fn)) {}
 
   template <typename T>
-  struct instance : subscriber<T>, subscription {
+  class instance : public subscriber<T>, subscription {
     using value_t = T;
 
+   public:
     static publisher<T> apply(publisher<T> &&source, do_finally_op<Fn> &&op) {
       return publisher<T>(
           new op_publisher<T, T, do_finally_op<Fn>>(std::move(source), std::move(op)));
@@ -1052,6 +1096,7 @@ struct do_finally_op {
     instance(do_finally_op<Fn> &&op, subscriber<T> &sink)
         : _fn(std::move(op._fn)), _sink(sink) {}
 
+   private:
     void on_subscribe(subscription &s) override {
       CHECK(!_source_sub);
       _source_sub = &s;
@@ -1101,6 +1146,7 @@ struct do_finally_op {
     subscription *_source_sub{nullptr};
   };
 
+ private:
   Fn _fn;
 };
 

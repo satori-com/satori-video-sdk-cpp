@@ -15,14 +15,16 @@ namespace streams {
 
 namespace impl {
 
-struct threaded_worker_op {
+class threaded_worker_op {
+ public:
   explicit threaded_worker_op(const std::string &name) : _name(name) {}
 
   template <typename T>
-  struct instance : publisher_impl<std::queue<T>> {
+  class instance : publisher_impl<std::queue<T>> {
     using element_t = std::queue<T>;
 
-    struct source : drain_source_impl<element_t>, subscriber<T> {
+    class source : drain_source_impl<element_t>, subscriber<T> {
+     public:
       source(const std::string &name, publisher<T> &&src,
              streams::subscriber<element_t> &sink)
           : _name(name), drain_source_impl<element_t>(sink) {
@@ -168,6 +170,7 @@ struct threaded_worker_op {
       subscription *_src;
     };
 
+   public:
     static publisher<std::queue<T>> apply(publisher<T> &&src, threaded_worker_op &&op) {
       return publisher<std::queue<T>>(new instance(op._name, std::move(src)));
     }
@@ -184,6 +187,7 @@ struct threaded_worker_op {
     publisher<T> _src;
   };
 
+ private:
   const std::string _name;
 };
 

@@ -11,8 +11,9 @@ namespace satori {
 namespace video {
 
 // TODO: use AVMEDIA_TYPE_DATA
-struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
-                       boost::static_visitor<void> {
+class mkv_sink_impl : public streams::subscriber<encoded_packet>,
+                      boost::static_visitor<void> {
+ public:
   mkv_sink_impl(const std::string &filename, const mkv::format_options &format_options)
       : _filename(filename), _format_options(format_options) {
     avutils::init();
@@ -29,23 +30,6 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
     if (_format_context == nullptr) {
       throw std::runtime_error{"could not allocate format context for " + _filename};
     }
-  }
-
-  void on_next(encoded_packet &&packet) override {
-    boost::apply_visitor(*this, packet);
-    _src->request(1);
-  }
-
-  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
-
-  void on_complete() override {
-    LOG(INFO) << "got complete";
-    delete this;
-  }
-
-  void on_subscribe(streams::subscription &s) override {
-    _src = &s;
-    _src->request(1);
   }
 
   void operator()(const encoded_metadata &metadata) {
@@ -128,6 +112,24 @@ struct mkv_sink_impl : public streams::subscriber<encoded_packet>,
       throw std::runtime_error{"failed to write packet: " + avutils::error_msg(ret)};
     }
     av_packet_unref(&packet);
+  }
+
+ private:
+  void on_next(encoded_packet &&packet) override {
+    boost::apply_visitor(*this, packet);
+    _src->request(1);
+  }
+
+  void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
+
+  void on_complete() override {
+    LOG(INFO) << "got complete";
+    delete this;
+  }
+
+  void on_subscribe(streams::subscription &s) override {
+    _src = &s;
+    _src->request(1);
   }
 
   streams::subscription *_src;

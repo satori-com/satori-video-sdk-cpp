@@ -10,7 +10,8 @@ namespace video {
 namespace streams {
 namespace impl {
 
-struct signal_breaker_op {
+class signal_breaker_op {
+ public:
   explicit signal_breaker_op(std::initializer_list<int> signals) : _signals(signals) {
     static int number_of_instances{0};
     CHECK_EQ(number_of_instances, 0) << "only one instance is allowed";
@@ -18,7 +19,8 @@ struct signal_breaker_op {
   }
 
   template <typename T>
-  struct instance : subscriber<T>, subscription {
+  class instance : public subscriber<T>, subscription {
+   public:
     instance(signal_breaker_op &&op, subscriber<T> &sink) : _sink(sink) {
       signal::register_handler(op._signals, [this](int /*signal*/) {
         LOG(INFO) << " breaking the stream, in thread "
@@ -38,6 +40,7 @@ struct signal_breaker_op {
           new impl::op_publisher<T, T, signal_breaker_op>(std::move(source), op));
     }
 
+   private:
     void on_next(T &&t) override { _sink.on_next(std::move(t)); };
 
     void on_error(std::error_condition ec) override {

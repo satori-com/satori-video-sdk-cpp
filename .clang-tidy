@@ -7,6 +7,9 @@ CheckOptions:
    - key: readability-identifier-naming.EnumConstantCase
      value: UPPER_CASE
 
+   - key: readability-identifier-naming.TemplateParameterCase
+     value: CamelCase
+
    - key: readability-identifier-naming.ClassCase
      value: lower_case
    - key: readability-identifier-naming.ConstexprVariableCase
@@ -19,11 +22,10 @@ CheckOptions:
      value: lower_case
    - key: readability-identifier-naming.VariableCase
      value: lower_case
+   - key: readability-identifier-naming.MemberCase
+     value: lower_case
 
-#   - key: readability-identifier-naming.MemberCase
-#     value: lower_case
-#   - key: readability-identifier-naming.ClassMemberPrefix
-#     value: '_'
-
-#   - key: readability-identifier-naming.TemplateParameterCase
-#     value: CamelCase
+   - key: readability-identifier-naming.PrivateMemberPrefix
+     value: '_'
+   - key: readability-identifier-naming.ProtectedMemberPrefix
+     value: '_'

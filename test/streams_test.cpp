@@ -231,7 +231,7 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
     void start(streams::observer<int> *s) {
       std::thread{[this, s]() {
         int counter = 1;
-        while (_active) {
+        while (active) {
           int i = counter++;
           LOG(1) << "on_next " << i;
           s->on_next(std::move(i));
@@ -242,9 +242,9 @@ BOOST_AUTO_TEST_CASE(async_cancel) {
           .detach();
     }
 
-    void stop() { _active = false; }
+    void stop() { active = false; }
 
-    std::atomic<bool> _active{true};
+    std::atomic<bool> active{true};
   };
 
   auto p = streams::generators<int>::async<async_source>(
