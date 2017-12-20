@@ -68,7 +68,7 @@ multiframe_bot_img_callback_t to_multiframe_bot_callback(
 }  // namespace
 
 void bot_register(const bot_descriptor& bot) {
-  multiframe_bot_register({image_pixel_format::BGR,
+  multiframe_bot_register({bot.pixel_format,
                            to_multiframe_bot_callback(bot.img_callback),
                            bot.ctrl_callback});
 }
