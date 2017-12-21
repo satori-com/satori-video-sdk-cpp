@@ -122,7 +122,7 @@ class url_source_impl {
           pts = 0;
         }
         int64_t nano_pts = pts * 1000000 * _time_base.num / _time_base.den;
-        _packet_time = _packet_time + std::chrono::nanoseconds(nano_pts);
+        _packet_time = _packet_time + std::chrono::microseconds(nano_pts);
 
         encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
                             frame_id{_packets, _packets}};
