@@ -67,7 +67,7 @@ BOOST_AUTO_TEST_CASE(network_metadata_to_cbor_refcount) {
 
 BOOST_AUTO_TEST_CASE(network_frame_to_cbor_refcount) {
   sv::network_frame nf;
-  nf.t = std::chrono::system_clock::now();
+  nf.t = std::chrono::high_resolution_clock::now();
   nf.base64_data = "dummy-frame-data";
   nf.id = {0, 0};
   nf.chunk = 1;

@@ -36,7 +36,7 @@ class camera_source_impl {
   explicit camera_source_impl(const std::string &resolution)
       : _resolution(resolution),
         _framerate(std::to_string(system_framerate())),
-        _start(std::chrono::system_clock::now()) {}
+        _start(std::chrono::high_resolution_clock::now()) {}
 
   ~camera_source_impl() = default;
 
@@ -81,8 +81,7 @@ class camera_source_impl {
     owned_image_frame frame = avutils::to_image_frame(_converted_av_frame);
     frame.id = {_last_pos, _av_packet.pos};
     auto ts = 1000 * _av_packet.pts * _stream->time_base.num / _stream->time_base.den;
-    frame.timestamp =
-        std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
+    frame.timestamp = _start + std::chrono::milliseconds(ts);
 
     observer.on_next(std::move(frame));
     _last_pos = _av_packet.pos + 1 /* because our intervals are [i1, i2] */;
@@ -205,7 +204,7 @@ class camera_source_impl {
   std::shared_ptr<AVFrame> _converted_av_frame{nullptr};  // for pixel format conversion
   std::shared_ptr<SwsContext> _sws_context{nullptr};
 
-  const std::chrono::system_clock::time_point _start;
+  const std::chrono::high_resolution_clock::time_point _start;
   int64_t _last_pos{0};
   bool _metadata_sent{false};
 };

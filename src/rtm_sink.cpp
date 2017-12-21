@@ -39,8 +39,7 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
   }
 
   void operator()(const encoded_frame &f) {
-    std::vector<network_frame> network_frames =
-        f.to_network(std::chrono::system_clock::now());
+    std::vector<network_frame> network_frames = f.to_network();
 
     for (const network_frame &nf : network_frames) {
       cbor_item_t *packet = nf.to_cbor();
@@ -48,7 +47,7 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
       _io_service.post([
         client = _client, channel = _frames_channel, packet, timestamp = f.timestamp
       ]() {
-        const auto before_publish = std::chrono::system_clock::now();
+        const auto before_publish = std::chrono::high_resolution_clock::now();
         frame_publish_delay_microseconds.Observe(
             std::chrono::duration_cast<std::chrono::microseconds>(before_publish
                                                                   - timestamp)

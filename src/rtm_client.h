@@ -82,7 +82,7 @@ struct subscription {};
 
 struct channel_data {
   cbor_item_t *payload;
-  std::chrono::system_clock::time_point arrival_time;
+  std::chrono::high_resolution_clock::time_point arrival_time;
 };
 
 struct subscription_callbacks : error_callbacks {

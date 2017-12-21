@@ -21,7 +21,9 @@ namespace {
 class file_source_impl {
  public:
   file_source_impl(const std::string &filename, const bool loop)
-      : _filename(filename), _loop(loop), _start(std::chrono::system_clock::now()) {}
+      : _filename(filename),
+        _loop(loop),
+        _start(std::chrono::high_resolution_clock::now()) {}
 
   std::error_condition init() {
     LOG(1) << "Opening file " << _filename;
@@ -114,8 +116,7 @@ class file_source_impl {
       frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
       frame.id = {_last_pos, _pkt.pos};
       auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
-      frame.timestamp =
-          std::chrono::system_clock::time_point{_start + std::chrono::milliseconds(ts)};
+      frame.timestamp = _start + std::chrono::milliseconds(ts);
       frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
       observer.on_next(frame);
       _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
@@ -133,7 +134,7 @@ class file_source_impl {
   const std::string _filename;
   const bool _loop{false};
 
-  std::chrono::system_clock::time_point _start;
+  std::chrono::high_resolution_clock::time_point _start;
   std::shared_ptr<AVFormatContext> _fmt_ctx;
   int _stream_idx{-1};
   AVStream *_stream{nullptr};

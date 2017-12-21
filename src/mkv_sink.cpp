@@ -139,7 +139,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
   bool _initialized{false};
   int _video_stream_index{-1};
-  boost::optional<std::chrono::system_clock::time_point> _first_frame_ts;
+  boost::optional<std::chrono::high_resolution_clock::time_point> _first_frame_ts;
 };
 
 streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,

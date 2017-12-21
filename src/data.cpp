@@ -20,11 +20,16 @@ cbor_item_t *network_frame::to_cbor() const {
   cbor_array_set(ids, 1, cbor_move(cbor_build_uint64(id.i2)));
   cbor_map_add(root, {cbor_move(cbor_build_string("i")), cbor_move(ids)});
 
-  cbor_map_add(root, {cbor_move(cbor_build_string("t")),
-                      cbor_move(cbor_build_float8(t.time_since_epoch().count()))});
+  auto duration = t.time_since_epoch();
+  auto seconds_duration =
+      std::chrono::duration_cast<std::chrono::duration<double>>(duration);
+  double timestamp = seconds_duration.count();
+
+  cbor_map_add(
+      root, {cbor_move(cbor_build_string("t")), cbor_move(cbor_build_float8(timestamp))});
 
   cbor_map_add(root, {cbor_move(cbor_build_string("rt")),
-                      cbor_move(cbor_build_uint64(t.time_since_epoch().count()))});
+                      cbor_move(cbor_build_uint64(timestamp))});
 
   cbor_map_add(root,
                {cbor_move(cbor_build_string("c")), cbor_move(cbor_build_uint8(chunk))});
@@ -74,8 +79,7 @@ network_metadata encoded_metadata::to_network() const {
   return nm;
 }
 
-std::vector<network_frame> encoded_frame::to_network(
-    std::chrono::system_clock::time_point t) const {
+std::vector<network_frame> encoded_frame::to_network() const {
   std::vector<network_frame> frames;
 
   std::string encoded = std::move(satori::video::encode64(data));
@@ -85,7 +89,7 @@ std::vector<network_frame> encoded_frame::to_network(
     network_frame frame;
     frame.base64_data = encoded.substr(i * max_payload_size, max_payload_size);
     frame.id = id;
-    frame.t = t;
+    frame.t = timestamp;
     frame.chunk = static_cast<uint32_t>(i + 1);
     frame.chunks = static_cast<uint32_t>(chunks);
     frame.key_frame = key_frame;
@@ -116,16 +120,17 @@ network_frame parse_network_frame(cbor_item_t *item) {
   int64_t i1 = cbor::get_int64(cbor_array_handle(id)[0]);
   int64_t i2 = cbor::get_int64(cbor_array_handle(id)[1]);
 
-  std::chrono::system_clock::time_point timestamp;
+  std::chrono::high_resolution_clock::time_point timestamp;
   const cbor_item_t *t = msg.get("t");
   if (t != nullptr) {
-    std::chrono::duration<double, std::nano> double_duration(cbor::get_double(t));
-    std::chrono::system_clock::duration normal_duration =
-        std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
-    timestamp = std::chrono::system_clock::time_point{normal_duration};
+    std::chrono::duration<double> double_duration(cbor::get_double(t));
+    auto duration =
+        std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
+            double_duration);
+    timestamp = std::chrono::high_resolution_clock::time_point{duration};
   } else {
     LOG(WARNING) << "network frame packet doesn't have timestamp";
-    timestamp = std::chrono::system_clock::now();
+    timestamp = std::chrono::high_resolution_clock::now();
   }
 
   uint32_t chunk = 1, chunks = 1;

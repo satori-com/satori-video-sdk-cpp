@@ -127,8 +127,8 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
 
     uint8_t _chunk{1};
     frame_id _id;
-    std::chrono::system_clock::time_point _timestamp;
-    std::chrono::system_clock::time_point _arrival_time;
+    std::chrono::high_resolution_clock::time_point _timestamp;
+    std::chrono::high_resolution_clock::time_point _arrival_time;
     std::string _aggregated_data;
   };
 
@@ -186,8 +186,8 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
    private:
     bool _first_frame{true};
     frame_id _last_id;
-    std::chrono::system_clock::time_point _last_timestamp;
-    std::chrono::system_clock::time_point _last_arrival_time;
+    std::chrono::high_resolution_clock::time_point _last_timestamp;
+    std::chrono::high_resolution_clock::time_point _last_arrival_time;
 
     // TODO: prometheus can probably calculate standard deviation on it's own.
     statsutils::std_dev _timestamp_jitter{1000};
