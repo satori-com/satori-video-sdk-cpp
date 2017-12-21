@@ -100,6 +100,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
       _aggregated_data.append(nf.base64_data);
       if (nf.chunk == 1) {
         _id = nf.id;
+        _timestamp = nf.t;
         _arrival_time = nf.arrival_time;
       }
 
@@ -107,7 +108,8 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         encoded_frame frame;
         frame.data = decode64(_aggregated_data);
         frame.id = _id;
-        frame.timestamp = _arrival_time;
+        frame.timestamp = _timestamp;
+        frame.arrival_time = _arrival_time;
         reset();
         frame_chunks.Observe(nf.chunks);
         return streams::publishers::of({encoded_packet{frame}});
@@ -125,6 +127,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
 
     uint8_t _chunk{1};
     frame_id _id;
+    std::chrono::system_clock::time_point _timestamp;
     std::chrono::system_clock::time_point _arrival_time;
     std::string _aggregated_data;
   };
