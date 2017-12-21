@@ -203,8 +203,7 @@ std::list<bot_output> bot_instance::operator()(std::queue<owned_image_packet>& p
 }
 
 std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
-  // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-  //  messages_received.Add({{"message_type", "control"}}).Increment();
+  messages_received.Add({{"message_type", "control"}}).Increment();
   cbor_incref(msg);
   auto msg_decref = gsl::finally([&msg]() { cbor_decref(&msg); });
 
@@ -248,20 +247,17 @@ std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
 
 void bot_instance::prepare_message_buffer_for_downstream() {
   for (auto&& msg : _message_buffer) {
-    // todo(mike): https://github.com/jupp0r/prometheus-cpp/issues/75
-    /*
-        switch (msg.kind) {
-          case bot_message_kind::ANALYSIS:
-            messages_sent.Add({{"message_type", "analysis"}}).Increment();
-            break;
-          case bot_message_kind::DEBUG:
-            messages_sent.Add({{"message_type", "debug"}}).Increment();
-            break;
-          case bot_message_kind::CONTROL:
-            messages_sent.Add({{"message_type", "control"}}).Increment();
-            break;
-        }
-    */
+    switch (msg.kind) {
+      case bot_message_kind::ANALYSIS:
+        messages_sent.Add({{"message_type", "analysis"}}).Increment();
+        break;
+      case bot_message_kind::DEBUG:
+        messages_sent.Add({{"message_type", "debug"}}).Increment();
+        break;
+      case bot_message_kind::CONTROL:
+        messages_sent.Add({{"message_type", "control"}}).Increment();
+        break;
+    }
 
     cbor_item_t* data = msg.data;
 
