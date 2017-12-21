@@ -29,15 +29,18 @@ auto &bytes_received = prometheus::BuildCounter()
                            .Register(metrics_registry())
                            .Add({});
 
-auto &send_packet_millis = prometheus::BuildHistogram()
-                               .Name("decoder_send_packet_millis")
-                               .Register(metrics_registry())
-                               .Add({}, std::vector<double>{0, 1, 2, 5, 10, 20, 50, 100});
+auto &send_packet_millis =
+    prometheus::BuildHistogram()
+        .Name("decoder_send_packet_millis")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2,
+                                     5, 10, 20, 50, 100});
 auto &receive_frame_millis =
     prometheus::BuildHistogram()
         .Name("decoder_receive_frame_millis")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0, 1, 2, 5, 10, 20, 50, 100});
+        .Add({}, std::vector<double>{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2,
+                                     5, 10, 20, 50, 100});
 
 auto &decoder_errors =
     prometheus::BuildCounter().Name("decoder_errors_total").Register(metrics_registry());

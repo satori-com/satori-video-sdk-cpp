@@ -24,7 +24,8 @@ auto &frame_id_deltas =
     prometheus::BuildHistogram()
         .Name("frame_id_deltas")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+        .Add({}, std::vector<double>{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                     1, 2,   3,   4,   5,   6,   7,   8,   9,   10});
 
 auto &frame_timestamp_delta_millis =
     prometheus::BuildHistogram()
@@ -73,7 +74,7 @@ auto &frame_chunks =
     prometheus::BuildHistogram()
         .Name("frame_chunks")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20});
+        .Add({}, std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20});
 
 }  // namespace
 
