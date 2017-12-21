@@ -35,7 +35,7 @@ class bot_environment : private rtm::error_callbacks, boost::static_visitor<void
  private:
   void on_error(std::error_condition ec) override;
   multiframe_bot_descriptor _bot_descriptor;
-  std::shared_ptr<bot_instance> _bot_instance;
+  std::unique_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;
 
   streams::observer<cbor_item_t*>* _analysis_sink;

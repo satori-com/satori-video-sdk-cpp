@@ -8,6 +8,7 @@
 #include <json.hpp>
 
 #include "bot_instance.h"
+#include "bot_instance_builder.h"
 #include "cbor_json.h"
 #include "cbor_tools.h"  // FIXME: this one is implicitly used by file_cbor_dump_observer
 #include "cli_streams.h"
@@ -89,7 +90,6 @@ class file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
  public:
   explicit file_cbor_dump_observer(std::ostream& out) : _out(out) {}
 
- private:
   void on_next(cbor_item_t*&& t) override {
     CHECK_EQ(0, cbor_refcount(t));
     cbor_incref(t);
@@ -103,6 +103,7 @@ class file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
 
   void on_complete() override { delete this; }
 
+ private:
   std::ostream& _out;
 };
 
@@ -181,8 +182,6 @@ int bot_environment::main(int argc, char* argv[]) {
 
   const std::string id = cmd_args["id"].as<std::string>();
   const bool batch = cmd_args.count("batch") > 0;
-  _bot_instance = std::make_shared<bot_instance>(
-      id, batch ? execution_mode::BATCH : execution_mode::LIVE, _bot_descriptor);
 
   cbor_item_t* bot_config{nullptr};
   if (cmd_args.count("config-file") > 0) {
@@ -191,7 +190,13 @@ int bot_environment::main(int argc, char* argv[]) {
     bot_config = read_config_from_arg(cmd_args["config"].as<std::string>());
   }
 
-  _bot_instance->configure(bot_config);
+  bot_instance_builder bot_builder =
+      bot_instance_builder{_bot_descriptor}
+          .set_execution_mode(batch ? execution_mode::BATCH : execution_mode::LIVE)
+          .set_bot_id(id)
+          .set_config(bot_config);
+
+  _bot_instance = bot_builder.build();
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 

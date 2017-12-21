@@ -45,6 +45,7 @@ add_library(satorivideo
     src/avutils.cpp
     src/base64.cpp
     src/bot_environment.cpp
+    src/bot_instance_builder.cpp
     src/bot_instance.cpp
     src/camera_source.cpp
     src/cbor_json.cpp
