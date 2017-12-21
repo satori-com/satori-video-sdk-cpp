@@ -21,8 +21,10 @@ struct cbor_item_t;
 
 // prometheus-cpp declarations
 namespace prometheus {
-class Registry;
-}
+class Registry; // NOLINT
+class Histogram; // NOLINT
+class Counter; // NOLINT
+}  // namespace prometheus
 
 namespace satori {
 namespace video {
@@ -58,6 +60,13 @@ EXPORT struct image_metadata {
 // without drops to catch with live stream
 EXPORT enum class execution_mode { LIVE = 1, BATCH = 2 };
 
+EXPORT struct bot_metrics {
+  prometheus::Registry &registry;
+  prometheus::Counter &frames_processed_total;
+  prometheus::Counter &frames_dropped_total;
+  prometheus::Histogram &frame_processing_time_ms;
+};
+
 EXPORT struct bot_context {
   // instance_data can be used to store data across multiple callbacks
   // within a single bot instance
@@ -65,7 +74,7 @@ EXPORT struct bot_context {
   // image_metadata contains frame size information
   const image_metadata *frame_metadata;
   const execution_mode mode;
-  prometheus::Registry &metrics_registry;
+  bot_metrics metrics;
 };
 
 // API for image handler callback
