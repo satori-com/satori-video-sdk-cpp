@@ -10,10 +10,10 @@
 #include "bot_instance.h"
 #include "bot_instance_builder.h"
 #include "cbor_json.h"
-#include "cbor_tools.h"  // FIXME: this one is implicitly used by file_cbor_dump_observer
 #include "cli_streams.h"
 #include "logging_impl.h"
 #include "metrics.h"
+#include "ostream_sink.h"
 #include "rtm_streams.h"
 #include "signal_utils.h"
 #include "streams/asio_streams.h"
@@ -84,28 +84,6 @@ variables_map parse_command_line(int argc, char* argv[],
 
   return vm;
 }
-
-// todo: move this reusable class out.
-class file_cbor_dump_observer : public streams::observer<cbor_item_t*> {
- public:
-  explicit file_cbor_dump_observer(std::ostream& out) : _out(out) {}
-
-  void on_next(cbor_item_t*&& t) override {
-    CHECK_EQ(0, cbor_refcount(t));
-    cbor_incref(t);
-    auto t_decref = gsl::finally([&t]() { cbor_decref(&t); });
-    _out << t << std::endl;
-  }
-  void on_error(std::error_condition ec) override {
-    LOG(ERROR) << "ERROR: " << ec.message();
-    delete this;
-  }
-
-  void on_complete() override { delete this; }
-
- private:
-  std::ostream& _out;
-};
 
 }  // namespace
 
@@ -246,24 +224,24 @@ int bot_environment::main(int argc, char* argv[]) {
     std::string analysis_file = cmd_args["analysis-file"].as<std::string>();
     LOG(INFO) << "saving analysis output to " << analysis_file;
     _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
-    _analysis_sink = new file_cbor_dump_observer(*_analysis_file);
+    _analysis_sink = &streams::ostream_sink(*_analysis_file);
   } else if (_rtm_client) {
     _analysis_sink =
         &rtm::cbor_sink(_rtm_client, io_service, channel + analysis_channel_suffix);
   } else {
-    _analysis_sink = new file_cbor_dump_observer(std::cout);
+    _analysis_sink = &streams::ostream_sink(std::cout);
   }
 
   if (cmd_args.count("debug-file") > 0) {
     std::string debug_file = cmd_args["debug-file"].as<std::string>();
     LOG(INFO) << "saving debug output to " << debug_file;
     _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
-    _debug_sink = new file_cbor_dump_observer(*_debug_file);
+    _debug_sink = &streams::ostream_sink(*_debug_file);
   } else if (_rtm_client) {
     _debug_sink =
         &rtm::cbor_sink(_rtm_client, io_service, channel + debug_channel_suffix);
   } else {
-    _debug_sink = new file_cbor_dump_observer(std::cerr);
+    _debug_sink = &streams::ostream_sink(std::cerr);
   }
 
   if (_rtm_client) {
@@ -272,7 +250,7 @@ int bot_environment::main(int argc, char* argv[]) {
         rtm::cbor_channel(_rtm_client, control_channel, {})
         >> streams::map([](rtm::channel_data&& t) { return std::move(t.payload); });
   } else {
-    _control_sink = new file_cbor_dump_observer(std::cout);
+    _control_sink = &streams::ostream_sink(std::cout);
     _control_source = streams::publishers::empty<cbor_item_t*>();
   }
 

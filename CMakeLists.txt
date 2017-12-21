@@ -59,6 +59,7 @@ add_library(satorivideo
     src/metrics.cpp
     src/mkv_options.h
     src/mkv_sink.cpp
+    src/ostream_sink.cpp
     src/pool_controller.h
     src/pool_controller.cpp
     src/replay_source.cpp
@@ -388,3 +389,4 @@ add_video_test(threadutils_test test/threadutils_test.cpp)
 add_video_test(bot_instance_test test/bot_instance_test.cpp)
 add_video_test(cbor_to_json_test test/cbor_to_json_test.cpp)
 add_video_test(json_to_cbor_test test/json_to_cbor_test.cpp)
+add_video_test(ostream_sink_test test/ostream_sink_test.cpp)
