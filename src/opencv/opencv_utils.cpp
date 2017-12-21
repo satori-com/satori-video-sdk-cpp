@@ -47,6 +47,22 @@ cv::Point2d point_from_cbor(cbor_item_t *item) {
   return cv::Point2d(x, y);
 }
 
+cbor_item_t *point_to_cbor(cv::Point2d p) {
+  cbor_item_t *coordinates = cbor_new_definite_array(2);
+  cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.x)));
+  cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.y)));
+  return coordinates;
+}
+
+cv::Point2d convert_to_fractional(const cv::Point2d &p, const cv::Size &view) {
+  return cv::Point2d(p.x / view.width, p.y / view.height);
+}
+
+cv::Rect2d convert_to_fractional(const cv::Rect2d &rect, const cv::Size &view) {
+  return cv::Rect2d(rect.x / view.width, rect.y / view.height, rect.width / view.width,
+                    rect.height / view.height);
+}
+
 cv::Rect2d convert_to_fractional(const cv::Rect &rect, const cv::Size &view) {
   return cv::Rect2d(static_cast<double>(rect.x) / view.width,
                     static_cast<double>(rect.y) / view.height,
