@@ -36,7 +36,7 @@ class read_json_impl {
     nlohmann::json data;
     try {
       data = nlohmann::json::parse(line);
-    } catch (const std::exception &e) {
+    } catch (const nlohmann::json::parse_error &e) {
       ABORT() << "Unable to parse line: " << e.what() << " " << line;
     }
     CHECK(data.is_object());

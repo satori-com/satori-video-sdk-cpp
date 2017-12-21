@@ -93,7 +93,7 @@ cbor_item_t* read_config_from_file(const std::string& config_file_name) {
   try {
     std::ifstream config_file(config_file_name);
     config = nlohmann::json::parse(config_file);
-  } catch (const std::exception& e) {
+  } catch (const nlohmann::json::parse_error& e) {
     std::cerr << "Can't parse config file " << config_file_name << ": " << e.what()
               << std::endl;
     exit(1);
@@ -107,7 +107,7 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
 
   try {
     config = nlohmann::json::parse(arg);
-  } catch (const std::exception& e) {
+  } catch (const nlohmann::json::parse_error& e) {
     std::cerr << "Can't parse config: " << e.what() << "\nArg: " << arg << std::endl;
     exit(1);
   }

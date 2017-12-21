@@ -487,7 +487,7 @@ class secure_client : public client {
       nlohmann::json document;
       try {
         document = nlohmann::json::parse(input);
-      } catch (const std::exception &e) {
+      } catch (const nlohmann::json::parse_error &e) {
         LOG(ERROR) << "Parse message error: " << e.what() << ", message: " << input;
         _callbacks.on_error(client_error::INVALID_MESSAGE);
         return;
