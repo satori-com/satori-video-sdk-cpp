@@ -9,6 +9,17 @@
 namespace satori {
 namespace video {
 
+namespace {
+
+double time_point_to_cbor(std::chrono::high_resolution_clock::time_point p) {
+  auto duration = p.time_since_epoch();
+  auto seconds_duration =
+      std::chrono::duration_cast<std::chrono::duration<double>>(duration);
+  double timestamp = seconds_duration.count();
+  return timestamp;
+}
+
+}  // namespace
 cbor_item_t *network_frame::to_cbor() const {
   cbor_item_t *root = cbor_new_indefinite_map();
 
@@ -20,16 +31,15 @@ cbor_item_t *network_frame::to_cbor() const {
   cbor_array_set(ids, 1, cbor_move(cbor_build_uint64(id.i2)));
   cbor_map_add(root, {cbor_move(cbor_build_string("i")), cbor_move(ids)});
 
-  auto duration = t.time_since_epoch();
-  auto seconds_duration =
-      std::chrono::duration_cast<std::chrono::duration<double>>(duration);
-  double timestamp = seconds_duration.count();
+  double timestamp = time_point_to_cbor(t);
+  double departure_timestamp =
+      time_point_to_cbor(std::chrono::high_resolution_clock::now());
 
   cbor_map_add(
       root, {cbor_move(cbor_build_string("t")), cbor_move(cbor_build_float8(timestamp))});
 
-  cbor_map_add(root, {cbor_move(cbor_build_string("rt")),
-                      cbor_move(cbor_build_uint64(timestamp))});
+  cbor_map_add(root, {cbor_move(cbor_build_string("dt")),
+                      cbor_move(cbor_build_float8(departure_timestamp))});
 
   cbor_map_add(root,
                {cbor_move(cbor_build_string("c")), cbor_move(cbor_build_uint8(chunk))});
