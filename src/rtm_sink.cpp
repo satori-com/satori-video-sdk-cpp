@@ -47,7 +47,7 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
       _io_service.post([
         client = _client, channel = _frames_channel, packet, timestamp = f.timestamp
       ]() {
-        const auto before_publish = std::chrono::high_resolution_clock::now();
+        const auto before_publish = std::chrono::system_clock::now();
         frame_publish_delay_microseconds.Observe(
             std::chrono::duration_cast<std::chrono::microseconds>(before_publish
                                                                   - timestamp)

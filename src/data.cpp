@@ -11,7 +11,7 @@ namespace video {
 
 namespace {
 
-double time_point_to_cbor(std::chrono::high_resolution_clock::time_point p) {
+double time_point_to_cbor(std::chrono::system_clock::time_point p) {
   auto duration = p.time_since_epoch();
   auto seconds_duration =
       std::chrono::duration_cast<std::chrono::duration<double>>(duration);
@@ -32,8 +32,7 @@ cbor_item_t *network_frame::to_cbor() const {
   cbor_map_add(root, {cbor_move(cbor_build_string("i")), cbor_move(ids)});
 
   double timestamp = time_point_to_cbor(t);
-  double departure_timestamp =
-      time_point_to_cbor(std::chrono::high_resolution_clock::now());
+  double departure_timestamp = time_point_to_cbor(std::chrono::system_clock::now());
 
   cbor_map_add(
       root, {cbor_move(cbor_build_string("t")), cbor_move(cbor_build_float8(timestamp))});
@@ -130,17 +129,16 @@ network_frame parse_network_frame(cbor_item_t *item) {
   int64_t i1 = cbor::get_int64(cbor_array_handle(id)[0]);
   int64_t i2 = cbor::get_int64(cbor_array_handle(id)[1]);
 
-  std::chrono::high_resolution_clock::time_point timestamp;
+  std::chrono::system_clock::time_point timestamp;
   const cbor_item_t *t = msg.get("t");
   if (t != nullptr) {
     std::chrono::duration<double> double_duration(cbor::get_double(t));
     auto duration =
-        std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
-            double_duration);
-    timestamp = std::chrono::high_resolution_clock::time_point{duration};
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
+    timestamp = std::chrono::system_clock::time_point{duration};
   } else {
     LOG(WARNING) << "network frame packet doesn't have timestamp";
-    timestamp = std::chrono::high_resolution_clock::now();
+    timestamp = std::chrono::system_clock::now();
   }
 
   uint32_t chunk = 1, chunks = 1;

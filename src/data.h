@@ -48,12 +48,12 @@ struct network_metadata {
 struct network_frame {
   std::string base64_data;
   frame_id id{0, 0};
-  std::chrono::high_resolution_clock::time_point t;
+  std::chrono::system_clock::time_point t;
   uint32_t chunk{1};
   uint32_t chunks{1};
   bool key_frame{false};
 
-  std::chrono::high_resolution_clock::time_point arrival_time;
+  std::chrono::system_clock::time_point arrival_time;
   cbor_item_t *to_cbor() const;
 };
 
@@ -96,12 +96,12 @@ struct encoded_frame {
   frame_id id;
 
   // PTS time
-  std::chrono::high_resolution_clock::time_point timestamp;
+  std::chrono::system_clock::time_point timestamp;
 
   bool key_frame{false};
 
   // time when frame came from network
-  std::chrono::high_resolution_clock::time_point arrival_time;
+  std::chrono::system_clock::time_point arrival_time;
 
   std::vector<network_frame> to_network() const;
 };
@@ -126,7 +126,7 @@ struct owned_image_frame {
   uint16_t height;
 
   // image capture time
-  std::chrono::high_resolution_clock::time_point timestamp;
+  std::chrono::system_clock::time_point timestamp;
 
   std::string plane_data[max_image_planes];
   uint32_t plane_strides[max_image_planes];

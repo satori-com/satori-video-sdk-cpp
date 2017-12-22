@@ -252,8 +252,8 @@ class image_decoder_op {
       frame.pixel_format = _pixel_format;
       frame.width = static_cast<uint16_t>(_image_width);
       frame.height = static_cast<uint16_t>(_image_height);
-      frame.timestamp = std::chrono::high_resolution_clock::time_point{
-          std::chrono::milliseconds(_frame->pts)};
+      frame.timestamp =
+          std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
       // TODO: use avutils::copy_av_frame_to_image() maybe?
       for (uint8_t i = 0; i < max_image_planes; i++) {

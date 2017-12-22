@@ -114,19 +114,18 @@ class url_source_impl {
       if (_pkt.stream_index == _stream_idx) {
         LOG(4) << "packet from url " << _url;
         if (_packets == 0) {
-          _packet_time = _clock.now();
+          _start_time = _clock.now();
         }
         _packets++;
         int64_t pts = _pkt.pts;
         if (pts < 0) {
           pts = 0;
         }
-        int64_t nano_pts = pts * 1000000 * _time_base.num / _time_base.den;
-        _packet_time = _packet_time + std::chrono::microseconds(nano_pts);
-
+        int64_t micro_pts = 1000000 * pts * _time_base.num / _time_base.den;
+        auto packet_time = _start_time + std::chrono::microseconds(micro_pts);
         encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
                             frame_id{_packets, _packets}};
-        frame.timestamp = _packet_time;
+        frame.timestamp = packet_time;
         frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
         frames_total.Add({{"url", _url}}).Increment();
         _sink.on_next(frame);
@@ -145,8 +144,8 @@ class url_source_impl {
   int _stream_idx{-1};
   int64_t _packets{0};
   AVRational _time_base;
-  std::chrono::high_resolution_clock _clock;
-  std::chrono::high_resolution_clock::time_point _packet_time;
+  std::chrono::system_clock _clock;
+  std::chrono::system_clock::time_point _start_time;
 };
 
 streams::publisher<encoded_packet> url_source(const std::string &url,

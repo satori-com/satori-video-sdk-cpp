@@ -21,9 +21,7 @@ namespace {
 class file_source_impl {
  public:
   file_source_impl(const std::string &filename, const bool loop)
-      : _filename(filename),
-        _loop(loop),
-        _start(std::chrono::high_resolution_clock::now()) {}
+      : _filename(filename), _loop(loop), _start(std::chrono::system_clock::now()) {}
 
   std::error_condition init() {
     LOG(1) << "Opening file " << _filename;
@@ -134,7 +132,7 @@ class file_source_impl {
   const std::string _filename;
   const bool _loop{false};
 
-  std::chrono::high_resolution_clock::time_point _start;
+  std::chrono::system_clock::time_point _start;
   std::shared_ptr<AVFormatContext> _fmt_ctx;
   int _stream_idx{-1};
   AVStream *_stream{nullptr};

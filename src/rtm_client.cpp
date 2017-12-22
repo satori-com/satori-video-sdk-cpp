@@ -453,7 +453,7 @@ class secure_client : public client {
   void ask_for_read() {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
                                         unsigned long) {
-      const auto arrival_time = std::chrono::high_resolution_clock::now();
+      const auto arrival_time = std::chrono::system_clock::now();
 
       LOG(9) << this << " async_read";
       if (ec == boost::asio::error::operation_aborted) {
@@ -539,7 +539,7 @@ class secure_client : public client {
   }
 
   void process_input(const nlohmann::json &document, size_t byte_size,
-                     std::chrono::high_resolution_clock::time_point arrival_time) {
+                     std::chrono::system_clock::time_point arrival_time) {
     CHECK(document.is_object()) << "not an object: " << document;
 
     if (document.count("action") == 0) {

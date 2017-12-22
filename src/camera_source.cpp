@@ -36,7 +36,7 @@ class camera_source_impl {
   explicit camera_source_impl(const std::string &resolution)
       : _resolution(resolution),
         _framerate(std::to_string(system_framerate())),
-        _start(std::chrono::high_resolution_clock::now()) {}
+        _start(std::chrono::system_clock::now()) {}
 
   ~camera_source_impl() = default;
 
@@ -204,7 +204,7 @@ class camera_source_impl {
   std::shared_ptr<AVFrame> _converted_av_frame{nullptr};  // for pixel format conversion
   std::shared_ptr<SwsContext> _sws_context{nullptr};
 
-  const std::chrono::high_resolution_clock::time_point _start;
+  const std::chrono::system_clock::time_point _start;
   int64_t _last_pos{0};
   bool _metadata_sent{false};
 };
