@@ -87,6 +87,13 @@ auto &rtm_messages_bytes_sent = prometheus::BuildCounter()
                                     .Name("rtm_messages_sent_bytes_total")
                                     .Register(metrics_registry());
 
+auto &rtm_messages_in_pdu =
+    prometheus::BuildHistogram()
+        .Name("rtm_messages_in_pdu")
+        .Register(metrics_registry())
+        .Add({}, std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60,
+                                     70, 80, 90, 100});
+
 auto &rtm_bytes_written = prometheus::BuildCounter()
                               .Name("rtm_bytes_written_total")
                               .Register(metrics_registry())
@@ -562,10 +569,13 @@ class secure_client : public client {
         return;
       }
 
+      auto &messages = body["messages"];
+
       rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
+      rtm_messages_in_pdu.Observe(messages.size());
 
-      for (auto &m : body["messages"]) {
+      for (auto &m : messages) {
         channel_data data{cbor_move(video::json_to_cbor(m)), arrival_time};
         sub.callbacks.on_data(sub.sub, std::move(data));
       }
