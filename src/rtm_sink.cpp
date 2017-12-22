@@ -11,13 +11,16 @@ namespace video {
 
 namespace {
 
-auto &frame_publish_delay_microseconds =
+auto &frame_publish_delay_milliseconds =
     prometheus::BuildHistogram()
-        .Name("frame_publish_delay_microseconds")
+        .Name("frame_publish_delay_milliseconds")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0,    1,    5,     10,    25,    50,    100,
-                                     250,  500,  750,   1000,  2000,  3000,  4000,
-                                     5000, 7500, 10000, 25000, 50000, 100000});
+        .Add({}, std::vector<double>{0,    0.1,  0.2,  0.3,  0.4,  0.5,  0.6,  0.7,  0.8,
+                                     0.9,  1,    2,    3,    4,    5,    6,    7,    8,
+                                     9,    10,   15,   20,   25,   30,   40,   50,   60,
+                                     70,   80,   90,   100,  200,  300,  400,  500,  600,
+                                     700,  800,  900,  1000, 2000, 3000, 4000, 5000, 6000,
+                                     7000, 8000, 9000, 10000});
 
 class rtm_sink_impl : public streams::subscriber<encoded_packet>,
                       boost::static_visitor<void> {
@@ -45,11 +48,11 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
       cbor_item_t *packet = nf.to_cbor();
       CHECK_EQ(cbor_refcount(packet), 0);
       _io_service.post([
-        client = _client, channel = _frames_channel, packet, timestamp = f.timestamp
+        client = _client, channel = _frames_channel, packet, timestamp = f.arrival_time
       ]() {
         const auto before_publish = std::chrono::system_clock::now();
-        frame_publish_delay_microseconds.Observe(
-            std::chrono::duration_cast<std::chrono::microseconds>(before_publish
+        frame_publish_delay_milliseconds.Observe(
+            std::chrono::duration_cast<std::chrono::milliseconds>(before_publish
                                                                   - timestamp)
                 .count());
         client->publish(channel, packet, nullptr);

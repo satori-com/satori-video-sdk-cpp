@@ -123,9 +123,11 @@ class url_source_impl {
         }
         int64_t micro_pts = 1000000 * pts * _time_base.num / _time_base.den;
         auto packet_time = _start_time + std::chrono::microseconds(micro_pts);
-        encoded_frame frame{std::string{_pkt.data, _pkt.data + _pkt.size},
-                            frame_id{_packets, _packets}};
+        encoded_frame frame;
+        frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
+        frame.id = {_packets, _packets};
         frame.timestamp = packet_time;
+        frame.arrival_time = std::chrono::system_clock::now();
         frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
         frames_total.Add({{"url", _url}}).Increment();
         _sink.on_next(frame);

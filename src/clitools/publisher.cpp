@@ -3,6 +3,7 @@
 
 #include "cli_streams.h"
 #include "logging_impl.h"
+#include "metrics.h"
 #include "rtm_client.h"
 #include "streams/asio_streams.h"
 #include "video_streams.h"
@@ -35,6 +36,7 @@ int main(int argc, char *argv[]) {
 
   po::options_description cli_options = cli_cfg.to_boost();
   cli_options.add(generic);
+  cli_options.add(metrics_options());
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, cli_options), vm);
@@ -55,6 +57,8 @@ int main(int argc, char *argv[]) {
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
 
+  init_metrics(vm, io_service);
+
   std::shared_ptr<rtm::client> rtm_client = cli_cfg.rtm_client(
       vm, io_service, std::this_thread::get_id(), ssl_context, error_handler);
 
@@ -63,12 +67,14 @@ int main(int argc, char *argv[]) {
   if (auto ec = rtm_client->start()) {
     ABORT() << "error starting rtm client: " << ec.message();
   }
+  expose_metrics(rtm_client.get());
 
   streams::publisher<satori::video::encoded_packet> source =
       cli_cfg.encoded_publisher(vm, io_service, rtm_client, rtm_channel);
 
   source = std::move(source) >> streams::do_finally([&io_service, &rtm_client]() {
              io_service.post([&rtm_client]() {
+               stop_metrics();
                if (auto ec = rtm_client->stop()) {
                  LOG(ERROR) << "error stopping rtm client: " << ec.message();
                } else {
