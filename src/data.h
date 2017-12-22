@@ -49,6 +49,7 @@ struct network_frame {
   std::string base64_data;
   frame_id id{0, 0};
   std::chrono::system_clock::time_point t;
+  std::chrono::system_clock::time_point dt;
   uint32_t chunk{1};
   uint32_t chunks{1};
   bool key_frame{false};
@@ -99,6 +100,9 @@ struct encoded_frame {
   std::chrono::system_clock::time_point timestamp;
 
   bool key_frame{false};
+
+  // time when frame was sent to network
+  std::chrono::system_clock::time_point departure_time;
 
   // time when frame came from network
   std::chrono::system_clock::time_point arrival_time;

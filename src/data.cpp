@@ -19,6 +19,14 @@ double time_point_to_cbor(std::chrono::system_clock::time_point p) {
   return timestamp;
 }
 
+std::chrono::system_clock::time_point cbor_to_time_point(const cbor_item_t *item) {
+  CHECK_NOTNULL(item);
+  std::chrono::duration<double> double_duration(cbor::get_double(item));
+  auto duration =
+      std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
+  return std::chrono::system_clock::time_point{duration};
+}
+
 }  // namespace
 cbor_item_t *network_frame::to_cbor() const {
   cbor_item_t *root = cbor_new_indefinite_map();
@@ -132,13 +140,19 @@ network_frame parse_network_frame(cbor_item_t *item) {
   std::chrono::system_clock::time_point timestamp;
   const cbor_item_t *t = msg.get("t");
   if (t != nullptr) {
-    std::chrono::duration<double> double_duration(cbor::get_double(t));
-    auto duration =
-        std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
-    timestamp = std::chrono::system_clock::time_point{duration};
+    timestamp = cbor_to_time_point(t);
   } else {
     LOG(WARNING) << "network frame packet doesn't have timestamp";
     timestamp = std::chrono::system_clock::now();
+  }
+
+  std::chrono::system_clock::time_point departure_time;
+  const cbor_item_t *dt = msg.get("dt");
+  if (dt != nullptr) {
+    departure_time = cbor_to_time_point(dt);
+  } else {
+    LOG(WARNING) << "network frame packet doesn't have departure time";
+    departure_time = std::chrono::system_clock::now();
   }
 
   uint32_t chunk = 1, chunks = 1;
@@ -163,6 +177,7 @@ network_frame parse_network_frame(cbor_item_t *item) {
   frame.base64_data = msg.get_str("d");
   frame.id = {i1, i2};
   frame.t = timestamp;
+  frame.dt = departure_time;
   frame.chunk = chunk;
   frame.chunks = chunks;
   frame.key_frame = key_frame;

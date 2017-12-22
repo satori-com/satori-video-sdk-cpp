@@ -27,18 +27,18 @@ auto &frame_id_deltas =
         .Add({}, std::vector<double>{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
                                      1, 2,   3,   4,   5,   6,   7,   8,   9,   10});
 
-auto &frame_timestamp_delta_millis =
+auto &frame_departure_time_delta_millis =
     prometheus::BuildHistogram()
-        .Name("frame_timestamp_delta_millis")
+        .Name("frame_departure_time_delta_millis")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0,  1,   2,   3,   4,   5,   6,   7,   8,  9,
-                                     10, 15,  20,  25,  30, 35, 39, 39.5, 40, 40.5, 
-                                     41, 50,  60,  70, 80,
-                                     90, 100, 200, 300, 400, 500, 750, 1000});
+        .Add({},
+             std::vector<double>{0,  1,  2,  3,  4,   5,   6,    7,   8,    9,   10,
+                                 15, 20, 25, 30, 35,  39,  39.5, 40,  40.5, 41,  50,
+                                 60, 70, 80, 90, 100, 200, 300,  400, 500,  750, 1000});
 
-auto &frame_timestamp_jitter =
+auto &frame_departure_time_jitter =
     prometheus::BuildHistogram()
-        .Name("frame_timestamp_jitter")
+        .Name("frame_departure_time_jitter")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,  1,   2,   3,   4,   5,   6,   7,  8,  9,
                                      10, 15,  20,  25,  30,  40,  50,  60, 70, 80,
@@ -102,6 +102,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
       if (nf.chunk == 1) {
         _id = nf.id;
         _timestamp = nf.t;
+        _departure_time = nf.dt;
         _arrival_time = nf.arrival_time;
       }
 
@@ -110,6 +111,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         frame.data = decode64(_aggregated_data);
         frame.id = _id;
         frame.timestamp = _timestamp;
+        frame.departure_time = _departure_time;
         frame.arrival_time = _arrival_time;
         reset();
         frame_chunks.Observe(nf.chunks);
@@ -129,6 +131,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     uint8_t _chunk{1};
     frame_id _id;
     std::chrono::system_clock::time_point _timestamp;
+    std::chrono::system_clock::time_point _departure_time;
     std::chrono::system_clock::time_point _arrival_time;
     std::string _aggregated_data;
   };
@@ -157,9 +160,9 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
       if (_first_frame) {
         _first_frame = false;
       } else {
-        const double timestamp_delta =
+        const double departure_time_delta =
             std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         f.timestamp - _last_timestamp)
+                         f.departure_time - _last_departure_time)
                          .count());
         const double arrival_time_delta =
             std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -167,31 +170,31 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
                          .count());
 
         frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
-        frame_timestamp_delta_millis.Observe(timestamp_delta);
+        frame_departure_time_delta_millis.Observe(departure_time_delta);
         frame_arrival_time_delta_millis.Observe(arrival_time_delta);
         frame_delivery_delay_millis.Observe(
-            std::abs(timestamp_delta - arrival_time_delta));
+            std::abs(departure_time_delta - arrival_time_delta));
 
-        _timestamp_jitter.emplace(timestamp_delta);
+        _departure_time_jitter.emplace(departure_time_delta);
         _arrival_time_jitter.emplace(arrival_time_delta);
 
-        frame_timestamp_jitter.Observe(_timestamp_jitter.value());
+        frame_departure_time_jitter.Observe(_departure_time_jitter.value());
         frame_arrival_time_jitter.Observe(_arrival_time_jitter.value());
       }
 
       _last_id = f.id;
-      _last_timestamp = f.timestamp;
+      _last_departure_time = f.departure_time;
       _last_arrival_time = f.arrival_time;
     }
 
    private:
     bool _first_frame{true};
     frame_id _last_id;
-    std::chrono::system_clock::time_point _last_timestamp;
+    std::chrono::system_clock::time_point _last_departure_time;
     std::chrono::system_clock::time_point _last_arrival_time;
 
     // TODO: prometheus can probably calculate standard deviation on it's own.
-    statsutils::std_dev _timestamp_jitter{1000};
+    statsutils::std_dev _departure_time_jitter{1000};
     statsutils::std_dev _arrival_time_jitter{1000};
   };
 
