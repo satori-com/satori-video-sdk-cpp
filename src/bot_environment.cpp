@@ -25,11 +25,9 @@ namespace video {
 namespace {
 
 using variables_map = boost::program_options::variables_map;
+namespace po = boost::program_options;
 
-variables_map parse_command_line(int argc, char* argv[],
-                                 const cli_streams::configuration& cli_cfg) {
-  namespace po = boost::program_options;
-
+po::options_description bot_custom_options() {
   po::options_description generic("Generic options");
   generic.add_options()("help", "produce help message");
   generic.add_options()(",v", po::value<std::string>(),
@@ -51,38 +49,20 @@ variables_map parse_command_line(int argc, char* argv[],
       "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
 
-  po::options_description cli_options = cli_cfg.to_boost();
-  cli_options.add(bot_configuration_options)
-      .add(bot_execution_options)
+  return bot_configuration_options.add(bot_execution_options)
       .add(metrics_options())
       .add(generic);
+}
 
-  po::variables_map vm;
-
-  try {
-    po::store(po::parse_command_line(argc, argv, cli_options), vm);
-    po::notify(vm);
-  } catch (const std::exception& e) {
-    std::cerr << e.what() << std::endl;
-    std::cerr << cli_options << std::endl;
-    exit(1);
-  }
-
-  if (argc == 1 || vm.count("help") > 0) {
-    std::cerr << cli_options << std::endl;
-    exit(1);
-  }
-
-  if (!cli_cfg.validate(vm)) {
-    exit(1);
-  }
-
-  if (vm.count("config") > 0 && vm.count("config-file") > 0) {
-    std::cerr << "--config and --config-file options are mutually exclusive" << std::endl;
-    exit(1);
-  }
-
-  return vm;
+cli_streams::cli_options bot_cli_cfg() {
+  cli_streams::cli_options cli_cfg;
+  cli_cfg.enable_rtm_input = true;
+  cli_cfg.enable_file_input = true;
+  cli_cfg.enable_camera_input = true;
+  cli_cfg.enable_generic_input_options = true;
+  cli_cfg.enable_url_input = true;
+  cli_cfg.enable_file_batch_mode = true;
+  return cli_cfg;
 }
 
 }  // namespace
@@ -143,29 +123,49 @@ void bot_environment::operator()(struct bot_message& msg) {
   }
 }
 
-int bot_environment::main(int argc, char* argv[]) {
-  cli_streams::configuration cli_cfg;
-  cli_cfg.enable_rtm_input = true;
-  cli_cfg.enable_file_input = true;
-  cli_cfg.enable_camera_input = true;
-  cli_cfg.enable_generic_input_options = true;
-  cli_cfg.enable_url_input = true;
-  cli_cfg.enable_file_batch_mode = true;
+struct bot_configuration : cli_streams::configuration, metrics_config {
+  bot_configuration(int argc, char* argv[])
+      : configuration(argc, argv, bot_cli_cfg(), bot_custom_options()) {}
+  std::string get_id() const { return _vm["id"].as<std::string>(); }
+  boost::optional<std::string> config() const {
+    return _vm.count("config") > 0 ? _vm["config"].as<std::string>()
+                                   : boost::optional<std::string>{};
+  }
+  boost::optional<std::string> config_file() const {
+    return _vm.count("config-file") > 0 ? _vm["config-file"].as<std::string>()
+                                        : boost::optional<std::string>{};
+  }
+  boost::optional<std::string> analysis_file() const {
+    return _vm.count("analysis-file") > 0 ? _vm["analysis-file"].as<std::string>()
+                                          : boost::optional<std::string>{};
+  }
+  boost::optional<std::string> debug_file() const {
+    return _vm.count("debug-file") > 0 ? _vm["debug-file"].as<std::string>()
+                                       : boost::optional<std::string>{};
+  }
+  std::string get_bind_address() const override {
+    return _vm["metrics-bind-address"].as<std::string>();
+  }
+  std::string get_push_channel() const override {
+    return _vm["metrics-push-channel"].as<std::string>();
+  }
+};
 
-  auto cmd_args = parse_command_line(argc, argv, cli_cfg);
+int bot_environment::main(int argc, char* argv[]) {
+  bot_configuration config{argc, argv};
   init_logging(argc, argv);
 
   boost::asio::io_service io_service;
-  init_metrics(cmd_args, io_service);
+  init_metrics(config, io_service);
 
-  const std::string id = cmd_args["id"].as<std::string>();
-  const bool batch = cmd_args.count("batch") > 0;
+  const std::string id = config.get_id();
+  const bool batch = config.is_batch_mode();
 
   cbor_item_t* bot_config{nullptr};
-  if (cmd_args.count("config-file") > 0) {
-    bot_config = read_config_from_file(cmd_args["config-file"].as<std::string>());
-  } else if (cmd_args.count("config") > 0) {
-    bot_config = read_config_from_arg(cmd_args["config"].as<std::string>());
+  if (config.config_file().is_initialized()) {
+    bot_config = read_config_from_file(config.config_file().get());
+  } else if (config.config().is_initialized()) {
+    bot_config = read_config_from_arg(config.config().get());
   }
 
   bot_instance_builder bot_builder =
@@ -178,8 +178,8 @@ int bot_environment::main(int argc, char* argv[]) {
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
-  _rtm_client = cli_cfg.rtm_client(cmd_args, io_service, std::this_thread::get_id(),
-                                   ssl_context, *this);
+  _rtm_client =
+      config.rtm_client(io_service, std::this_thread::get_id(), ssl_context, *this);
   if (_rtm_client) {
     if (auto ec = _rtm_client->start()) {
       ABORT() << "error starting rtm client: " << ec.message();
@@ -203,12 +203,11 @@ int bot_environment::main(int argc, char* argv[]) {
   }
   expose_metrics(_rtm_client.get());
 
-  const std::string channel = cli_cfg.rtm_channel(cmd_args);
-  const bool batch_mode = cli_cfg.is_batch_mode(cmd_args);
+  const std::string channel = config.rtm_channel();
 
-  auto single_frame_source = cli_cfg.decoded_publisher(
-      cmd_args, io_service, _rtm_client, channel, _bot_descriptor.pixel_format);
-  if (!batch_mode) {
+  auto single_frame_source = config.decoded_publisher(io_service, _rtm_client, channel,
+                                                      _bot_descriptor.pixel_format);
+  if (!batch) {
     _source =
         std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
   } else {
@@ -220,8 +219,8 @@ int bot_environment::main(int argc, char* argv[]) {
         });
   }
 
-  if (cmd_args.count("analysis-file") > 0) {
-    std::string analysis_file = cmd_args["analysis-file"].as<std::string>();
+  if (config.analysis_file().is_initialized()) {
+    std::string analysis_file = config.analysis_file().get();
     LOG(INFO) << "saving analysis output to " << analysis_file;
     _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
     _analysis_sink = &streams::ostream_sink(*_analysis_file);
@@ -232,8 +231,8 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_sink = &streams::ostream_sink(std::cout);
   }
 
-  if (cmd_args.count("debug-file") > 0) {
-    std::string debug_file = cmd_args["debug-file"].as<std::string>();
+  if (config.debug_file().is_initialized()) {
+    std::string debug_file = config.debug_file().get();
     LOG(INFO) << "saving debug output to " << debug_file;
     _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
     _debug_sink = &streams::ostream_sink(*_debug_file);
@@ -292,7 +291,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   bot_output_stream->process([this](bot_output&& o) { boost::apply_visitor(*this, o); });
 
-  if (!batch_mode) {
+  if (!batch) {
     LOG(INFO) << "entering asio loop";
     auto n = io_service.run();
     LOG(INFO) << "asio loop exited, executed " << n << " handlers";

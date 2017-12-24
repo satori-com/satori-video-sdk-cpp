@@ -13,16 +13,21 @@
 namespace satori {
 namespace video {
 
+struct metrics_config {
+  virtual ~metrics_config() = default;
+
+  virtual std::string get_bind_address() const = 0;
+  virtual std::string get_push_channel() const = 0;
+};
+
 prometheus::Registry& metrics_registry();
 
 boost::program_options::options_description metrics_options();
 
-void init_metrics(const boost::program_options::variables_map& cmd_args,
-                  boost::asio::io_service& io_service);
+void init_metrics(const metrics_config& config, boost::asio::io_service& io_service);
 
 void expose_metrics(rtm::publisher* publisher);
 
 void stop_metrics();
-
 }  // namespace video
 }  // namespace satori

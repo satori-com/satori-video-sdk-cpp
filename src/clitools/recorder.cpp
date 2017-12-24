@@ -22,38 +22,39 @@ constexpr size_t outgoing_encoded_frames_max_buffer_size = 1024;
 struct rtm_error_handler : rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
+
+namespace po = boost::program_options;
+
+cli_streams::cli_options cli_configuration() {
+  cli_streams::cli_options result;
+  result.enable_file_input = true;
+  result.enable_camera_input = true;
+  result.enable_url_input = true;
+  result.enable_rtm_output = true;
+  result.enable_generic_output_options = true;
+
+  return result;
+}
+
+po::options_description cli_options() {
+  po::options_description cli_generic("Generic options");
+  cli_generic.add_options()("help", "produce help message");
+  cli_generic.add_options()(
+      ",v", po::value<std::string>(),
+      "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
+
+  return cli_generic;
+}
+
+struct recorder_configuration : cli_streams::configuration {
+  recorder_configuration(int argc, char* argv[])
+      : configuration(argc, argv, cli_configuration(), cli_options()) {}
+};
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  namespace po = boost::program_options;
-
-  po::options_description generic("Generic options");
-  generic.add_options()("help", "produce help message");
-  generic.add_options()(",v", po::value<std::string>(),
-                        "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
-
-  satori::video::cli_streams::configuration cli_cfg;
-  cli_cfg.enable_rtm_input = true;
-  cli_cfg.enable_file_input = true;
-  cli_cfg.enable_camera_input = true;
-  cli_cfg.enable_generic_input_options = true;
-  cli_cfg.enable_file_output = true;
-
-  po::options_description cli_options = cli_cfg.to_boost();
-  cli_options.add(generic);
-
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, cli_options), vm);
-  po::notify(vm);
-
-  if (argc == 1 || vm.count("help") > 0) {
-    std::cerr << cli_options << "\n";
-    exit(1);
-  }
-
-  if (!cli_cfg.validate(vm)) {
-    return -1;
-  }
+  recorder_configuration config{argc, argv};
 
   init_logging(argc, argv);
 
@@ -61,13 +62,13 @@ int main(int argc, char* argv[]) {
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
 
-  std::shared_ptr<rtm::client> rtm_client = cli_cfg.rtm_client(
-      vm, io_service, std::this_thread::get_id(), ssl_context, error_handler);
-  std::string rtm_channel = cli_cfg.rtm_channel(vm);
+  std::shared_ptr<rtm::client> rtm_client = config.rtm_client(
+      io_service, std::this_thread::get_id(), ssl_context, error_handler);
+  std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<satori::video::encoded_packet> source =
-      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
-                                image_pixel_format::RGB0)
+      config.decoded_publisher(io_service, rtm_client, rtm_channel,
+                               image_pixel_format::RGB0)
       >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
       >> streams::threaded_worker("input_buffer") >> streams::flatten()
       >> satori::video::encode_vp9(25) >> streams::threaded_worker("vp9_encoded_buffer")
@@ -91,7 +92,7 @@ int main(int argc, char* argv[]) {
 
   LOG(INFO) << "Starting recording...";
 
-  source->subscribe(cli_cfg.encoded_subscriber(vm, rtm_client, io_service, rtm_channel));
+  source->subscribe(config.encoded_subscriber(rtm_client, io_service, rtm_channel));
 
   io_service.run();
 

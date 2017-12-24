@@ -22,7 +22,7 @@ pool_job_controller::pool_job_controller(boost::asio::io_service &io,
                                          const std::string &job_type,
                                          size_t max_streams_capacity,
                                          std::shared_ptr<rtm::client> &rtm_client,
-                                         job_controller &&streams)
+                                         job_controller &streams)
     : _io(io),
       _pool(pool),
       _job_type(job_type),

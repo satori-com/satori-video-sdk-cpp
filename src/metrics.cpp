@@ -103,10 +103,10 @@ void report_process_metrics() {
 
 class metrics {
  public:
-  void init(const boost::program_options::variables_map& cmd_args,
+  void init(const metrics_config& config,
             boost::asio::io_service& io_service) {
-    _bind_address = cmd_args["metrics-bind-address"].as<std::string>();
-    _push_channel = cmd_args["metrics-push-channel"].as<std::string>();
+    _bind_address = config.get_bind_address();
+    _push_channel = config.get_push_channel();
     _io_service = &io_service;
     start_updating_process_metrics();
   }
@@ -228,9 +228,9 @@ po::options_description metrics_options() {
 
   return options;
 }
-void init_metrics(const po::variables_map& cmd_args,
+void init_metrics(const metrics_config& config,
                   boost::asio::io_service& io_service) {
-  global_metrics().init(cmd_args, io_service);
+  global_metrics().init(config, io_service);
 }
 
 void expose_metrics(rtm::publisher* publisher) {

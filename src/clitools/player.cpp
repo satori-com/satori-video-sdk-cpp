@@ -22,8 +22,8 @@ struct rtm_error_handler : rtm::error_callbacks {
 
 namespace po = boost::program_options;
 
-cli_streams::configuration cli_configuration() {
-  cli_streams::configuration result;
+cli_streams::cli_options cli_configuration() {
+  cli_streams::cli_options result;
   result.enable_rtm_input = true;
   result.enable_file_input = true;
   result.enable_camera_input = true;
@@ -33,43 +33,20 @@ cli_streams::configuration cli_configuration() {
   return result;
 }
 
-po::options_description cli_options(const cli_streams::configuration &cli_cfg) {
+po::options_description cli_options() {
   po::options_description cli_generic("Generic options");
   cli_generic.add_options()("help", "produce help message");
   cli_generic.add_options()(
       ",v", po::value<std::string>(),
       "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  po::options_description result = cli_cfg.to_boost();
-  result.add(cli_generic);
-
-  return result;
+  return cli_generic;
 }
 
-po::variables_map cli_parse(int argc, char *argv[],
-                            const cli_streams::configuration &cli_cfg,
-                            const po::options_description &cli_options) {
-  po::variables_map vm;
-  try {
-    po::store(po::parse_command_line(argc, argv, cli_options), vm);
-    po::notify(vm);
-  } catch (const std::exception &e) {
-    std::cerr << e.what() << std::endl;
-    std::cerr << cli_options << std::endl;
-    exit(1);
-  }
-
-  if (argc == 1 || vm.count("help") > 0) {
-    std::cerr << cli_options << std::endl;
-    exit(1);
-  }
-
-  if (!cli_cfg.validate(vm)) {
-    exit(1);
-  }
-
-  return vm;
-}
+struct player_configuration : cli_streams::configuration {
+  player_configuration(int argc, char *argv[])
+      : configuration(argc, argv, cli_configuration(), cli_options()) {}
+};
 
 class sdl_window {
  public:
@@ -209,8 +186,7 @@ void run_sdl_loop(sdl_renderer &renderer, std::queue<sdl_surface> &surfaces,
 }  // namespace
 
 int main(int argc, char *argv[]) {
-  cli_streams::configuration cli_cfg = cli_configuration();
-  po::variables_map vm = cli_parse(argc, argv, cli_cfg, cli_options(cli_cfg));
+  player_configuration config{argc, argv};
 
   init_logging(argc, argv);
 
@@ -222,8 +198,8 @@ int main(int argc, char *argv[]) {
   struct rtm_error_handler rtm_error_handler;
 
   // TODO (needs fix): pass asio thread id instead of current
-  std::shared_ptr<rtm::client> rtm_client = cli_cfg.rtm_client(
-      vm, io_service, std::this_thread::get_id(), ssl_context, rtm_error_handler);
+  std::shared_ptr<rtm::client> rtm_client = config.rtm_client(
+      io_service, std::this_thread::get_id(), ssl_context, rtm_error_handler);
   if (rtm_client) {
     auto ec = rtm_client->start();
     if (ec) {
@@ -231,11 +207,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::string rtm_channel = cli_cfg.rtm_channel(vm);
+  std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<sdl_surface> source =
-      cli_cfg.decoded_publisher(vm, io_service, rtm_client, rtm_channel,
-                                image_pixel_format::BGR)
+      config.decoded_publisher(io_service, rtm_client, rtm_channel,
+                               image_pixel_format::BGR)
       >> streams::threaded_worker("player.image_buffer") >> streams::flatten()
       >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
       >> streams::flatten() >> streams::do_finally([&io_service, &rtm_client]() {
