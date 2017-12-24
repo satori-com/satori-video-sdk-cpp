@@ -44,18 +44,22 @@ void pool_job_controller::start() {
   on_heartbeat({});
 }
 
+cbor_item_t *pool_job_controller::current_jobs_as_cbor() const {
+  auto stream_list = _streams.list_jobs();
+  cbor_item_t *jobs = cbor_new_definite_array(stream_list.size());
+  for (const std::string &s : stream_list) {
+    cbor_array_push(jobs, cbor_move(cbor_build_string(s.c_str())));
+  }
+  return jobs;
+}
+
 void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
   CHECK(!ec) << "boost error: [" << ec << "] " << ec.message();
 
   _hb_timer->expires_from_now(default_hb_period);
   _hb_timer->async_wait([this](const boost::system::error_code &e) { on_heartbeat(e); });
 
-  auto stream_list = _streams.list_jobs();
-  cbor_item_t *jobs = cbor_new_definite_array(stream_list.size());
-  for (const std::string &s : stream_list) {
-    cbor_array_push(jobs, cbor_move(cbor_build_string(s.c_str())));
-  }
-
+  cbor_item_t *jobs = current_jobs_as_cbor();
   cbor_item_t *hb_message = cbor_new_indefinite_map();
   cbor_map_add(hb_message, {cbor_move(cbor_build_string("from")),
                             cbor_build_string(node_id.c_str())});
@@ -65,13 +69,29 @@ void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
   cbor_item_t *available_capacity = cbor_new_indefinite_map();
   cbor_map_add(available_capacity,
                {cbor_move(cbor_build_string(_job_type.c_str())),
-                cbor_build_uint64(_max_streams_capacity - stream_list.size())});
+                cbor_build_uint64(_max_streams_capacity - cbor_array_size(jobs))});
 
   cbor_map_add(hb_message, {cbor_move(cbor_build_string("available_capacity")),
                             cbor_move(available_capacity)});
 
   LOG(2) << "sending heartbeat: " << hb_message;
   _client->publish(_pool, cbor_move(hb_message));
+}
+
+void pool_job_controller::shutdown() {
+  cbor_item_t *shutdown_note = cbor_new_definite_map(4);
+  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("from")),
+                               cbor_move(cbor_build_string(node_id.c_str()))});
+  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("job_type")),
+                               cbor_move(cbor_build_string(_job_type.c_str()))});
+  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("reason")),
+                               cbor_move(cbor_build_string("shutdown"))});
+  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("stopped_jobs")),
+                               cbor_move(current_jobs_as_cbor())});
+
+  _io.post([ client = _client, pool = _pool, shutdown_note ]() {
+    client->publish(pool, cbor_move(shutdown_note));
+  });
 }
 
 void pool_job_controller::on_data(const rtm::subscription & /*subscription*/,
