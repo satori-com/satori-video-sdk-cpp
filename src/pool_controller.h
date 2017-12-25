@@ -10,7 +10,7 @@ namespace video {
 struct job_controller {
   virtual void add_job(cbor_item_t *job) = 0;
   virtual void remove_job(cbor_item_t *job) = 0;
-  virtual std::list<std::string> list_jobs() const = 0;
+  virtual cbor_item_t *list_jobs() const = 0;
 };
 
 class pool_job_controller : rtm::subscription_callbacks {
@@ -31,7 +31,6 @@ class pool_job_controller : rtm::subscription_callbacks {
   void start_job(cbor_item_t *msg);
   void stop_job(cbor_item_t *msg);
   void on_error(std::error_condition ec) override;
-  cbor_item_t *current_jobs_as_cbor() const;
 
   boost::asio::io_service &_io;
   const size_t _max_streams_capacity;

@@ -15,16 +15,7 @@ void log_image(const cv::Mat &image) {
   }
 }
 
-cbor_item_t *rect_to_cbor(cv::Rect rect) {
-  cbor_item_t *coordinates = cbor_new_definite_array(4);
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.x)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.y)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.width)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.height)));
-  return coordinates;
-}
-
-cbor_item_t *rect_to_cbor(cv::Rect2d rect) {
+cbor_item_t *to_cbor(cv::Rect2d rect) {
   cbor_item_t *coordinates = cbor_new_definite_array(4);
   cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.x)));
   cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.y)));
@@ -47,34 +38,27 @@ cv::Point2d point_from_cbor(cbor_item_t *item) {
   return cv::Point2d(x, y);
 }
 
-cbor_item_t *point_to_cbor(cv::Point2d p) {
+cbor_item_t *to_cbor(cv::Point2d p) {
   cbor_item_t *coordinates = cbor_new_definite_array(2);
   cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.x)));
   cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.y)));
   return coordinates;
 }
 
-cv::Point2d convert_to_fractional(const cv::Point2d &p, const cv::Size &view) {
+cv::Point2d to_fractional(const cv::Point2d &p, const cv::Size &view) {
   return cv::Point2d(p.x / view.width, p.y / view.height);
 }
 
-cv::Rect2d convert_to_fractional(const cv::Rect2d &rect, const cv::Size &view) {
+cv::Rect2d to_fractional(const cv::Rect2d &rect, const cv::Size &view) {
   return cv::Rect2d(rect.x / view.width, rect.y / view.height, rect.width / view.width,
                     rect.height / view.height);
 }
 
-cv::Rect2d convert_to_fractional(const cv::Rect &rect, const cv::Size &view) {
-  return cv::Rect2d(static_cast<double>(rect.x) / view.width,
-                    static_cast<double>(rect.y) / view.height,
-                    static_cast<double>(rect.width) / view.width,
-                    static_cast<double>(rect.height) / view.height);
-}
-
-cv::Point2d convert_from_fractional(const cv::Point2d &p, const cv::Size &view) {
+cv::Point2d from_fractional(const cv::Point2d &p, const cv::Size &view) {
   return cv::Point2d(p.x * view.width, p.y * view.height);
 }
 
-cv::Rect2d convert_from_fractional(const cv::Rect2d &p, const cv::Size &view) {
+cv::Rect2d from_fractional(const cv::Rect2d &p, const cv::Size &view) {
   return cv::Rect2d(p.x * view.width, p.y * view.height, p.width * view.width,
                     p.height * view.height);
 }

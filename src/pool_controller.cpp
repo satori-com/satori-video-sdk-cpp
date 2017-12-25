@@ -24,11 +24,11 @@ pool_job_controller::pool_job_controller(boost::asio::io_service &io,
                                          std::shared_ptr<rtm::client> &rtm_client,
                                          job_controller &streams)
     : _io(io),
+      _max_streams_capacity(max_streams_capacity),
       _pool(pool),
       _job_type(job_type),
       _client(rtm_client),
-      _streams(streams),
-      _max_streams_capacity(max_streams_capacity) {}
+      _streams(streams) {}
 
 pool_job_controller::~pool_job_controller() {
   if (_hb_timer) {
@@ -44,22 +44,13 @@ void pool_job_controller::start() {
   on_heartbeat({});
 }
 
-cbor_item_t *pool_job_controller::current_jobs_as_cbor() const {
-  auto stream_list = _streams.list_jobs();
-  cbor_item_t *jobs = cbor_new_definite_array(stream_list.size());
-  for (const std::string &s : stream_list) {
-    cbor_array_push(jobs, cbor_move(cbor_build_string(s.c_str())));
-  }
-  return jobs;
-}
-
 void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
   CHECK(!ec) << "boost error: [" << ec << "] " << ec.message();
 
   _hb_timer->expires_from_now(default_hb_period);
   _hb_timer->async_wait([this](const boost::system::error_code &e) { on_heartbeat(e); });
 
-  cbor_item_t *jobs = current_jobs_as_cbor();
+  cbor_item_t *jobs = _streams.list_jobs();
   cbor_item_t *hb_message = cbor_new_indefinite_map();
   cbor_map_add(hb_message, {cbor_move(cbor_build_string("from")),
                             cbor_build_string(node_id.c_str())});
@@ -87,7 +78,7 @@ void pool_job_controller::shutdown() {
   cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("reason")),
                                cbor_move(cbor_build_string("shutdown"))});
   cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("stopped_jobs")),
-                               cbor_move(current_jobs_as_cbor())});
+                               cbor_move(_streams.list_jobs())});
 
   _io.post([ client = _client, pool = _pool, shutdown_note ]() {
     client->publish(pool, cbor_move(shutdown_note));
