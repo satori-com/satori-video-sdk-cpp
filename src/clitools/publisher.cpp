@@ -39,15 +39,9 @@ po::options_description cli_options() {
   return cli_generic;
 }
 
-struct publisher_configuration : cli_streams::configuration, metrics_config {
+struct publisher_configuration : cli_streams::configuration {
   publisher_configuration(int argc, char* argv[])
       : configuration(argc, argv, cli_configuration(), cli_options()) {}
-  std::string get_bind_address() const override {
-    return _vm["metrics-bind-address"].as<std::string>();
-  }
-  std::string get_push_channel() const override {
-    return _vm["metrics-push-channel"].as<std::string>();
-  }
 };
 
 }  // namespace
@@ -62,7 +56,7 @@ int main(int argc, char* argv[]) {
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
   rtm_error_handler error_handler;
 
-  init_metrics(config, io_service);
+  init_metrics(config.metrics(), io_service);
 
   std::shared_ptr<rtm::client> rtm_client = config.rtm_client(
       io_service, std::this_thread::get_id(), ssl_context, error_handler);

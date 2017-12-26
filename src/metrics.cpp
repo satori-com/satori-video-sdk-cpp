@@ -103,20 +103,18 @@ void report_process_metrics() {
 
 class metrics {
  public:
-  void init(const metrics_config& config,
-            boost::asio::io_service& io_service) {
-    _bind_address = config.get_bind_address();
-    _push_channel = config.get_push_channel();
+  void init(metrics_config&& config, boost::asio::io_service& io_service) {
+    _config = std::move(config);
     _io_service = &io_service;
     start_updating_process_metrics();
   }
 
   void expose_metrics(rtm::publisher* publisher) {
-    if (!_bind_address.empty()) {
+    if (!_config.bind_address.empty()) {
       expose_http_metrics();
     }
 
-    if (!_push_channel.empty()) {
+    if (!_config.push_channel.empty()) {
       CHECK(_io_service);
       CHECK(publisher) << "rtm publisher not provided";
       _publisher = publisher;
@@ -127,11 +125,11 @@ class metrics {
 
   void expose_http_metrics() const {
     try {
-      auto exposer = new prometheus::Exposer(_bind_address);
+      auto exposer = new prometheus::Exposer(_config.bind_address);
       exposer->RegisterCollectable(_registry);
-      LOG(INFO) << "Metrics exposed on " << _bind_address << "/metrics";
+      LOG(INFO) << "Metrics exposed on " << _config.bind_address << "/metrics";
     } catch (const std::exception& e) {
-      LOG(ERROR) << "Can't start metrics server on " << _bind_address << " : "
+      LOG(ERROR) << "Can't start metrics server on " << _config.bind_address << " : "
                  << e.what();
     }
   }
@@ -165,12 +163,21 @@ class metrics {
     LOG(1) << "pushing metrics " << data.size() << " bytes";
 
     cbor_item_t* msg = cbor_new_indefinite_map();
-    cbor_map_add(msg, {cbor_move(cbor_build_string("content")),
+    cbor_map_add(msg, {cbor_move(cbor_build_string("metrics")),
                        cbor_move(cbor_build_string(data.c_str()))});
     cbor_map_add(msg, {cbor_move(cbor_build_string("content-type")),
                        cbor_move(cbor_build_string("text/plain"))});
 
-    _publisher->publish(_push_channel, cbor_move(msg));
+    if (!_config.push_job.empty()) {
+      cbor_map_add(msg, {cbor_move(cbor_build_string("job")),
+                         cbor_move(cbor_build_string(_config.push_job.c_str()))});
+    }
+    if (!_config.push_instance.empty()) {
+      cbor_map_add(msg, {cbor_move(cbor_build_string("instance")),
+                         cbor_move(cbor_build_string(_config.push_instance.c_str()))});
+    }
+
+    _publisher->publish(_config.push_channel, cbor_move(msg));
   }
 
   void start_updating_process_metrics() {
@@ -199,8 +206,7 @@ class metrics {
   std::shared_ptr<prometheus::Registry> _registry{
       std::make_shared<prometheus::Registry>()};
 
-  std::string _bind_address;
-  std::string _push_channel;
+  metrics_config _config;
   boost::asio::io_service* _io_service{nullptr};
   rtm::publisher* _publisher{nullptr};
 
@@ -225,12 +231,23 @@ po::options_description metrics_options() {
   options.add_options()("metrics-push-channel",
                         po::value<std::string>()->default_value(""),
                         "rtm channel to push metrics to.");
+  options.add_options()("metrics-push-job", po::value<std::string>()->default_value(""),
+                        "job value to report while pushing metrics.");
+  options.add_options()("metrics-push-instance",
+                        po::value<std::string>()->default_value(""),
+                        "instance value to report while pushing metrics.");
 
   return options;
 }
-void init_metrics(const metrics_config& config,
-                  boost::asio::io_service& io_service) {
-  global_metrics().init(config, io_service);
+
+metrics_config::metrics_config(const boost::program_options::variables_map& vm)
+    : bind_address(vm["metrics-bind-address"].as<std::string>()),
+      push_channel(vm["metrics-push-channel"].as<std::string>()),
+      push_job(vm["metrics-push-job"].as<std::string>()),
+      push_instance(vm["metrics-push-instance"].as<std::string>()) {}
+
+void init_metrics(metrics_config&& config, boost::asio::io_service& io_service) {
+  global_metrics().init(std::move(config), io_service);
 }
 
 void expose_metrics(rtm::publisher* publisher) {

@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "data.h"
+#include "metrics.h"
 #include "rtm_client.h"
 #include "streams/streams.h"
 
@@ -58,7 +59,9 @@ struct configuration {
       const std::shared_ptr<rtm::client> &client, boost::asio::io_service &io_service,
       const std::string &channel) const;
 
-protected:
+  metrics_config metrics() const { return metrics_config{_vm}; }
+
+ protected:
   po::variables_map _vm;
   cli_options _cli_options;
 };

@@ -123,7 +123,7 @@ void bot_environment::operator()(struct bot_message& msg) {
   }
 }
 
-struct bot_configuration : cli_streams::configuration, metrics_config {
+struct bot_configuration : cli_streams::configuration {
   bot_configuration(int argc, char* argv[])
       : configuration(argc, argv, bot_cli_cfg(), bot_custom_options()) {}
   std::string get_id() const { return _vm["id"].as<std::string>(); }
@@ -143,12 +143,6 @@ struct bot_configuration : cli_streams::configuration, metrics_config {
     return _vm.count("debug-file") > 0 ? _vm["debug-file"].as<std::string>()
                                        : boost::optional<std::string>{};
   }
-  std::string get_bind_address() const override {
-    return _vm["metrics-bind-address"].as<std::string>();
-  }
-  std::string get_push_channel() const override {
-    return _vm["metrics-push-channel"].as<std::string>();
-  }
 };
 
 int bot_environment::main(int argc, char* argv[]) {
@@ -156,7 +150,7 @@ int bot_environment::main(int argc, char* argv[]) {
   init_logging(argc, argv);
 
   boost::asio::io_service io_service;
-  init_metrics(config, io_service);
+  init_metrics(config.metrics(), io_service);
 
   const std::string id = config.get_id();
   const bool batch = config.is_batch_mode();
