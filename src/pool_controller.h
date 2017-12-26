@@ -8,6 +8,8 @@ namespace satori {
 namespace video {
 
 struct job_controller {
+  virtual ~job_controller() = 0;
+
   virtual void add_job(cbor_item_t *job) = 0;
   virtual void remove_job(cbor_item_t *job) = 0;
   virtual cbor_item_t *list_jobs() const = 0;
