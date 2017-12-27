@@ -67,6 +67,14 @@ constexpr int read_buffer_size = 100000;
 
 const boost::posix_time::minutes ws_ping_interval{1};
 
+auto &rtm_client_start = prometheus::BuildCounter()
+                             .Name("rtm_client_start")
+                             .Register(metrics_registry())
+                             .Add({});
+
+auto &rtm_client_error =
+    prometheus::BuildCounter().Name("rtm_client_error").Register(metrics_registry());
+
 auto &rtm_actions_received = prometheus::BuildCounter()
                                  .Name("rtm_actions_received_total")
                                  .Register(metrics_registry());
@@ -266,6 +274,7 @@ class secure_client : public client {
     auto endpoints = _tcp_resolver.resolve({_host, _port}, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't resolve endpoint: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "tcp_resolve_endpoint"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
 
@@ -275,6 +284,7 @@ class secure_client : public client {
     asio::connect(_ws.next_layer().next_layer(), endpoints, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't connect: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "tcp_connect"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
 
@@ -282,6 +292,7 @@ class secure_client : public client {
     _ws.next_layer().handshake(boost::asio::ssl::stream_base::client, ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't handshake SSL: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "ssl_handshake"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
 
@@ -296,9 +307,11 @@ class secure_client : public client {
     if (ec.value() != 0) {
       LOG(ERROR) << "can't upgrade to websocket protocol: [" << ec << "] "
                  << ec.message();
+      rtm_client_error.Add({{"type", "ws_upgrade"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
     LOG(INFO) << "websocket open";
+    rtm_client_start.Increment();
 
     _ws.control_callback(_control_callback);
 
@@ -318,12 +331,14 @@ class secure_client : public client {
     _ping_timer.cancel(ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't stop ping timer: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "stop_ping_timer"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
 
     _ws.next_layer().next_layer().close(ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "can't close: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "close_connection"}}).Increment();
       return make_error_condition(client_error::ASIO_ERROR);
     }
 
@@ -369,6 +384,7 @@ class secure_client : public client {
             .count());
     if (ec.value() != 0) {
       LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "publish"}}).Increment();
     }
   }
 
@@ -400,6 +416,7 @@ class secure_client : public client {
     _ws.write(asio::buffer(document_str), ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
+      rtm_client_error.Add({{"type", "subscribe"}}).Increment();
     }
 
     LOG(1) << "requested subscribe: " << document;
@@ -435,6 +452,7 @@ class secure_client : public client {
       _ws.write(asio::buffer(document_str), ec);
       if (ec.value() != 0) {
         LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
+        rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
       }
 
       sub.pending_request_id = _request_id;
@@ -475,6 +493,7 @@ class secure_client : public client {
       LOG(9) << this << " async_read ec=" << ec;
       if (ec.value() != 0) {
         if (_client_state == client_state::RUNNING) {
+          rtm_client_error.Add({{"type", "read"}}).Increment();
           LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
           _callbacks.on_error(client_error::ASIO_ERROR);
         } else {
@@ -496,6 +515,7 @@ class secure_client : public client {
         document = nlohmann::json::parse(input);
       } catch (const nlohmann::json::parse_error &e) {
         LOG(ERROR) << "Parse message error: " << e.what() << ", message: " << input;
+        rtm_client_error.Add({{"type", "parse"}}).Increment();
         _callbacks.on_error(client_error::INVALID_MESSAGE);
         return;
       }
@@ -512,28 +532,36 @@ class secure_client : public client {
     LOG(2) << this << " setting ws ping timer";
 
     _ping_timer.expires_from_now(ws_ping_interval);
-    _ping_timer.async_wait([this](const boost::system::error_code &ec) {
+    _ping_timer.async_wait([this](const boost::system::error_code &ec_timer) {
       rtm_pings_sent_total.Increment();
       auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
       rtm_last_ping_time_seconds.Set(
           std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
 
-      _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec) {
+      if (ec_timer.value() != 0) {
+        LOG(ERROR) << this << " ping timer error: [" << ec_timer << "] "
+                   << ec_timer.message();
+        rtm_client_error.Add({{"type", "ping_timer"}}).Increment();
+      }
+
+      _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec_ping) {
         LOG(2) << this << " ping_write_handler";
-        if (ec == boost::asio::error::operation_aborted) {
+        if (ec_ping == boost::asio::error::operation_aborted) {
           LOG(ERROR) << this << " ping operation is aborted/cancelled";
           // TODO: should we react, or just rely on _ws.async_read()
           return;
         }
 
-        LOG(2) << this << " ping_write_handler ec=" << ec;
-        if (ec.value() != 0) {
+        LOG(2) << this << " ping_write_handler ec=" << ec_ping;
+        if (ec_ping.value() != 0) {
           if (_client_state == client_state::RUNNING) {
-            LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
+            LOG(ERROR) << this << " asio error: [" << ec_ping << "] "
+                       << ec_ping.message();
+            rtm_client_error.Add({{"type", "ping"}}).Increment();
             _callbacks.on_error(client_error::ASIO_ERROR);
           } else {
             LOG(INFO) << this << " ignoring asio error because in state " << _client_state
-                      << ": [" << ec << "] " << ec.message();
+                      << ": [" << ec_ping << "] " << ec_ping.message();
           }
 
           return;
