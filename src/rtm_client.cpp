@@ -289,10 +289,10 @@ class secure_client : public client {
     boost::beast::websocket::response_type ws_upgrade_response;
     _ws.handshake_ex(ws_upgrade_response, _host + ":" + _port, "/v2?appkey=" + _appkey,
                      [this](boost::beast::websocket::request_type &ws_upgrade_request) {
-                       LOG(INFO) << "websocket upgrade request:\n" << ws_upgrade_request;
+                       LOG(2) << "websocket upgrade request:\n" << ws_upgrade_request;
                      },
                      ec);
-    LOG(INFO) << "websocket upgrade response:\n" << ws_upgrade_response;
+    LOG(2) << "websocket upgrade response:\n" << ws_upgrade_response;
     if (ec.value() != 0) {
       LOG(ERROR) << "can't upgrade to websocket protocol: [" << ec << "] "
                  << ec.message();
