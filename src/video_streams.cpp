@@ -15,6 +15,10 @@ namespace video {
 
 namespace {
 
+constexpr std::initializer_list<double> time_delta_buckets = {
+    0,    1,  2,    3,  4,  5,  6,  7,  8,  9,   10,  15,  20,  25,  30,  35,  39,
+    39.9, 40, 40.1, 41, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 750, 1000};
+
 auto &frame_chunks_mismatch = prometheus::BuildCounter()
                                   .Name("network_decoder_frame_chunks_mismatch")
                                   .Register(metrics_registry())
@@ -27,14 +31,16 @@ auto &frame_id_deltas =
         .Add({}, std::vector<double>{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
                                      1, 2,   3,   4,   5,   6,   7,   8,   9,   10});
 
+auto &frame_time_delta_millis = prometheus::BuildHistogram()
+                                    .Name("frame_time_delta_millis")
+                                    .Register(metrics_registry())
+                                    .Add({}, std::vector<double>(time_delta_buckets));
+
 auto &frame_departure_time_delta_millis =
     prometheus::BuildHistogram()
         .Name("frame_departure_time_delta_millis")
         .Register(metrics_registry())
-        .Add({},
-             std::vector<double>{0,  1,  2,  3,  4,   5,   6,    7,   8,    9,   10,
-                                 15, 20, 25, 30, 35,  39,  39.5, 40,  40.5, 41,  50,
-                                 60, 70, 80, 90, 100, 200, 300,  400, 500,  750, 1000});
+        .Add({}, std::vector<double>(time_delta_buckets));
 
 auto &frame_departure_time_jitter =
     prometheus::BuildHistogram()
@@ -48,9 +54,7 @@ auto &frame_arrival_time_delta_millis =
     prometheus::BuildHistogram()
         .Name("frame_arrival_time_delta_millis")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0,  1,   2,   3,   4,   5,   6,   7,   8,  9,
-                                     10, 15,  20,  25,  30,  40,  50,  60,  70, 80,
-                                     90, 100, 200, 300, 400, 500, 750, 1000});
+        .Add({}, std::vector<double>(time_delta_buckets));
 
 auto &frame_arrival_time_jitter =
     prometheus::BuildHistogram()
@@ -76,6 +80,15 @@ auto &frame_chunks =
         .Name("frame_chunks")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20});
+
+double observe_time_delta(const std::chrono::system_clock::time_point &t1,
+                          const std::chrono::system_clock::time_point &t2,
+                          prometheus::Histogram &histogram) {
+  const double delta =
+      std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t2).count());
+  histogram.Observe(delta);
+  return delta;
+}
 
 }  // namespace
 
@@ -160,18 +173,14 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
       if (_first_frame) {
         _first_frame = false;
       } else {
-        const double departure_time_delta =
-            std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         f.departure_time - _last_departure_time)
-                         .count());
-        const double arrival_time_delta =
-            std::abs(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         f.arrival_time - _last_arrival_time)
-                         .count());
-
         frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
-        frame_departure_time_delta_millis.Observe(departure_time_delta);
-        frame_arrival_time_delta_millis.Observe(arrival_time_delta);
+
+        observe_time_delta(f.timestamp, _last_time, frame_time_delta_millis);
+        const double departure_time_delta = observe_time_delta(
+            f.departure_time, _last_departure_time, frame_departure_time_delta_millis);
+        const double arrival_time_delta = observe_time_delta(
+            f.arrival_time, _last_arrival_time, frame_arrival_time_delta_millis);
+
         frame_delivery_delay_millis.Observe(
             std::abs(departure_time_delta - arrival_time_delta));
 
@@ -183,6 +192,7 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
       }
 
       _last_id = f.id;
+      _last_time = f.timestamp;
       _last_departure_time = f.departure_time;
       _last_arrival_time = f.arrival_time;
     }
@@ -190,6 +200,7 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
    private:
     bool _first_frame{true};
     frame_id _last_id;
+    std::chrono::system_clock::time_point _last_time;
     std::chrono::system_clock::time_point _last_departure_time;
     std::chrono::system_clock::time_point _last_arrival_time;
 
