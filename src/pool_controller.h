@@ -1,5 +1,6 @@
 #pragma once
 
+#include <json.hpp>
 #include <list>
 #include <string>
 #include "rtm_client.h"
@@ -9,10 +10,9 @@ namespace video {
 
 struct job_controller {
   virtual ~job_controller() = default;
-
-  virtual void add_job(cbor_item_t *job) = 0;
-  virtual void remove_job(cbor_item_t *job) = 0;
-  virtual cbor_item_t *list_jobs() const = 0;
+  virtual void add_job(const nlohmann::json &job) = 0;
+  virtual void remove_job(const nlohmann::json &job) = 0;
+  virtual nlohmann::json list_jobs() = 0;
 };
 
 class pool_job_controller : rtm::subscription_callbacks {
@@ -30,8 +30,8 @@ class pool_job_controller : rtm::subscription_callbacks {
   void on_heartbeat(const boost::system::error_code &ec);
   void on_data(const rtm::subscription & /*subscription*/,
                rtm::channel_data &&data) override;
-  void start_job(cbor_item_t *msg);
-  void stop_job(cbor_item_t *msg);
+  void start_job(const nlohmann::json &job);
+  void stop_job(const nlohmann::json &job);
   void on_error(std::error_condition ec) override;
 
   boost::asio::io_service &_io;

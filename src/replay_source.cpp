@@ -6,8 +6,6 @@
 #include <string>
 #include <thread>
 
-#include "cbor_json.h"
-#include "cbor_tools.h"
 #include "logging.h"
 #include "streams/asio_streams.h"
 
@@ -19,7 +17,7 @@ class read_json_impl {
   explicit read_json_impl(const std::string &filename)
       : _filename(filename), _input(filename) {}
 
-  void generate_one(streams::observer<cbor_item_t *> &observer) {
+  void generate_one(streams::observer<nlohmann::json> &observer) {
     if (!_input.good()) {
       LOG(ERROR) << "replay file not found: " << _filename;
       observer.on_error(std::make_error_condition(std::errc::no_such_file_or_directory));
@@ -39,8 +37,8 @@ class read_json_impl {
     } catch (const nlohmann::json::parse_error &e) {
       ABORT() << "Unable to parse line: " << e.what() << " " << line;
     }
-    CHECK(data.is_object());
-    observer.on_next(cbor_move(json_to_cbor(data)));
+    CHECK(data.is_object()) << "bad data: " << data;
+    observer.on_next(std::move(data));
   }
 
  private:
@@ -48,50 +46,52 @@ class read_json_impl {
   std::ifstream _input;
 };
 
-streams::publisher<cbor_item_t *> read_json(const std::string &filename) {
-  return streams::generators<cbor_item_t *>::stateful(
+streams::publisher<nlohmann::json> read_json(const std::string &filename) {
+  return streams::generators<nlohmann::json>::stateful(
       [filename]() { return new read_json_impl(filename); },
-      [](read_json_impl *impl, streams::observer<cbor_item_t *> &sink) {
+      [](read_json_impl *impl, streams::observer<nlohmann::json> &sink) {
         return impl->generate_one(sink);
       });
 }
 
-static streams::publisher<cbor_item_t *> get_messages(cbor_item_t *&&doc) {
-  CHECK_EQ(0, cbor_refcount(doc));
-  cbor_incref(doc);
-  auto decref = gsl::finally([&doc]() { cbor_decref(&doc); });
+static streams::publisher<nlohmann::json> get_messages(nlohmann::json &&doc) {
+  CHECK(doc.find("messages") != doc.end()) << "bad doc: " << doc;
+  auto &messages = doc["messages"];
+  CHECK(messages.is_array()) << "bad doc: " << doc;
 
-  cbor_item_t *messages = cbor::map(doc).get("messages");
-  CHECK(cbor_isa_array(messages));
-  std::vector<cbor_item_t *> result;
-  auto array_handle = cbor_array_handle(messages);
-  for (size_t i = 0; i < cbor_array_size(messages); ++i) {
-    result.push_back(cbor_incref(array_handle[i]));
+  std::vector<nlohmann::json> result;
+  for (auto &el : messages) {
+    result.push_back(el);
   }
+
   return streams::publishers::of(std::move(result));
 }
 
 streams::publisher<network_packet> read_metadata(const std::string &metadata_file) {
-  return read_json(metadata_file) >> streams::head() >> streams::map([](cbor_item_t *t) {
-           return network_packet{parse_network_metadata(t)};
-         });
+  return read_json(metadata_file) >> streams::head()
+         >> streams::map([](nlohmann::json &&t) {
+             return network_packet{parse_network_metadata(t)};
+           });
 }
 
-static double get_timestamp(const cbor_item_t *item) {
-  return cbor_float_get_float8(cbor::map(item).get("timestamp"));
+static double get_timestamp(const nlohmann::json &item) {
+  CHECK(item.find("timestamp") != item.end()) << "bad item: " << item;
+  auto &t = item["timestamp"];
+  CHECK(t.is_number_float()) << "bad item: " << item;
+  return t;
 }
 
 streams::publisher<network_packet> network_replay_source(boost::asio::io_service &io,
                                                          const std::string &filename,
                                                          bool batch) {
   auto metadata = read_metadata(filename + ".metadata");
-  streams::publisher<cbor_item_t *> items = read_json(filename);
+  streams::publisher<nlohmann::json> items = read_json(filename);
   if (!batch) {
     auto last_time = new double{-1.0};
     items = std::move(items)
             >> streams::asio::delay(
                    io,
-                   [last_time](const cbor_item_t *item) {
+                   [last_time](const nlohmann::json &item) {
                      if (*last_time < 0) {
                        return std::chrono::milliseconds(0);
                      }
@@ -99,14 +99,14 @@ streams::publisher<network_packet> network_replay_source(boost::asio::io_service
                      auto delay_ms = (int)((get_timestamp(item) - *last_time) * 1000);
                      return std::chrono::milliseconds(delay_ms);
                    })
-            >> streams::map([last_time](cbor_item_t *&&item) {
+            >> streams::map([last_time](nlohmann::json &&item) {
                 *last_time = get_timestamp(item);
                 return std::move(item);
               })
             >> streams::do_finally([last_time]() { delete last_time; });
   }
   auto frames = std::move(items) >> streams::flat_map(&get_messages)
-                >> streams::map([](cbor_item_t *t) {
+                >> streams::map([](nlohmann::json &&t) {
                     return network_packet{parse_network_frame(t)};
                   });
 

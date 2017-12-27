@@ -346,7 +346,7 @@ class secure_client : public client {
     return {};
   }
 
-  void publish(const std::string &channel, cbor_item_t *message,
+  void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override {
     CHECK(!callbacks) << "not implemented";
     if (_client_state == client_state::PENDING_STOPPED) {
@@ -355,10 +355,6 @@ class secure_client : public client {
     }
     CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
-    CHECK_EQ(0, cbor_refcount(message));
-    cbor_incref(message);
-    auto decref = gsl::finally([&message]() { cbor_decref(&message); });
-
     nlohmann::json document =
         R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}})"_json;
 
@@ -366,7 +362,7 @@ class secure_client : public client {
 
     auto &body = document["body"];
     body["channel"] = channel;
-    body["message"] = video::cbor_to_json(message);
+    body["message"] = message;
 
     const std::string document_str = document.dump();
 
@@ -573,19 +569,21 @@ class secure_client : public client {
     });
   }
 
-  void process_input(const nlohmann::json &document, size_t byte_size,
+  void process_input(const nlohmann::json &pdu, size_t byte_size,
                      std::chrono::system_clock::time_point arrival_time) {
-    CHECK(document.is_object()) << "not an object: " << document;
+    CHECK(pdu.is_object()) << "not an object: " << pdu;
 
-    if (document.count("action") == 0) {
-      LOG(ERROR) << "no action in pdu: " << document;
-    }
+    CHECK(pdu.find("action") != pdu.end()) << "no action in pdu: " << pdu;
 
-    std::string action = document["action"];
+    const std::string action = pdu["action"];
     rtm_actions_received.Add({{"action", action}}).Increment();
 
     if (action == "rtm/subscription/data") {
-      auto &body = document["body"];
+      CHECK(pdu.find("body") != pdu.end()) << "no body in pdu: " << pdu;
+      auto &body = pdu["body"];
+
+      CHECK(body.find("subscription_id") != body.end())
+          << "no subscription_id in body: " << pdu;
       std::string subscription_id = body["subscription_id"];
       auto it = _subscriptions.find(subscription_id);
       CHECK(it != _subscriptions.end());
@@ -597,80 +595,86 @@ class secure_client : public client {
         return;
       }
 
+      CHECK(body.find("messages") != body.end()) << "no messages in body: " << pdu;
       auto &messages = body["messages"];
+      CHECK(messages.is_array()) << "messages is not an array: " << pdu;
 
       rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
       rtm_messages_in_pdu.Observe(messages.size());
 
       for (auto &m : messages) {
-        channel_data data{cbor_move(video::json_to_cbor(m)), arrival_time};
+        channel_data data{std::move(m), arrival_time};
         sub.callbacks.on_data(sub.sub, std::move(data));
       }
     } else if (action == "rtm/subscribe/ok") {
-      const uint64_t id = document["id"];
+      CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
+      const uint64_t id = pdu["id"];
       for (auto &it : _subscriptions) {
         const std::string &sub_id = it.first;
         subscription_impl &sub = it.second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got subscribe confirmation for subscription " << sub_id
-                 << " in status " << sub.status << ": " << document;
+                 << " in status " << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
           sub.pending_request_id = UINT64_MAX;
           sub.status = subscription_status::CURRENT;
           return;
         }
       }
-      ABORT() << "got unexpected subscribe confirmation: " << document;
+      ABORT() << "got unexpected subscribe confirmation: " << pdu;
     } else if (action == "rtm/subscribe/error") {
-      const uint64_t id = document["id"];
+      CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
+      const uint64_t id = pdu["id"];
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
-                     << sub.status << ": " << document;
+                     << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
           _callbacks.on_error(client_error::SUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected subscribe error: " << document;
+      ABORT() << "got unexpected subscribe error: " << pdu;
     } else if (action == "rtm/unsubscribe/ok") {
-      const uint64_t id = document["id"];
+      CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
+      const uint64_t id = pdu["id"];
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
-                 << " in status " << sub.status << ": " << document;
+                 << " in status " << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
           it = _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected unsubscribe confirmation: " << document;
+      ABORT() << "got unexpected unsubscribe confirmation: " << pdu;
     } else if (action == "rtm/unsubscribe/error") {
-      const uint64_t id = document["id"];  // check type
+      CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
+      const uint64_t id = pdu["id"];  // check type
       for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
         const std::string &sub_id = it->first;
         subscription_impl &sub = it->second;
         if (sub.pending_request_id == id) {
           LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
-                     << " in status " << sub.status << ": " << document;
+                     << " in status " << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
           _callbacks.on_error(client_error::UNSUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
         }
       }
-      ABORT() << "got unexpected unsubscribe error: " << document;
+      ABORT() << "got unexpected unsubscribe error: " << pdu;
     } else if (action == "rtm/subscription/error") {
-      LOG(ERROR) << "subscription error: " << document;
+      LOG(ERROR) << "subscription error: " << pdu;
       _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
     } else {
-      ABORT() << "unsupported action: " << document;
+      ABORT() << "unsupported action: " << pdu;
     }
   }
 
@@ -716,12 +720,12 @@ resilient_client::resilient_client(asio::io_service &io_service,
       _factory(std::move(factory)),
       _error_callbacks(callbacks) {}
 
-void resilient_client::publish(const std::string &channel, cbor_item_t *message,
+void resilient_client::publish(const std::string &channel, nlohmann::json &&message,
                                publish_callbacks *callbacks) {
   CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
       << "Invocation from " << threadutils::get_current_thread_name();
 
-  _client->publish(channel, message, callbacks);
+  _client->publish(channel, std::move(message), callbacks);
 }
 
 void resilient_client::subscribe_channel(const std::string &channel,
@@ -828,18 +832,18 @@ thread_checking_client::thread_checking_client(asio::io_service &io,
                                                std::unique_ptr<client> client)
     : _io(io), _io_thread_id(io_thread_id), _client(std::move(client)) {}
 
-void thread_checking_client::publish(const std::string &channel, cbor_item_t *message,
+void thread_checking_client::publish(const std::string &channel, nlohmann::json &&message,
                                      publish_callbacks *callbacks) {
   if (std::this_thread::get_id() != _io_thread_id) {
     LOG(WARNING) << "Forwarding request from thread "
                  << threadutils::get_current_thread_name();
-    _io.post([this, channel, message, callbacks]() {
-      _client->publish(channel, message, callbacks);
+    _io.post([ this, channel, message = std::move(message), callbacks ]() mutable {
+      _client->publish(channel, std::move(message), callbacks);
     });
     return;
   }
 
-  _client->publish(channel, message, callbacks);
+  _client->publish(channel, std::move(message), callbacks);
 }
 
 void thread_checking_client::subscribe_channel(const std::string &channel,

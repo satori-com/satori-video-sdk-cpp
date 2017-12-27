@@ -36,7 +36,9 @@ po::options_description cli_options() {
       ",v", po::value<std::string>(),
       "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
-  return cli_generic;
+  po::options_description publisher_options("Publisher options");
+
+  return publisher_options.add(cli_generic).add(metrics_options());
 }
 
 struct publisher_configuration : cli_streams::configuration {

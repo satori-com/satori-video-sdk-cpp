@@ -1,5 +1,6 @@
 #pragma once
 
+#include <json.hpp>
 #include <list>
 #include <queue>
 
@@ -14,7 +15,7 @@ namespace video {
 
 // Packets are stored in std::queue, the first one is the oldest one
 using owned_image_packets = std::queue<owned_image_packet>;
-using bot_input = boost::variant<owned_image_packets, cbor_item_t*>;
+using bot_input = boost::variant<owned_image_packets, nlohmann::json>;
 using bot_output =
     variantutils::extend_variant<owned_image_packet, struct bot_message>::type;
 
@@ -24,7 +25,7 @@ class bot_instance : public bot_context, boost::static_visitor<std::list<bot_out
                const multiframe_bot_descriptor& descriptor);
   ~bot_instance() = default;
 
-  void configure(cbor_item_t* config);
+  void configure(const nlohmann::json& config);
 
   streams::op<bot_input, bot_output> run_bot();
 
@@ -32,7 +33,7 @@ class bot_instance : public bot_context, boost::static_visitor<std::list<bot_out
   void set_current_frame_id(const frame_id& id);
 
   std::list<bot_output> operator()(std::queue<owned_image_packet>& pp);
-  std::list<bot_output> operator()(cbor_item_t* msg);
+  std::list<bot_output> operator()(nlohmann::json& msg);
 
  private:
   void prepare_message_buffer_for_downstream();

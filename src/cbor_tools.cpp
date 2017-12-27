@@ -91,7 +91,19 @@ void dump_as_json(std::ostream &out, const cbor_item_t *item) {
       out << '}';
       break;
     case CBOR_TYPE_FLOAT_CTRL:
-      out << cbor_float_get_float(item);
+      if (cbor_is_float(item)) {
+        out << cbor_float_get_float(item);
+        return;
+      }
+      if (cbor_is_null(item)) {
+        out << "null";
+        return;
+      }
+      if (cbor_is_bool(item)) {
+        out << cbor_ctrl_is_bool(item);
+        return;
+      }
+      ABORT() << "not implemented for float control";
       break;
   }
 }
@@ -102,11 +114,11 @@ uint64_t get_uint64(const cbor_item_t *item) {
 }
 
 cbor_item_t *build_int64(int64_t value) {
-    cbor_item_t *res = cbor_build_uint64(abs(value));
-    if (value < 0) {
-        cbor_mark_negint(res);
-    }
-    return res;
+  cbor_item_t *res = cbor_build_uint64(abs(value));
+  if (value < 0) {
+    cbor_mark_negint(res);
+  }
+  return res;
 }
 
 int64_t get_int64(const cbor_item_t *item) {

@@ -1,6 +1,8 @@
 #define BOOST_TEST_MODULE BotInstanceTest
 #include <boost/test/included/unit_test.hpp>
 
+#include <json.hpp>
+
 #include "bot_instance.h"
 #include "cbor_tools.h"
 #include "streams/streams.h"
@@ -51,15 +53,18 @@ BOOST_AUTO_TEST_CASE(basic) {
   descriptor.img_callback = &::process_image;
 
   sv::bot_instance bot_instance{"dummy-bot-id", sv::execution_mode::BATCH, descriptor};
+  nlohmann::json bot_config = R"({"dummy-key":"dummy-value"})"_json;
 
-  bot_instance.configure(build_pair("dummy-key", "dummy-value"));
+  bot_instance.configure(bot_config);
 
-  sv::owned_image_frame frame;
-  std::queue<sv::owned_image_packet> frameq;
-  frameq.push(frame);
+  sv::owned_image_packets frames;
+  frames.push(sv::owned_image_frame{});
+
+  std::vector<sv::bot_input> bot_input;
+  bot_input.emplace_back(std::move(frames));
 
   sv::streams::publisher<sv::bot_input> bot_input_stream =
-      sv::streams::publishers::of({sv::bot_input{frameq}});
+      sv::streams::publishers::of(std::move(bot_input));
 
   sv::streams::publisher<sv::bot_output> bot_output_stream =
       std::move(bot_input_stream) >> bot_instance.run_bot();
@@ -83,31 +88,24 @@ BOOST_AUTO_TEST_CASE(basic) {
   {
     const struct sv::bot_message &m = *it++;
     BOOST_CHECK_EQUAL((int)sv::bot_message_kind::DEBUG, (int)m.kind);
-    BOOST_CHECK_EQUAL(0, cbor_refcount(m.data));
-    BOOST_TEST("dummy-configure-value",
-               cbor::map(m.data).get_str("dummy-configure-key", ""));
+    BOOST_TEST("dummy-configure-value", m.data["dummy-configure-key"]);
   }
 
   {
     const struct sv::bot_message &m = *it++;
     BOOST_CHECK_EQUAL((int)sv::bot_message_kind::DEBUG, (int)m.kind);
-    BOOST_CHECK_EQUAL(0, cbor_refcount(m.data));
-    BOOST_TEST("dummy-debug-value", cbor::map(m.data).get_str("dummy-debug-key", ""));
+    BOOST_TEST("dummy-debug-value", m.data["dummy-debug-key"]);
   }
 
   {
     const struct sv::bot_message &m = *it++;
     BOOST_CHECK_EQUAL((int)sv::bot_message_kind::ANALYSIS, (int)m.kind);
-    BOOST_CHECK_EQUAL(0, cbor_refcount(m.data));
-    BOOST_TEST("dummy-analysis-value",
-               cbor::map(m.data).get_str("dummy-analysis-key", ""));
+    BOOST_TEST("dummy-analysis-value", m.data["dummy-analysis-key"]);
   }
 
   {
     const struct sv::bot_message &m = *it++;
     BOOST_CHECK_EQUAL((int)sv::bot_message_kind::DEBUG, (int)m.kind);
-    BOOST_CHECK_EQUAL(0, cbor_refcount(m.data));
-    BOOST_TEST("dummy-shutdown-value",
-               cbor::map(m.data).get_str("dummy-shutdown-key", ""));
+    BOOST_TEST("dummy-shutdown-value", m.data["dummy-shutdown-key"]);
   }
 }

@@ -1,6 +1,5 @@
 #include "ostream_sink.h"
 
-#include "cbor_tools.h"
 #include "logging.h"
 
 namespace satori {
@@ -8,12 +7,12 @@ namespace video {
 namespace streams {
 
 namespace {
-class ostream_observer : public streams::observer<cbor_item_t *> {
+class ostream_observer : public streams::observer<nlohmann::json> {
  public:
   explicit ostream_observer(std::ostream &out) : _out(out) {}
 
  private:
-  void on_next(cbor_item_t *&&t) override { _out << t << "\n"; }
+  void on_next(nlohmann::json &&t) override { _out << t << "\n"; }
 
   void on_error(std::error_condition ec) override {
     LOG(ERROR) << "ERROR: " << ec.message();
@@ -31,7 +30,7 @@ class ostream_observer : public streams::observer<cbor_item_t *> {
 
 }  // namespace
 
-streams::observer<cbor_item_t *> &ostream_sink(std::ostream &out) {
+streams::observer<nlohmann::json> &ostream_sink(std::ostream &out) {
   return *(new ostream_observer(out));
 }
 

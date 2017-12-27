@@ -67,7 +67,7 @@ cli_streams::cli_options bot_cli_cfg() {
 
 }  // namespace
 
-cbor_item_t* read_config_from_file(const std::string& config_file_name) {
+nlohmann::json read_config_from_file(const std::string& config_file_name) {
   nlohmann::json config;
 
   try {
@@ -79,10 +79,10 @@ cbor_item_t* read_config_from_file(const std::string& config_file_name) {
     exit(1);
   }
 
-  return cbor_move(json_to_cbor(config));
+  return config;
 }
 
-cbor_item_t* read_config_from_arg(const std::string& arg) {
+nlohmann::json read_config_from_arg(const std::string& arg) {
   nlohmann::json config;
 
   try {
@@ -92,7 +92,7 @@ cbor_item_t* read_config_from_arg(const std::string& arg) {
     exit(1);
   }
 
-  return cbor_move(json_to_cbor(config));
+  return config;
 }
 
 bot_environment& bot_environment::instance() {
@@ -109,7 +109,6 @@ void bot_environment::operator()(const owned_image_metadata& /*metadata*/) {}
 void bot_environment::operator()(const owned_image_frame& /*frame*/) {}
 
 void bot_environment::operator()(struct bot_message& msg) {
-  CHECK_EQ(0, cbor_refcount(msg.data));
   switch (msg.kind) {
     case bot_message_kind::ANALYSIS:
       _analysis_sink->on_next(std::move(msg.data));
@@ -155,7 +154,7 @@ int bot_environment::main(int argc, char* argv[]) {
   const std::string id = config.get_id();
   const bool batch = config.is_batch_mode();
 
-  cbor_item_t* bot_config{nullptr};
+  nlohmann::json bot_config;
   if (config.config_file().is_initialized()) {
     bot_config = read_config_from_file(config.config_file().get());
   } else if (config.config().is_initialized()) {
@@ -184,14 +183,12 @@ int bot_environment::main(int argc, char* argv[]) {
     signal::register_handler(
         {SIGINT, SIGTERM, SIGQUIT},
         [&io_service, rtm_client = _rtm_client, id ](int /*signal*/) {
-          cbor_item_t* die_note = cbor_new_definite_map(2);
-          cbor_map_add(die_note, {cbor_move(cbor_build_string("bot_id")),
-                                  cbor_move(cbor_build_string(id.c_str()))});
-          cbor_map_add(die_note, {cbor_move(cbor_build_string("note")),
-                                  cbor_move(cbor_build_string("see you in next life"))});
+          nlohmann::json die_note = nlohmann::json::object();
+          die_note["bot_id"] = id;
+          die_note["note"] = "see you in next life";
 
-          io_service.post([ rtm_client, die_note = cbor_move(die_note) ]() {
-            rtm_client->publish("test", die_note);
+          io_service.post([ rtm_client, die_note = std::move(die_note) ]() mutable {
+            rtm_client->publish("test", std::move(die_note));
           });
         });
   }
@@ -220,7 +217,7 @@ int bot_environment::main(int argc, char* argv[]) {
     _analysis_sink = &streams::ostream_sink(*_analysis_file);
   } else if (_rtm_client) {
     _analysis_sink =
-        &rtm::cbor_sink(_rtm_client, io_service, channel + analysis_channel_suffix);
+        &rtm::sink(_rtm_client, io_service, channel + analysis_channel_suffix);
   } else {
     _analysis_sink = &streams::ostream_sink(std::cout);
   }
@@ -231,20 +228,19 @@ int bot_environment::main(int argc, char* argv[]) {
     _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
     _debug_sink = &streams::ostream_sink(*_debug_file);
   } else if (_rtm_client) {
-    _debug_sink =
-        &rtm::cbor_sink(_rtm_client, io_service, channel + debug_channel_suffix);
+    _debug_sink = &rtm::sink(_rtm_client, io_service, channel + debug_channel_suffix);
   } else {
     _debug_sink = &streams::ostream_sink(std::cerr);
   }
 
   if (_rtm_client) {
-    _control_sink = &rtm::cbor_sink(_rtm_client, io_service, control_channel);
+    _control_sink = &rtm::sink(_rtm_client, io_service, control_channel);
     _control_source =
-        rtm::cbor_channel(_rtm_client, control_channel, {})
+        rtm::channel(_rtm_client, control_channel, {})
         >> streams::map([](rtm::channel_data&& t) { return std::move(t.payload); });
   } else {
     _control_sink = &streams::ostream_sink(std::cout);
-    _control_source = streams::publishers::empty<cbor_item_t*>();
+    _control_source = streams::publishers::empty<nlohmann::json>();
   }
 
   bool finished{false};
@@ -276,7 +272,7 @@ int bot_environment::main(int argc, char* argv[]) {
 
   auto bot_input_stream = streams::publishers::merge<bot_input>(
       std::move(_control_source)
-          >> streams::map([](cbor_item_t*&& t) { return bot_input{t}; }),
+          >> streams::map([](nlohmann::json&& t) { return bot_input{t}; }),
       std::move(_source) >> streams::map([](std::queue<owned_image_packet>&& p) {
         return bot_input{p};
       }));

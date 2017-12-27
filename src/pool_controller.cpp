@@ -1,6 +1,8 @@
 #include "pool_controller.h"
 #include <gsl/gsl>
+#include <json.hpp>
 #include <random>
+
 #include "cbor_tools.h"
 
 namespace satori {
@@ -50,69 +52,57 @@ void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
   _hb_timer->expires_from_now(default_hb_period);
   _hb_timer->async_wait([this](const boost::system::error_code &e) { on_heartbeat(e); });
 
-  cbor_item_t *jobs = _streams.list_jobs();
-  cbor_item_t *hb_message = cbor_new_indefinite_map();
-  cbor_map_add(hb_message, {cbor_move(cbor_build_string("from")),
-                            cbor_build_string(node_id.c_str())});
-  cbor_map_add(hb_message,
-               {cbor_move(cbor_build_string("active_jobs")), cbor_move(jobs)});
+  const auto jobs = _streams.list_jobs();
+  CHECK(jobs.is_array()) << "not an array: " << jobs;
 
-  cbor_item_t *available_capacity = cbor_new_indefinite_map();
-  cbor_map_add(available_capacity,
-               {cbor_move(cbor_build_string(_job_type.c_str())),
-                cbor_build_uint64(_max_streams_capacity - cbor_array_size(jobs))});
+  nlohmann::json available_capacity = nlohmann::json::object();
+  available_capacity[_job_type] = _max_streams_capacity - jobs.size();
 
-  cbor_map_add(hb_message, {cbor_move(cbor_build_string("available_capacity")),
-                            cbor_move(available_capacity)});
+  nlohmann::json hb_message = nlohmann::json::object();
+  hb_message["from"] = node_id;
+  hb_message["active_jobs"] = jobs;
+  hb_message["available_capacity"] = available_capacity;
 
   LOG(2) << "sending heartbeat: " << hb_message;
-  _client->publish(_pool, cbor_move(hb_message));
+  _client->publish(_pool, std::move(hb_message));
 }
 
 void pool_job_controller::shutdown() {
-  cbor_item_t *shutdown_note = cbor_new_definite_map(4);
-  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("from")),
-                               cbor_move(cbor_build_string(node_id.c_str()))});
-  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("job_type")),
-                               cbor_move(cbor_build_string(_job_type.c_str()))});
-  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("reason")),
-                               cbor_move(cbor_build_string("shutdown"))});
-  cbor_map_add(shutdown_note, {cbor_move(cbor_build_string("stopped_jobs")),
-                               cbor_move(_streams.list_jobs())});
+  nlohmann::json shutdown_note = nlohmann::json::object();
+  shutdown_note["from"] = node_id;
+  shutdown_note["job_type"] = _job_type;
+  shutdown_note["reason"] = "shutdown";
+  shutdown_note["stopped_jobs"] = _streams.list_jobs();
 
-  _io.post([ client = _client, pool = _pool, shutdown_note ]() {
-    client->publish(pool, cbor_move(shutdown_note));
-  });
+  _io.post([
+    client = _client, pool = _pool, shutdown_note = std::move(shutdown_note)
+  ]() mutable { client->publish(pool, std::move(shutdown_note)); });
 }
 
 void pool_job_controller::on_data(const rtm::subscription & /*subscription*/,
                                   rtm::channel_data &&data) {
-  cbor_item_t *item = data.payload;
-  cbor_incref(item);
-  auto decref = gsl::finally([item]() mutable { cbor_decref(&item); });
-
-  auto msg = cbor::map(item);
-  if (msg.get_str("to") != node_id) {
+  auto &msg = data.payload;
+  if (msg.find("to") == msg.end() || msg["to"] != node_id) {
     return;
   }
 
-  if (cbor_item_t *start_job_msg = msg.get("start_job")) {
-    start_job(start_job_msg);
-  } else if (cbor_item_t *stop_job_msg = msg.get("stop_job")) {
-    stop_job(stop_job_msg);
+  if (msg.find("start_job") != msg.end()) {
+    start_job(msg["start_job"]);
+  } else if (msg.find("stob_job") != msg.end()) {
+    stop_job(msg["stop_job"]);
   } else {
-    LOG(ERROR) << "unknown command: " << item;
+    LOG(ERROR) << "unknown command: " << msg;
   }
 }
 
-void pool_job_controller::start_job(cbor_item_t *msg) {
-  LOG(INFO) << "start_job: " << msg;
-  _streams.add_job(msg);
+void pool_job_controller::start_job(const nlohmann::json &job) {
+  LOG(INFO) << "start_job: " << job;
+  _streams.add_job(job);
 }
 
-void pool_job_controller::stop_job(cbor_item_t *msg) {
-  LOG(INFO) << "stop_job: " << msg;
-  _streams.remove_job(msg);
+void pool_job_controller::stop_job(const nlohmann::json &job) {
+  LOG(INFO) << "stop_job: " << job;
+  _streams.remove_job(job);
 }
 
 void pool_job_controller::on_error(std::error_condition ec) {

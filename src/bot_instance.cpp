@@ -2,6 +2,7 @@
 
 #include <gsl/gsl>
 
+#include "cbor_json.h"
 #include "cbor_tools.h"
 #include "metrics.h"
 #include "stopwatch.h"
@@ -19,9 +20,9 @@ auto& frame_size =
     prometheus::BuildHistogram()
         .Name("frame_batch_size")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{1,  2,  3,   4,   5,   6,   7,   8,
-                                     9,  10, 15, 20,  25,  30,  40,  50,  60,
-                                     70, 80, 90, 100, 200, 300, 400, 500, 750});
+        .Add({}, std::vector<double>{1,  2,  3,   4,   5,   6,   7,   8,  9,
+                                     10, 15, 20,  25,  30,  40,  50,  60, 70,
+                                     80, 90, 100, 200, 300, 400, 500, 750});
 
 auto& frame_batch_processed_total = prometheus::BuildCounter()
                                         .Name("frame_batch_processed_total")
@@ -32,11 +33,12 @@ auto& messages_sent =
 auto& messages_received =
     prometheus::BuildCounter().Name("messages_received").Register(metrics_registry());
 
-cbor_item_t* build_configure_command(cbor_item_t* config) {
+cbor_item_t* build_configure_command(const nlohmann::json& config) {
   cbor_item_t* cmd = cbor_new_definite_map(2);
   cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
                      cbor_move(cbor_build_string("configure"))});
-  cbor_map_add(cmd, {cbor_move(cbor_build_string("body")), config});
+  cbor_map_add(cmd,
+               {cbor_move(cbor_build_string("body")), cbor_move(json_to_cbor(config))});
   return cmd;
 }
 
@@ -125,15 +127,14 @@ void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* messa
   cbor_incref(message);
   auto message_decref = gsl::finally([&message]() { cbor_decref(&message); });
 
-  cbor_item_t* message_copy = cbor_copy(message);
-  CHECK_EQ(1, cbor_refcount(message_copy));
+  nlohmann::json json_message = cbor_to_json(message);
   frame_id effective_frame_id =
       (id.i1 == 0 && id.i2 == 0 && _current_frame_id.i1 != 0 && _current_frame_id.i2 != 0)
           ? _current_frame_id
           : id;
 
   struct bot_message newmsg {
-    cbor_move(message_copy), kind, effective_frame_id
+    std::move(json_message), kind, effective_frame_id
   };
   _message_buffer.push_back(newmsg);
 }
@@ -202,37 +203,38 @@ std::list<bot_output> bot_instance::operator()(std::queue<owned_image_packet>& p
   return result;
 }
 
-std::list<bot_output> bot_instance::operator()(cbor_item_t* msg) {
+std::list<bot_output> bot_instance::operator()(nlohmann::json& msg) {
   messages_received.Add({{"message_type", "control"}}).Increment();
-  cbor_incref(msg);
-  auto msg_decref = gsl::finally([&msg]() { cbor_decref(&msg); });
-
-  if (cbor_isa_array(msg)) {
+  if (msg.is_array()) {
     std::list<bot_output> aggregated;
-    for (size_t i = 0; i < cbor_array_size(msg); ++i) {
-      aggregated.splice(aggregated.end(), this->operator()(cbor_array_get(msg, i)));
+    for (auto& el : msg) {
+      aggregated.splice(aggregated.end(), this->operator()(el));
     }
     return aggregated;
   }
 
-  if (!cbor_isa_map(msg)) {
+  if (!msg.is_object()) {
     LOG(ERROR) << "unsupported kind of message: " << msg;
     return std::list<bot_output>{};
   }
 
-  if (_bot_id.empty() || cbor::map(msg).get_str("to", "") != _bot_id) {
+  if (_bot_id.empty() || msg["to"] != _bot_id) {
     return std::list<bot_output>{};
   }
 
-  cbor_item_t* response = _descriptor.ctrl_callback(*this, msg);
+  cbor_item_t* control_argument = json_to_cbor(msg);
+  CHECK_EQ(1, cbor_refcount(control_argument));
+  auto control_argument_decref =
+      gsl::finally([&control_argument]() { cbor_decref(&control_argument); });
+  cbor_item_t* response = _descriptor.ctrl_callback(*this, control_argument);
 
   if (response != nullptr) {
     CHECK(cbor_isa_map(response)) << "bot response is not a map: " << response;
 
-    cbor_item_t* request_id = cbor::map(msg).get("request_id");
-    if (request_id != nullptr) {
+    if (msg.find("request_id") != msg.end()) {
+      const std::string request_id = msg["request_id"];
       cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
-                              cbor_move(cbor_copy(request_id))});
+                              cbor_move(cbor_build_string(request_id.c_str()))});
     }
 
     queue_message(bot_message_kind::CONTROL, response, frame_id{0, 0});
@@ -259,45 +261,30 @@ void bot_instance::prepare_message_buffer_for_downstream() {
         break;
     }
 
-    cbor_item_t* data = msg.data;
+    nlohmann::json& data = msg.data;
 
     if (msg.id.i1 >= 0) {
-      cbor_item_t* is = cbor_new_definite_array(2);
-      cbor_array_set(is, 0,
-                     cbor_move(cbor_build_uint64(static_cast<uint64_t>(msg.id.i1))));
-      cbor_array_set(is, 1,
-                     cbor_move(cbor_build_uint64(static_cast<uint64_t>(msg.id.i2))));
-      cbor_map_add(data, {cbor_move(cbor_build_string("i")), cbor_move(is)});
+      data["i"] = {msg.id.i1, msg.id.i2};
     }
 
     if (!_bot_id.empty()) {
-      cbor_map_add(data, {cbor_move(cbor_build_string("from")),
-                          cbor_move(cbor_build_string(_bot_id.c_str()))});
+      data["from"] = _bot_id;
     }
   }
 }
 
-void bot_instance::configure(cbor_item_t* config) {
+void bot_instance::configure(const nlohmann::json& config) {
   if (!_descriptor.ctrl_callback) {
-    if (config == nullptr) {
+    if (config.is_null()) {
       return;
     }
     ABORT() << "Bot control handler was not provided but config was";
   }
 
-  if (config == nullptr) {
-    LOG(INFO) << "using empty bot configuration";
-    config = cbor_new_definite_map(0);
-  } else {
-    cbor_incref(config);
-  }
-
-  cbor_item_t* cmd = build_configure_command(config);
+  cbor_item_t* cmd =
+      build_configure_command(!config.is_null() ? config : nlohmann::json::object());
   CHECK_EQ(1, cbor_refcount(cmd));
-  auto cbor_deleter = gsl::finally([&config, &cmd]() {
-    cbor_decref(&config);
-    cbor_decref(&cmd);
-  });
+  auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
 
   LOG(INFO) << "configuring bot: " << cmd;
   cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);

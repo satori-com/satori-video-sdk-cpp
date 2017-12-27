@@ -4,6 +4,7 @@
 #include <prometheus/text_serializer.h>
 #include <boost/timer/timer.hpp>
 #include <chrono>
+#include <json.hpp>
 
 #ifdef HAS_GPERFTOOLS
 #include <gperftools/malloc_extension.h>
@@ -22,29 +23,29 @@ const auto process_metrics_update_period = boost::posix_time::seconds(1);
 const auto metrics_push_period = boost::posix_time::seconds(10);
 
 auto& process_current_allocated_bytes = prometheus::BuildGauge()
-    .Name("process_current_allocated_bytes")
-    .Register(metrics_registry())
-    .Add({});
+                                            .Name("process_current_allocated_bytes")
+                                            .Register(metrics_registry())
+                                            .Add({});
 
 auto& process_heap_size = prometheus::BuildGauge()
-    .Name("process_heap_size")
-    .Register(metrics_registry())
-    .Add({});
+                              .Name("process_heap_size")
+                              .Register(metrics_registry())
+                              .Add({});
 
 auto& process_cpu_wall_time_sec = prometheus::BuildCounter()
-    .Name("process_cpu_wall_time_sec")
-    .Register(metrics_registry())
-    .Add({});
+                                      .Name("process_cpu_wall_time_sec")
+                                      .Register(metrics_registry())
+                                      .Add({});
 
 auto& process_cpu_user_time_sec = prometheus::BuildCounter()
-    .Name("process_cpu_user_time_sec")
-    .Register(metrics_registry())
-    .Add({});
+                                      .Name("process_cpu_user_time_sec")
+                                      .Register(metrics_registry())
+                                      .Add({});
 
 auto& process_cpu_system_time_sec = prometheus::BuildCounter()
-    .Name("process_cpu_system_time_sec")
-    .Register(metrics_registry())
-    .Add({});
+                                        .Name("process_cpu_system_time_sec")
+                                        .Register(metrics_registry())
+                                        .Add({});
 
 auto& process_start_time = prometheus::BuildGauge()
                                .Name("process_start_time")
@@ -53,7 +54,7 @@ auto& process_start_time = prometheus::BuildGauge()
 
 #ifdef HAS_GPERFTOOLS
 void report_tcmalloc_metrics() {
-  MallocExtension *extension = MallocExtension::instance();
+  MallocExtension* extension = MallocExtension::instance();
   if (extension == nullptr) {
     LOG(ERROR) << "null malloc extension";
     return;
@@ -90,15 +91,12 @@ void report_process_metrics() {
 
   // scrape cpu timer
   const boost::timer::cpu_times& times = cpu_timer.elapsed();
-  process_cpu_system_time_sec.Increment(
-      times.system / 1e9 - process_cpu_system_time_sec.Value()
-  );
-  process_cpu_user_time_sec.Increment(
-      times.user / 1e9 - process_cpu_user_time_sec.Value()
-  );
-  process_cpu_wall_time_sec.Increment(
-      times.wall / 1e9 - process_cpu_wall_time_sec.Value()
-  );
+  process_cpu_system_time_sec.Increment(times.system / 1e9
+                                        - process_cpu_system_time_sec.Value());
+  process_cpu_user_time_sec.Increment(times.user / 1e9
+                                      - process_cpu_user_time_sec.Value());
+  process_cpu_wall_time_sec.Increment(times.wall / 1e9
+                                      - process_cpu_wall_time_sec.Value());
 }
 
 class metrics {
@@ -162,22 +160,18 @@ class metrics {
     std::string data = serializer.Serialize(metrics_registry().Collect());
     LOG(1) << "pushing metrics " << data.size() << " bytes";
 
-    cbor_item_t* msg = cbor_new_indefinite_map();
-    cbor_map_add(msg, {cbor_move(cbor_build_string("metrics")),
-                       cbor_move(cbor_build_string(data.c_str()))});
-    cbor_map_add(msg, {cbor_move(cbor_build_string("content-type")),
-                       cbor_move(cbor_build_string("text/plain"))});
+    nlohmann::json msg = nlohmann::json::object();
+    msg["content-type"] = "text/plain";
+    msg["metrics"] = data;
 
     if (!_config.push_job.empty()) {
-      cbor_map_add(msg, {cbor_move(cbor_build_string("job")),
-                         cbor_move(cbor_build_string(_config.push_job.c_str()))});
+      msg["job"] = _config.push_job;
     }
     if (!_config.push_instance.empty()) {
-      cbor_map_add(msg, {cbor_move(cbor_build_string("instance")),
-                         cbor_move(cbor_build_string(_config.push_instance.c_str()))});
+      msg["instance"] = _config.push_instance;
     }
 
-    _publisher->publish(_config.push_channel, cbor_move(msg));
+    _publisher->publish(_config.push_channel, std::move(msg));
   }
 
   void start_updating_process_metrics() {

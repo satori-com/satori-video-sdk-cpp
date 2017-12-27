@@ -1,7 +1,6 @@
 #define BOOST_TEST_MODULE DataTest
 #include <boost/test/included/unit_test.hpp>
 
-#include "cbor_tools.h"
 #include "data.h"
 #include "logging.h"
 
@@ -44,36 +43,10 @@ BOOST_AUTO_TEST_CASE(additional_data_test) {
                {cbor_move(cbor_build_string("fps")), cbor_move(cbor_build_uint64(25))});
 
   const sv::network_metadata& nm = em.to_network();
-  cbor_item_t* cbor = nm.to_cbor();
-  std::stringstream debug_cbor;
-  debug_cbor << cbor;
-  cbor_decref(&cbor);
+  nlohmann::json j = nm.to_json();
 
-  BOOST_CHECK_EQUAL(
-      "{\"codecName\":\"dummy-codec\",\"codecData\":\"ZHVtbXktY29kZWMtZGF0YQ==\",\"fps\":"
-      "25}",
-      debug_cbor.str());
-}
+  nlohmann::json expected_j =
+      R"({"codecName":"dummy-codec", "codecData":"ZHVtbXktY29kZWMtZGF0YQ==", "fps": 25})"_json;
 
-BOOST_AUTO_TEST_CASE(network_metadata_to_cbor_refcount) {
-  sv::network_metadata nm;
-  nm.codec_name = "dummy-codec";
-  nm.base64_data = "dummy-codec-data";
-
-  const cbor_item_t* i = nm.to_cbor();
-
-  BOOST_CHECK_EQUAL(0, cbor_refcount(i));
-}
-
-BOOST_AUTO_TEST_CASE(network_frame_to_cbor_refcount) {
-  sv::network_frame nf;
-  nf.t = std::chrono::system_clock::now();
-  nf.base64_data = "dummy-frame-data";
-  nf.id = {0, 0};
-  nf.chunk = 1;
-  nf.chunks = 1;
-
-  const cbor_item_t* i = nf.to_cbor();
-
-  BOOST_CHECK_EQUAL(0, cbor_refcount(i));
+  BOOST_CHECK_EQUAL(expected_j, j);
 }

@@ -7,6 +7,7 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/optional.hpp>
 #include <functional>
+#include <json.hpp>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -73,7 +74,7 @@ struct publish_callbacks : error_callbacks {
 struct publisher {
   virtual ~publisher() = default;
 
-  virtual void publish(const std::string &channel, cbor_item_t *message,
+  virtual void publish(const std::string &channel, nlohmann::json &&message,
                        publish_callbacks *callbacks = nullptr) = 0;
 };
 
@@ -81,7 +82,7 @@ struct publisher {
 struct subscription {};
 
 struct channel_data {
-  cbor_item_t *payload;
+  nlohmann::json payload;
   std::chrono::system_clock::time_point arrival_time;
 };
 
@@ -146,7 +147,7 @@ class resilient_client : public client, error_callbacks {
                             std::thread::id io_thread_id, client_factory_t &&factory,
                             error_callbacks &callbacks);
 
-  void publish(const std::string &channel, cbor_item_t *message,
+  void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override;
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -195,7 +196,7 @@ class thread_checking_client : public client {
                                   std::thread::id io_thread_id,
                                   std::unique_ptr<client> client);
 
-  void publish(const std::string &channel, cbor_item_t *message,
+  void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override;
 
   void subscribe_channel(const std::string &channel, const subscription &sub,

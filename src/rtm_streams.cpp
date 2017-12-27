@@ -1,7 +1,5 @@
 #include "rtm_streams.h"
 
-#include "cbor_json.h"
-
 namespace satori {
 namespace video {
 namespace rtm {
@@ -31,19 +29,17 @@ class rtm_channel_impl : rtm::subscription_callbacks {
   rtm::subscription _subscription;
 };
 
-class cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
+class sink_impl : public streams::subscriber<nlohmann::json> {
  public:
-  cbor_sink_impl(const std::shared_ptr<rtm::publisher> &client,
-                 boost::asio::io_service &io_service, const std::string &channel)
+  sink_impl(const std::shared_ptr<rtm::publisher> &client,
+            boost::asio::io_service &io_service, const std::string &channel)
       : _client(client), _io_service(io_service), _channel(channel) {}
 
  private:
-  void on_next(cbor_item_t *&&item) override {
-    CHECK_EQ(0, cbor_refcount(item));
-
-    _io_service.post([ client = _client, channel = _channel, item = std::move(item) ]() {
-      client->publish(channel, item, nullptr);
-    });
+  void on_next(nlohmann::json &&item) override {
+    _io_service.post([
+      client = _client, channel = _channel, item = std::move(item)
+    ]() mutable { client->publish(channel, std::move(item), nullptr); });
 
     if (_src != nullptr) {
       _src->request(1);
@@ -67,13 +63,13 @@ class cbor_sink_impl : public streams::subscriber<cbor_item_t *> {
 
 }  // namespace
 
-streams::subscriber<cbor_item_t *> &cbor_sink(
-    const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
-    const std::string &channel) {
-  return *(new cbor_sink_impl(client, io_service, channel));
+streams::subscriber<nlohmann::json> &sink(const std::shared_ptr<rtm::publisher> &client,
+                                          boost::asio::io_service &io_service,
+                                          const std::string &channel) {
+  return *(new sink_impl(client, io_service, channel));
 }
 
-streams::publisher<channel_data> cbor_channel(
+streams::publisher<channel_data> channel(
     const std::shared_ptr<rtm::subscriber> &subscriber, const std::string &channel,
     const rtm::subscription_options &options) {
   return streams::generators<channel_data>::async<rtm_channel_impl>(

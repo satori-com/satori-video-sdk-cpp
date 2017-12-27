@@ -33,30 +33,29 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
         _metadata_channel(rtm_channel + metadata_channel_suffix) {}
 
   void operator()(const encoded_metadata &m) {
-    cbor_item_t *packet = m.to_network().to_cbor();
-    CHECK_EQ(cbor_refcount(packet), 0);
+    nlohmann::json packet = m.to_network().to_json();
 
-    _io_service.post([ client = _client, channel = _metadata_channel, packet ]() {
-      client->publish(channel, packet, nullptr);
-    });
+    _io_service.post([
+      client = _client, channel = _metadata_channel, packet = std::move(packet)
+    ]() mutable { client->publish(channel, std::move(packet), nullptr); });
   }
 
   void operator()(const encoded_frame &f) {
     std::vector<network_frame> network_frames = f.to_network();
 
     for (const network_frame &nf : network_frames) {
-      cbor_item_t *packet = nf.to_cbor();
-      CHECK_EQ(cbor_refcount(packet), 0);
+      nlohmann::json packet = nf.to_json();
+
       _io_service.post([
-        client = _client, channel = _frames_channel, packet,
+        client = _client, channel = _frames_channel, packet = std::move(packet),
         creation_time = f.creation_time
-      ]() {
+      ]() mutable {
         const auto before_publish = std::chrono::system_clock::now();
         frame_publish_delay_milliseconds.Observe(
             std::chrono::duration_cast<std::chrono::milliseconds>(before_publish
                                                                   - creation_time)
                 .count());
-        client->publish(channel, packet, nullptr);
+        client->publish(channel, std::move(packet), nullptr);
       });
     }
 

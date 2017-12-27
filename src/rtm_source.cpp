@@ -10,13 +10,13 @@ streams::publisher<network_packet> rtm_source(
   metadata_options.history.count = 1;
 
   streams::publisher<network_packet> metadata =
-      rtm::cbor_channel(client, channel_name + metadata_channel_suffix, metadata_options)
+      rtm::channel(client, channel_name + metadata_channel_suffix, metadata_options)
       >> streams::map([](rtm::channel_data &&data) {
           return network_packet{parse_network_metadata(data.payload)};
         });
 
   streams::publisher<network_packet> frames =
-      rtm::cbor_channel(client, channel_name, {})
+      rtm::channel(client, channel_name, {})
       >> streams::map([](rtm::channel_data &&data) {
           network_frame f = parse_network_frame(data.payload);
           f.arrival_time = data.arrival_time;

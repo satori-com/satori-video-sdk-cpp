@@ -2,7 +2,7 @@
 #include <gsl/gsl>
 
 #include "base64.h"
-#include "cbor_tools.h"
+#include "cbor_json.h"
 #include "data.h"
 #include "logging.h"
 
@@ -11,7 +11,7 @@ namespace video {
 
 namespace {
 
-double time_point_to_cbor(std::chrono::system_clock::time_point p) {
+double time_point_to_value(std::chrono::system_clock::time_point p) {
   auto duration = p.time_since_epoch();
   auto seconds_duration =
       std::chrono::duration_cast<std::chrono::duration<double>>(duration);
@@ -19,67 +19,46 @@ double time_point_to_cbor(std::chrono::system_clock::time_point p) {
   return timestamp;
 }
 
-std::chrono::system_clock::time_point cbor_to_time_point(const cbor_item_t *item) {
-  CHECK_NOTNULL(item);
-  std::chrono::duration<double> double_duration(cbor::get_double(item));
+std::chrono::system_clock::time_point json_to_time_point(const nlohmann::json &item) {
+  std::chrono::duration<double> double_duration(item.get<double>());
   auto duration =
       std::chrono::duration_cast<std::chrono::system_clock::duration>(double_duration);
   return std::chrono::system_clock::time_point{duration};
 }
 
 }  // namespace
-cbor_item_t *network_frame::to_cbor() const {
-  cbor_item_t *root = cbor_new_indefinite_map();
 
-  cbor_map_add(root, {cbor_move(cbor_build_string("d")),
-                      cbor_move(cbor_build_string(base64_data.c_str()))});
-
-  cbor_item_t *ids = cbor_new_definite_array(2);
-  cbor_array_set(ids, 0, cbor_move(cbor_build_uint64(id.i1)));
-  cbor_array_set(ids, 1, cbor_move(cbor_build_uint64(id.i2)));
-  cbor_map_add(root, {cbor_move(cbor_build_string("i")), cbor_move(ids)});
-
-  double timestamp = time_point_to_cbor(t);
-  double departure_timestamp = time_point_to_cbor(std::chrono::system_clock::now());
-
-  cbor_map_add(
-      root, {cbor_move(cbor_build_string("t")), cbor_move(cbor_build_float8(timestamp))});
-
-  cbor_map_add(root, {cbor_move(cbor_build_string("dt")),
-                      cbor_move(cbor_build_float8(departure_timestamp))});
-
-  cbor_map_add(root,
-               {cbor_move(cbor_build_string("c")), cbor_move(cbor_build_uint8(chunk))});
-
-  cbor_map_add(root,
-               {cbor_move(cbor_build_string("l")), cbor_move(cbor_build_uint8(chunks))});
+nlohmann::json network_frame::to_json() const {
+  nlohmann::json result = nlohmann::json::object();
+  result["d"] = base64_data;
+  result["i"] = {id.i1, id.i2};
+  result["t"] = time_point_to_value(t);
+  result["dt"] = time_point_to_value(std::chrono::system_clock::now());
+  result["c"] = chunk;
+  result["l"] = chunks;
 
   if (key_frame) {
-    cbor_map_add(
-        root, {cbor_move(cbor_build_string("k")), cbor_move(cbor_build_bool(key_frame))});
+    result["k"] = key_frame;
   }
 
-  return cbor_move(root);
+  return result;
 }
 
-cbor_item_t *network_metadata::to_cbor() const {
-  cbor_item_t *root = cbor_new_indefinite_map();
-
-  cbor_map_add(root, {cbor_move(cbor_build_string("codecName")),
-                      cbor_move(cbor_build_string(codec_name.c_str()))});
-
-  cbor_map_add(root, {cbor_move(cbor_build_string("codecData")),
-                      cbor_move(cbor_build_string(base64_data.c_str()))});
+nlohmann::json network_metadata::to_json() const {
+  nlohmann::json result = nlohmann::json::object();
+  result["codecName"] = codec_name;
+  result["codecData"] = base64_data;
 
   if (additional_data != nullptr) {
-    CHECK(cbor_isa_map(additional_data));
-    for (size_t i = 0; i < cbor_map_size(additional_data); i++) {
-      cbor_map_add(root, {cbor_incref(cbor_map_handle(additional_data)[i].key),
-                          cbor_incref(cbor_map_handle(additional_data)[i].value)});
+    CHECK(cbor_isa_map(additional_data)) << "not an object: " << additional_data;
+
+    nlohmann::json json_data = cbor_to_json(additional_data);
+    for (nlohmann::json::iterator it = json_data.begin(); it != json_data.end(); ++it) {
+      result[it.key()] = it.value();
     }
   }
 
-  return cbor_move(root);
+  return result;
 }
 
 network_metadata encoded_metadata::to_network() const {
@@ -117,64 +96,68 @@ std::vector<network_frame> encoded_frame::to_network() const {
   return frames;
 }
 
-network_metadata parse_network_metadata(cbor_item_t *item) {
-  cbor_incref(item);
-  auto decref = gsl::finally([&item]() { cbor_decref(&item); });
-  auto msg = cbor::map(item);
-
-  const std::string name = msg.get_str("codecName");
-  const std::string base64_data = msg.get_str("codecData");
+network_metadata parse_network_metadata(const nlohmann::json &item) {
+  CHECK(item.find("codecName") != item.end()) << "bad item: " << item;
+  CHECK(item.find("codecData") != item.end()) << "bad item: " << item;
+  auto &name = item["codecName"];
+  auto &base64_data = item["codecData"];
+  CHECK(name.is_string()) << "bad item: " << item;
+  CHECK(base64_data.is_string()) << "bad item: " << item;
 
   return network_metadata{name, base64_data};
 }
 
-network_frame parse_network_frame(cbor_item_t *item) {
-  cbor_incref(item);
-  auto decref = gsl::finally([&item]() { cbor_decref(&item); });
-  auto msg = cbor::map(item);
-
-  auto id = msg.get("i");
-  int64_t i1 = cbor::get_int64(cbor_array_handle(id)[0]);
-  int64_t i2 = cbor::get_int64(cbor_array_handle(id)[1]);
+network_frame parse_network_frame(const nlohmann::json &item) {
+  CHECK(item.find("i") != item.end()) << "bad item: " << item;
+  auto &id = item["i"];
+  CHECK(id.is_array()) << "bad item: " << item;
+  int64_t i1 = id[0];
+  int64_t i2 = id[1];
 
   std::chrono::system_clock::time_point timestamp;
-  const cbor_item_t *t = msg.get("t");
-  if (t != nullptr) {
-    timestamp = cbor_to_time_point(t);
+  if (item.find("t") != item.end()) {
+    auto &t = item["t"];
+    CHECK(t.is_number()) << "bad item: " << item;
+    timestamp = json_to_time_point(t);
   } else {
     LOG(WARNING) << "network frame packet doesn't have timestamp";
     timestamp = std::chrono::system_clock::now();
   }
 
   std::chrono::system_clock::time_point departure_time;
-  const cbor_item_t *dt = msg.get("dt");
-  if (dt != nullptr) {
-    departure_time = cbor_to_time_point(dt);
+  if (item.find("dt") != item.end()) {
+    auto &dt = item["dt"];
+    CHECK(dt.is_number()) << "bad item: " << item;
+    departure_time = json_to_time_point(dt);
   } else {
     LOG(WARNING) << "network frame packet doesn't have departure time";
     departure_time = std::chrono::system_clock::now();
   }
 
   uint32_t chunk = 1, chunks = 1;
-  const cbor_item_t *c = msg.get("c");
-  if (c != nullptr) {
-    const cbor_item_t *l = msg.get("l");
-    CHECK(!cbor_isa_negint(c));
-    CHECK(!cbor_isa_negint(l));
-    CHECK_LE(cbor_int_get_width(c), CBOR_INT_32);
-    CHECK_LE(cbor_int_get_width(l), CBOR_INT_32);
-    chunk = static_cast<uint32_t>(cbor_get_int(c));
-    chunks = static_cast<uint32_t>(cbor_get_int(l));
+  if (item.find("c") != item.end()) {
+    CHECK(item.find("l") != item.end());
+    auto &c = item["c"];
+    auto &l = item["l"];
+    CHECK(c.is_number_unsigned()) << "bad item: " << item;
+    CHECK(l.is_number_unsigned()) << "bad item: " << item;
+    chunk = c;
+    chunks = l;
   }
 
-  const cbor_item_t *k = msg.get("k");
   bool key_frame = false;
-  if (k != nullptr) {
-    key_frame = cbor_is_bool(k) && cbor_ctrl_is_bool(k);
+  if (item.find("k") != item.end()) {
+    auto &k = item["k"];
+    CHECK(k.is_boolean()) << "bad item: " << item;
+    key_frame = k;
   }
+
+  CHECK(item.find("d") != item.end()) << "bad item: " << item;
+  auto &d = item["d"];
+  CHECK(d.is_string()) << "bad item: " << item;
 
   network_frame frame;
-  frame.base64_data = msg.get_str("d");
+  frame.base64_data = d;
   frame.id = {i1, i2};
   frame.t = timestamp;
   frame.dt = departure_time;

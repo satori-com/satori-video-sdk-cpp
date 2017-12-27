@@ -4,6 +4,7 @@
 #include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <chrono>
+#include <json.hpp>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -40,7 +41,7 @@ struct network_metadata {
   std::string base64_data;
   cbor_item_t *additional_data{nullptr};
 
-  cbor_item_t *to_cbor() const;
+  nlohmann::json to_json() const;
 };
 
 // network representation of encoded video frame, e.g. binary data
@@ -57,14 +58,14 @@ struct network_frame {
   // time when frame came from source (for example, network, encoder or file)
   std::chrono::system_clock::time_point arrival_time;
 
-  cbor_item_t *to_cbor() const;
+  nlohmann::json to_json() const;
 };
 
 // algebraic type to support flow of network data using streams API
 using network_packet = boost::variant<network_metadata, network_frame>;
 
-network_metadata parse_network_metadata(cbor_item_t *item);
-network_frame parse_network_frame(cbor_item_t *item);
+network_metadata parse_network_metadata(const nlohmann::json &item);
+network_frame parse_network_frame(const nlohmann::json &item);
 
 // Used to tell not to downscale original video stream
 constexpr int16_t original_image_width = -1;
