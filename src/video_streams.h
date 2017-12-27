@@ -37,7 +37,9 @@ streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     int bounding_width, int bounding_height, image_pixel_format pixel_format,
     bool keep_proportions);
 
-streams::op<encoded_packet, encoded_packet> report_frame_dynamics();
+streams::op<network_packet, network_packet> report_network_frame_dynamics();
+
+streams::op<encoded_packet, encoded_packet> report_encoded_frame_dynamics();
 
 streams::subscriber<encoded_packet> &rtm_sink(
     const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,

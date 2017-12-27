@@ -127,7 +127,7 @@ class url_source_impl {
         frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
         frame.id = {_packets, _packets};
         frame.timestamp = packet_time;
-        frame.arrival_time = std::chrono::system_clock::now();
+        frame.creation_time = std::chrono::system_clock::now();
         frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
         frames_total.Add({{"url", _url}}).Increment();
         _sink.on_next(frame);

@@ -343,7 +343,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     streams::publisher<network_packet> source =
         satori::video::rtm_source(client, channel);
 
-    return std::move(source) >> satori::video::decode_network_stream()
+    return std::move(source) >> report_network_frame_dynamics() >> decode_network_stream()
            >> streams::threaded_worker("decoder_worker") >> streams::flatten();
   }
 
@@ -358,7 +358,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     } else {
       source = satori::video::network_replay_source(
                    io_service, _vm["input-replay-file"].as<std::string>(), batch)
-               >> satori::video::decode_network_stream();
+               >> report_network_frame_dynamics() >> decode_network_stream();
     }
 
     if (batch) {
@@ -400,7 +400,7 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
   bool keep_proportions = _vm["keep-proportions"].as<bool>();
 
   streams::publisher<owned_image_packet> source =
-      encoded_publisher(io_service, client, channel) >> report_frame_dynamics()
+      encoded_publisher(io_service, client, channel) >> report_encoded_frame_dynamics()
       >> decode_image_frames(resolution->width, resolution->height, pixel_format,
                              keep_proportions);
 

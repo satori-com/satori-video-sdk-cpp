@@ -48,12 +48,13 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
       cbor_item_t *packet = nf.to_cbor();
       CHECK_EQ(cbor_refcount(packet), 0);
       _io_service.post([
-        client = _client, channel = _frames_channel, packet, timestamp = f.arrival_time
+        client = _client, channel = _frames_channel, packet,
+        creation_time = f.creation_time
       ]() {
         const auto before_publish = std::chrono::system_clock::now();
         frame_publish_delay_milliseconds.Observe(
             std::chrono::duration_cast<std::chrono::milliseconds>(before_publish
-                                                                  - timestamp)
+                                                                  - creation_time)
                 .count());
         client->publish(channel, packet, nullptr);
       });

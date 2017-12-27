@@ -116,7 +116,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         _id = nf.id;
         _timestamp = nf.t;
         _departure_time = nf.dt;
-        _arrival_time = nf.arrival_time;
+        _creation_time = nf.arrival_time;
       }
 
       if (nf.chunk == nf.chunks) {
@@ -124,8 +124,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         frame.data = decode64(_aggregated_data);
         frame.id = _id;
         frame.timestamp = _timestamp;
-        frame.departure_time = _departure_time;
-        frame.arrival_time = _arrival_time;
+        frame.creation_time = _creation_time;
         reset();
         frame_chunks.Observe(nf.chunks);
         return streams::publishers::of({encoded_packet{frame}});
@@ -145,7 +144,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     frame_id _id;
     std::chrono::system_clock::time_point _timestamp;
     std::chrono::system_clock::time_point _departure_time;
-    std::chrono::system_clock::time_point _arrival_time;
+    std::chrono::system_clock::time_point _creation_time;
     std::string _aggregated_data;
   };
 
@@ -164,20 +163,18 @@ streams::op<encoded_packet, encoded_packet> repeat_metadata() {
   });
 }
 
-streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
+streams::op<network_packet, network_packet> report_network_frame_dynamics() {
   struct packet_visitor : boost::static_visitor<void> {
    public:
-    void operator()(const encoded_metadata & /*m*/) {}
+    void operator()(const network_metadata & /*m*/) {}
 
-    void operator()(const encoded_frame &f) {
+    void operator()(const network_frame &f) {
       if (_first_frame) {
         _first_frame = false;
       } else {
-        frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
-
-        observe_time_delta(f.timestamp, _last_time, frame_time_delta_millis);
+        observe_time_delta(f.t, _last_time, frame_time_delta_millis);
         const double departure_time_delta = observe_time_delta(
-            f.departure_time, _last_departure_time, frame_departure_time_delta_millis);
+            f.dt, _last_departure_time, frame_departure_time_delta_millis);
         const double arrival_time_delta = observe_time_delta(
             f.arrival_time, _last_arrival_time, frame_arrival_time_delta_millis);
 
@@ -191,15 +188,13 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
         frame_arrival_time_jitter.Observe(_arrival_time_jitter.value());
       }
 
-      _last_id = f.id;
-      _last_time = f.timestamp;
-      _last_departure_time = f.departure_time;
+      _last_time = f.t;
+      _last_departure_time = f.dt;
       _last_arrival_time = f.arrival_time;
     }
 
    private:
     bool _first_frame{true};
-    frame_id _last_id;
     std::chrono::system_clock::time_point _last_time;
     std::chrono::system_clock::time_point _last_departure_time;
     std::chrono::system_clock::time_point _last_arrival_time;
@@ -207,6 +202,36 @@ streams::op<encoded_packet, encoded_packet> report_frame_dynamics() {
     // TODO: prometheus can probably calculate standard deviation on it's own.
     statsutils::std_dev _departure_time_jitter{1000};
     statsutils::std_dev _arrival_time_jitter{1000};
+  };
+
+  return [](streams::publisher<network_packet> &&src) {
+    packet_visitor visitor;
+    return std::move(src)
+           >> streams::map([visitor = std::move(visitor)](network_packet && p) mutable {
+               boost::apply_visitor(visitor, p);
+               return std::move(p);
+             });
+  };
+}
+
+streams::op<encoded_packet, encoded_packet> report_encoded_frame_dynamics() {
+  struct packet_visitor : boost::static_visitor<void> {
+   public:
+    void operator()(const encoded_metadata & /*m*/) {}
+
+    void operator()(const encoded_frame &f) {
+      if (_first_frame) {
+        _first_frame = false;
+      } else {
+        frame_id_deltas.Observe(std::abs(f.id.i1 - _last_id.i1));
+      }
+
+      _last_id = f.id;
+    }
+
+   private:
+    bool _first_frame{true};
+    frame_id _last_id;
   };
 
   return [](streams::publisher<encoded_packet> &&src) {
