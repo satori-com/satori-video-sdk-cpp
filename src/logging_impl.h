@@ -10,7 +10,12 @@
 
 namespace satori {
 namespace video {
+
 inline void init_logging(int& argc, char* argv[]) {
+  static bool initialized = false;
+  CHECK(!initialized);
+  initialized = true;
+
   if (RELEASE_MODE) {
     loguru::g_stderr_verbosity = loguru::Verbosity_INFO;
   } else {
@@ -27,6 +32,17 @@ inline void init_logging(int& argc, char* argv[]) {
                  "terminating, bye...\n"
               << "*** " << library_version();
   });
+
+  static auto old_terminate_handler = std::get_terminate();
+  std::set_terminate([](){
+    auto e = std::current_exception();
+    if (e) {
+      LOG(ERROR) << "unexpected exception";
+    }
+
+    old_terminate_handler();
+  });
 }
+
 }  // namespace video
 }  // namespace satori
