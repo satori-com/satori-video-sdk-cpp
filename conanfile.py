@@ -9,8 +9,7 @@ class SatorivideoConan(ConanFile):
 
     options = {"with_opencv": [True, False], "with_gperftools": [True, False]}
 
-    requires = "Beast/123@satorivideo/master", \
-               "Boost/1.65.1-05@satorivideo/master", \
+    requires = "Boost/1.66.0-02@satorivideo/master", \
                "Ffmpeg/3.4.0@satorivideo/master", \
                "Gsl/20017.07.27@satorivideo/master", \
                "Json/3.0.0@satorivideo/master", \
@@ -21,7 +20,7 @@ class SatorivideoConan(ConanFile):
                "SDL/2.0.5@satorivideo/master"
 
     license = "proprietary"
-    version = '0.13.0'
+    version = '0.13.1'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \

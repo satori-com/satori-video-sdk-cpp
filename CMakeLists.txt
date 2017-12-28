@@ -98,7 +98,6 @@ target_link_libraries(satorivideo
         CONAN_PKG::Gsl
         CONAN_PKG::Json   # part of api interface
     PRIVATE
-        CONAN_PKG::Beast
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Libcbor
