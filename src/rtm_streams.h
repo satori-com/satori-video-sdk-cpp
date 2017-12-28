@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cbor.h>
 #include <boost/asio.hpp>
 #include <json.hpp>
 

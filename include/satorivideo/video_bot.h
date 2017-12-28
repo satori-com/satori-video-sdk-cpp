@@ -13,17 +13,15 @@
 
 #include <cstdint>
 #include <functional>
+#include <json.hpp>
 
 #include "base.h"
 
-// libcbor declarations
-struct cbor_item_t;
-
 // prometheus-cpp declarations
 namespace prometheus {
-class Registry; // NOLINT
-class Histogram; // NOLINT
-class Counter; // NOLINT
+class Registry;   // NOLINT
+class Histogram;  // NOLINT
+class Counter;    // NOLINT
 }  // namespace prometheus
 
 namespace satori {
@@ -86,7 +84,7 @@ using bot_img_callback_t =
 // Recommended format is: {"action": "configure", "body":{<configure_parameters
 // if specified>}}
 using bot_ctrl_callback_t =
-    std::function<cbor_item_t *(bot_context &context, cbor_item_t *message)>;
+    std::function<nlohmann::json(bot_context &context, const nlohmann::json &message)>;
 
 enum class image_pixel_format { RGB0 = 1, BGR = 2 };
 
@@ -108,8 +106,8 @@ EXPORT enum class bot_message_kind { ANALYSIS = 1, DEBUG = 2, CONTROL = 3 };
 // Sends bot implementation output to RTM subchannel.
 // id parameter is used to bind a message to a frame, by default a message is
 // bound to the current frame that is received by the callback function
-EXPORT void bot_message(bot_context &context, bot_message_kind kind, cbor_item_t *message,
-                        const frame_id &id = frame_id{0, 0});
+EXPORT void bot_message(bot_context &context, bot_message_kind kind,
+                        nlohmann::json &&message, const frame_id &id = frame_id{0, 0});
 
 // Registers a bot.
 // Should be called by bot implementation before starting a bot.

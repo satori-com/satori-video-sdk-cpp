@@ -96,12 +96,12 @@ target_link_libraries(satorivideo
     PUBLIC
         dl
         CONAN_PKG::Gsl
-        CONAN_PKG::Libcbor   # part of api interface
+        CONAN_PKG::Json   # part of api interface
     PRIVATE
         CONAN_PKG::Beast
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
-        CONAN_PKG::Json
+        CONAN_PKG::Libcbor
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
@@ -160,7 +160,6 @@ target_link_libraries(satori_video_publisher
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Gsl
-        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
@@ -177,7 +176,6 @@ target_link_libraries(satori_video_recorder
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Gsl
-        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
@@ -194,7 +192,6 @@ target_link_libraries(satori_video_player
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Gsl
-        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         CONAN_PKG::PrometheusCpp
@@ -212,7 +209,6 @@ target_link_libraries(test_configure_bot
         CONAN_PKG::Boost
         CONAN_PKG::Ffmpeg
         CONAN_PKG::Gsl
-        CONAN_PKG::Json
         CONAN_PKG::Loguru
         CONAN_PKG::Openssl
         )
@@ -252,7 +248,7 @@ function(add_video_test TEST_NAME TEST_FILE)
             CONAN_PKG::Boost
             CONAN_PKG::Ffmpeg
             CONAN_PKG::Gsl
-            CONAN_PKG::Json
+            CONAN_PKG::Libcbor
             CONAN_PKG::Loguru
             CONAN_PKG::Openssl
             CONAN_PKG::PrometheusCpp

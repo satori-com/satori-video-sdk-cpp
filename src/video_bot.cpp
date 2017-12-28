@@ -1,15 +1,14 @@
 #include "bot_environment.h"
 #include "bot_instance.h"
-#include "cbor_tools.h"
 #include "metrics.h"
 #include "stopwatch.h"
 
 namespace satori {
 namespace video {
-void bot_message(bot_context& context, const bot_message_kind kind, cbor_item_t* message,
-                 const frame_id& id) {
-  CHECK(cbor_map_is_indefinite(message)) << "Message must be indefinite map";
-  static_cast<bot_instance&>(context).queue_message(kind, message, id);
+void bot_message(bot_context& context, const bot_message_kind kind,
+                 nlohmann::json&& message, const frame_id& id) {
+  CHECK(message.is_object()) << "Message must be an object";
+  static_cast<bot_instance&>(context).queue_message(kind, std::move(message), id);
 }
 
 void multiframe_bot_register(const multiframe_bot_descriptor& bot) {
@@ -46,8 +45,28 @@ using select_function_t =
     std::function<std::vector<image_frame>(const gsl::span<image_frame>& frames)>;
 
 struct drop_strategy {
+  void update(const nlohmann::json& config) {
+    CHECK(config.is_object()) << "config is not an object: " << config;
+    CHECK(config.find("action") != config.end()) << "no action in config: " << config;
+
+    if (config["action"] == "configure") {
+      auto& body = config["body"];
+      const std::string drop_strategy = body.find("frame_drop_strategy") != body.end()
+                                            ? body["frame_drop_strategy"]
+                                            : "as_needed";
+
+      if (drop_strategy != "as_needed" && drop_strategy != "never") {
+        ABORT() << "Unsupported drop strategy: " << config;
+      }
+      if (drop_strategy == "never") {
+        select_function = drop_strategy_never;
+        return;
+      }
+      select_function = drop_strategy_as_needed;
+    }
+  }
+
   select_function_t select_function;
-  void update(cbor_item_t* config);
 };
 
 drop_strategy& get_drop_strategy() {
@@ -55,28 +74,13 @@ drop_strategy& get_drop_strategy() {
   return strategy;
 }
 
-void drop_strategy::update(cbor_item_t* config) {
-  if (cbor::map_has_str_value(config, "action", "configure")) {
-    std::string drop_strategy = cbor::map_get_str(cbor::map_get(config, "body"),
-                                                  "frame_drop_strategy", "as_needed");
-    if (drop_strategy != "as_needed" && drop_strategy != "never") {
-      ABORT() << "Unsupported drop strategy";
-    }
-    if (drop_strategy == "never") {
-      select_function = drop_strategy_never;
-      return;
-    }
-    select_function = drop_strategy_as_needed;
-  }
-}
-
 bot_ctrl_callback_t to_drop_disabling_callback(const bot_ctrl_callback_t& callback) {
-  return [callback](bot_context& context, cbor_item_t* message) {
+  return [callback](bot_context& context, const nlohmann::json& message) {
     get_drop_strategy().update(message);
     if (callback) {
       return callback(context, message);
     }
-    return (cbor_item_t*)nullptr;
+    return nlohmann::json{nullptr};
   };
 }
 

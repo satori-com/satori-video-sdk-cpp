@@ -1,5 +1,4 @@
 #include "bot_instance_builder.h"
-#include <cbor.h>
 
 namespace satori {
 namespace video {

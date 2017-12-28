@@ -1,5 +1,6 @@
 #include "rtm_client.h"
 
+#include <cbor.h>
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>

@@ -3,8 +3,6 @@
 #include <json.hpp>
 #include <random>
 
-#include "cbor_tools.h"
-
 namespace satori {
 namespace video {
 namespace {

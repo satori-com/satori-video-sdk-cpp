@@ -1,6 +1,7 @@
 #include <satorivideo/video_bot.h>
 #include <iostream>
-#include "../../src/cbor_tools.h"
+
+#include <json.hpp>
 
 #define LOGURU_WITH_STREAMS 1
 #include <loguru/loguru.hpp>
@@ -12,10 +13,7 @@ namespace empty_bot {
 void process_image(sv::bot_context &context, const sv::image_frame & /*frame*/) {
   LOG_S(INFO) << "got frame " << context.frame_metadata->width << "x"
               << context.frame_metadata->height;
-  cbor_item_t *msg = cbor_new_indefinite_map();
-  cbor_map_add(
-      msg, {cbor_move(cbor_build_string("msg")), cbor_move(cbor_build_string("hello"))});
-  sv::bot_message(context, sv::bot_message_kind::ANALYSIS, cbor_move(msg));
+  sv::bot_message(context, sv::bot_message_kind::ANALYSIS, {{"msg", "hello"}});
 }
 
 }  // namespace empty_bot

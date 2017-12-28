@@ -2,8 +2,6 @@
 #include <iostream>
 #include <thread>
 
-#include "../../src/cbor_tools.h"
-
 namespace sv = satori::video;
 
 namespace test_bot {
@@ -13,10 +11,11 @@ void process_image(sv::bot_context &context, const sv::image_frame & /*frame*/) 
             << context.frame_metadata->height << "\n";
 }
 
-cbor_item_t *process_command(sv::bot_context & /*context*/, cbor_item_t *config) {
-  if (cbor::map_has_str_value(config, "action", "configure")) {
-    const cbor_item_t *body = cbor::map(config).get_map("body").item;
-    if (cbor_map_size(body) == 0) {
+nlohmann::json process_command(sv::bot_context & /*context*/,
+                               const nlohmann::json &config) {
+  if (config["action"] == "configure") {
+    auto &body = config["body"];
+    if (body.empty()) {
       std::cout << "got no config\n";
     } else {
       std::cout << "processing config " << body << "\n";

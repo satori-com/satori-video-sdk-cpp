@@ -1,10 +1,11 @@
 #pragma once
 
-#include <cbor.h>
-#include <satorivideo/video_bot.h>
 #include <functional>
 #include <iostream>
+#include <json.hpp>
 #include <opencv2/opencv.hpp>
+
+#include "satorivideo/video_bot.h"
 
 namespace satori {
 namespace video {
@@ -24,13 +25,13 @@ cv::Point2d from_fractional(const cv::Point2d &p, const cv::Size &view);
 // Example: it converts from  (0.1, 0.1, 0.1, 0.1) -> (64, 48, 64, 48) for size 640x480
 cv::Rect2d from_fractional(const cv::Rect2d &p, const cv::Size &view);
 
-// CBOR output functions
-cbor_item_t *to_cbor(cv::Point2d p);
-cbor_item_t *to_cbor(cv::Rect2d rect);
+// JSON output functions
+nlohmann::json to_json(cv::Point2d p);
+nlohmann::json to_json(cv::Rect2d rect);
 
-// CBOR input functions
-cv::Point2d point_from_cbor(cbor_item_t *item);
-cv::Rect2d rect_from_cbor(cbor_item_t *item);
+// JSON input functions
+cv::Point2d point_from_json(const nlohmann::json &item);
+cv::Rect2d rect_from_json(const nlohmann::json &item);
 
 // Saves given image as file "logs/frame<number>.jpg", number starts from 1 and
 // increases on every function call.

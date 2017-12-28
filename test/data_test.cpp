@@ -38,9 +38,8 @@ BOOST_AUTO_TEST_CASE(additional_data_test) {
   sv::encoded_metadata em;
   em.codec_name = "dummy-codec";
   em.codec_data = "dummy-codec-data";
-  em.additional_data = cbor_new_indefinite_map();
-  cbor_map_add(em.additional_data,
-               {cbor_move(cbor_build_string("fps")), cbor_move(cbor_build_uint64(25))});
+  em.additional_data = nlohmann::json::object();
+  em.additional_data["fps"] = 25;
 
   const sv::network_metadata& nm = em.to_network();
   nlohmann::json j = nm.to_json();

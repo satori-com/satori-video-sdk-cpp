@@ -9,7 +9,6 @@
 
 #include "bot_instance.h"
 #include "bot_instance_builder.h"
-#include "cbor_json.h"
 #include "cli_streams.h"
 #include "logging_impl.h"
 #include "metrics.h"

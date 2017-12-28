@@ -1,7 +1,6 @@
 // RTM client interface definition.
 #pragma once
 
-#include <cbor.h>
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>

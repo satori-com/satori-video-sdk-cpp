@@ -15,34 +15,31 @@ void log_image(const cv::Mat &image) {
   }
 }
 
-cbor_item_t *to_cbor(cv::Rect2d rect) {
-  cbor_item_t *coordinates = cbor_new_definite_array(4);
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.x)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.y)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.width)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(rect.height)));
-  return coordinates;
+nlohmann::json to_json(cv::Point2d p) { return nlohmann::json::array({p.x, p.y}); }
+
+nlohmann::json to_json(cv::Rect2d rect) {
+  return nlohmann::json::array({rect.x, rect.y, rect.width, rect.height});
 }
 
-cv::Rect2d rect_from_cbor(cbor_item_t *item) {
-  double x1 = cbor_float_get_float(cbor_array_handle(item)[0]);
-  double y1 = cbor_float_get_float(cbor_array_handle(item)[1]);
-  double x2 = cbor_float_get_float(cbor_array_handle(item)[2]);
-  double y2 = cbor_float_get_float(cbor_array_handle(item)[3]);
+cv::Rect2d rect_from_json(const nlohmann::json &item) {
+  CHECK(item.is_array()) << "item is not an array: " << item;
+  CHECK_EQ(4, item.size()) << "should have four elements: " << item;
+
+  const double x1 = item[0];
+  const double y1 = item[1];
+  const double x2 = item[2];
+  const double y2 = item[3];
+
   return cv::Rect2d(x1, y1, x2 - x1, y2 - y1);
 }
 
-cv::Point2d point_from_cbor(cbor_item_t *item) {
-  double x = cbor_float_get_float(cbor_array_handle(item)[0]);
-  double y = cbor_float_get_float(cbor_array_handle(item)[1]);
-  return cv::Point2d(x, y);
-}
+cv::Point2d point_from_json(const nlohmann::json &item) {
+  CHECK(item.is_array()) << "item is not an array: " << item;
+  CHECK_EQ(2, item.size()) << "should have two elements: " << item;
 
-cbor_item_t *to_cbor(cv::Point2d p) {
-  cbor_item_t *coordinates = cbor_new_definite_array(2);
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.x)));
-  cbor_array_push(coordinates, cbor_move(cbor_build_float8(p.y)));
-  return coordinates;
+  const double x = item[0];
+  const double y = item[1];
+  return cv::Point2d(x, y);
 }
 
 cv::Point2d to_fractional(const cv::Point2d &p, const cv::Size &view) {

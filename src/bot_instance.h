@@ -29,7 +29,7 @@ class bot_instance : public bot_context, boost::static_visitor<std::list<bot_out
 
   streams::op<bot_input, bot_output> run_bot();
 
-  void queue_message(bot_message_kind kind, cbor_item_t* message, const frame_id& id);
+  void queue_message(bot_message_kind kind, nlohmann::json&& message, const frame_id& id);
   void set_current_frame_id(const frame_id& id);
 
   std::list<bot_output> operator()(std::queue<owned_image_packet>& pp);

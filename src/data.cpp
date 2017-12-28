@@ -2,7 +2,6 @@
 #include <gsl/gsl>
 
 #include "base64.h"
-#include "cbor_json.h"
 #include "data.h"
 #include "logging.h"
 
@@ -49,11 +48,9 @@ nlohmann::json network_metadata::to_json() const {
   result["codecName"] = codec_name;
   result["codecData"] = base64_data;
 
-  if (additional_data != nullptr) {
-    CHECK(cbor_isa_map(additional_data)) << "not an object: " << additional_data;
-
-    nlohmann::json json_data = cbor_to_json(additional_data);
-    for (nlohmann::json::iterator it = json_data.begin(); it != json_data.end(); ++it) {
+  if (!additional_data.is_null()) {
+    CHECK(additional_data.is_object()) << "not an object: " << additional_data;
+    for (auto it = additional_data.begin(); it != additional_data.end(); ++it) {
       result[it.key()] = it.value();
     }
   }
@@ -68,9 +65,7 @@ network_metadata encoded_metadata::to_network() const {
   if (!codec_data.empty()) {
     nm.base64_data = std::move(satori::video::encode64(codec_data));
   }
-  if (additional_data != nullptr) {
-    nm.additional_data = cbor_incref(additional_data);
-  }
+  nm.additional_data = additional_data;
 
   return nm;
 }

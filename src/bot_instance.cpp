@@ -2,8 +2,6 @@
 
 #include <gsl/gsl>
 
-#include "cbor_json.h"
-#include "cbor_tools.h"
 #include "metrics.h"
 #include "stopwatch.h"
 
@@ -33,19 +31,15 @@ auto& messages_sent =
 auto& messages_received =
     prometheus::BuildCounter().Name("messages_received").Register(metrics_registry());
 
-cbor_item_t* build_configure_command(const nlohmann::json& config) {
-  cbor_item_t* cmd = cbor_new_definite_map(2);
-  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
-                     cbor_move(cbor_build_string("configure"))});
-  cbor_map_add(cmd,
-               {cbor_move(cbor_build_string("body")), cbor_move(json_to_cbor(config))});
+nlohmann::json build_configure_command(const nlohmann::json& config) {
+  nlohmann::json cmd = nlohmann::json::object();
+  cmd["action"] = "configure";
+  cmd["body"] = config;
   return cmd;
 }
 
-cbor_item_t* build_shutdown_command() {
-  cbor_item_t* cmd = cbor_new_definite_map(2);
-  cbor_map_add(cmd, {cbor_move(cbor_build_string("action")),
-                     cbor_move(cbor_build_string("shutdown"))});
+nlohmann::json build_shutdown_command() {
+  nlohmann::json cmd = {{"action", "shutdown"}};
   return cmd;
 }
 
@@ -88,13 +82,11 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
         [this]() {
           LOG(INFO) << "shutting down bot";
           if (_descriptor.ctrl_callback) {
-            cbor_item_t* cmd = build_shutdown_command();
-            CHECK_EQ(1, cbor_refcount(cmd));
-            auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
-            cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
-            if (response != nullptr) {
+            nlohmann::json cmd = build_shutdown_command();
+            nlohmann::json response = _descriptor.ctrl_callback(*this, std::move(cmd));
+            if (!response.is_null()) {
               LOG(INFO) << "got shutdown response: " << response;
-              queue_message(bot_message_kind::DEBUG, response, frame_id{0, 0});
+              queue_message(bot_message_kind::DEBUG, std::move(response), frame_id{0, 0});
             } else {
               LOG(INFO) << "shutdown response is null";
             }
@@ -122,21 +114,17 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
   };
 }
 
-void bot_instance::queue_message(const bot_message_kind kind, cbor_item_t* message,
+void bot_instance::queue_message(const bot_message_kind kind, nlohmann::json&& message,
                                  const frame_id& id) {
-  cbor_incref(message);
-  auto message_decref = gsl::finally([&message]() { cbor_decref(&message); });
-
-  nlohmann::json json_message = cbor_to_json(message);
   frame_id effective_frame_id =
       (id.i1 == 0 && id.i2 == 0 && _current_frame_id.i1 != 0 && _current_frame_id.i2 != 0)
           ? _current_frame_id
           : id;
 
   struct bot_message newmsg {
-    std::move(json_message), kind, effective_frame_id
+    std::move(message), kind, effective_frame_id
   };
-  _message_buffer.push_back(newmsg);
+  _message_buffer.push_back(std::move(newmsg));
 }
 
 void bot_instance::set_current_frame_id(const frame_id& id) { _current_frame_id = id; }
@@ -222,22 +210,16 @@ std::list<bot_output> bot_instance::operator()(nlohmann::json& msg) {
     return std::list<bot_output>{};
   }
 
-  cbor_item_t* control_argument = json_to_cbor(msg);
-  CHECK_EQ(1, cbor_refcount(control_argument));
-  auto control_argument_decref =
-      gsl::finally([&control_argument]() { cbor_decref(&control_argument); });
-  cbor_item_t* response = _descriptor.ctrl_callback(*this, control_argument);
+  nlohmann::json response = _descriptor.ctrl_callback(*this, msg);
 
-  if (response != nullptr) {
-    CHECK(cbor_isa_map(response)) << "bot response is not a map: " << response;
+  if (!response.is_null()) {
+    CHECK(response.is_object()) << "bot response is not an object: " << response;
 
     if (msg.find("request_id") != msg.end()) {
-      const std::string request_id = msg["request_id"];
-      cbor_map_add(response, {cbor_move(cbor_build_string("request_id")),
-                              cbor_move(cbor_build_string(request_id.c_str()))});
+      response["request_id"] = msg["request_id"];
     }
 
-    queue_message(bot_message_kind::CONTROL, response, frame_id{0, 0});
+    queue_message(bot_message_kind::CONTROL, std::move(response), frame_id{0, 0});
   }
 
   prepare_message_buffer_for_downstream();
@@ -281,15 +263,13 @@ void bot_instance::configure(const nlohmann::json& config) {
     ABORT() << "Bot control handler was not provided but config was";
   }
 
-  cbor_item_t* cmd =
+  nlohmann::json cmd =
       build_configure_command(!config.is_null() ? config : nlohmann::json::object());
-  CHECK_EQ(1, cbor_refcount(cmd));
-  auto cbor_deleter = gsl::finally([&cmd]() { cbor_decref(&cmd); });
 
   LOG(INFO) << "configuring bot: " << cmd;
-  cbor_item_t* response = _descriptor.ctrl_callback(*this, cmd);
-  if (response != nullptr) {
-    queue_message(bot_message_kind::DEBUG, response, frame_id{0, 0});
+  nlohmann::json response = _descriptor.ctrl_callback(*this, std::move(cmd));
+  if (!response.is_null()) {
+    queue_message(bot_message_kind::DEBUG, std::move(response), frame_id{0, 0});
   }
 }
 

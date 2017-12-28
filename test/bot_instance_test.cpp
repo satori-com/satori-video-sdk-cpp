@@ -4,41 +4,32 @@
 #include <json.hpp>
 
 #include "bot_instance.h"
-#include "cbor_tools.h"
 #include "streams/streams.h"
 
 namespace sv = satori::video;
 
 namespace {
 
-cbor_item_t *build_pair(const std::string &key, const std::string &value) {
-  cbor_item_t *message = cbor_new_indefinite_map();
-  cbor_map_add(message, {cbor_move(cbor_build_string(key.c_str())),
-                         cbor_move(cbor_build_string(value.c_str()))});
-  return message;
-}
-
 void process_image(sv::bot_context &context, const gsl::span<sv::image_frame> &frame) {
   sv::bot_message(context, sv::bot_message_kind::DEBUG,
-                  cbor_move(build_pair("dummy-debug-key", "dummy-debug-value")),
-                  frame[0].id);
+                  {{"dummy-debug-key", "dummy-debug-value"}}, frame[0].id);
   sv::bot_message(context, sv::bot_message_kind::ANALYSIS,
-                  cbor_move(build_pair("dummy-analysis-key", "dummy-analysis-value")),
-                  frame[0].id);
+                  {{"dummy-analysis-key", "dummy-analysis-value"}}, frame[0].id);
 }
 
-cbor_item_t *process_command(sv::bot_context & /*context*/, cbor_item_t *command) {
-  auto action = cbor::map(command).get_str("action");
+nlohmann::json process_command(sv::bot_context & /*context*/,
+                               const nlohmann::json &command) {
+  auto &action = command["action"];
 
   if (action == "configure") {
-    const std::string p = cbor::map(command).get_map("body").get_str("dummy-key", "");
+    const std::string p = command["body"]["dummy-key"];
     BOOST_CHECK_EQUAL("dummy-value", p);
 
-    return cbor_move(build_pair("dummy-configure-key", "dummy-configure-value"));
+    return {{"dummy-configure-key", "dummy-configure-value"}};
   }
 
   if (action == "shutdown") {
-    return cbor_move(build_pair("dummy-shutdown-key", "dummy-shutdown-value"));
+    return {{"dummy-shutdown-key", "dummy-shutdown-value"}};
   }
 
   return nullptr;
