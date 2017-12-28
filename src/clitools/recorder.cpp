@@ -27,10 +27,10 @@ namespace po = boost::program_options;
 
 cli_streams::cli_options cli_configuration() {
   cli_streams::cli_options result;
-  result.enable_file_input = true;
+  result.enable_file_output = true;
   result.enable_camera_input = true;
   result.enable_url_input = true;
-  result.enable_rtm_output = true;
+  result.enable_rtm_input = true;
   result.enable_generic_output_options = true;
 
   return result;

@@ -70,6 +70,9 @@ po::options_description generic_output_options() {
   options.add_options()("output-resolution",
                         po::value<std::string>()->default_value("320x240"),
                         "(<width>x<height>|original) resolution of output video stream");
+  options.add_options()("keep-proportions", po::value<bool>()->default_value(true),
+                        "(bool) tells if output video stream resolution's proportion "
+                        "should remain unchanged");
 
   return options;
 }
@@ -393,10 +396,14 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
 streams::publisher<owned_image_packet> configuration::decoded_publisher(
     boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
     const std::string &channel, image_pixel_format pixel_format) const {
-  CHECK(_cli_options.enable_generic_input_options);
+  CHECK(_cli_options.enable_generic_input_options
+        || _cli_options.enable_generic_output_options);
 
-  boost::optional<image_size> resolution =
-      avutils::parse_image_size(_vm["input-resolution"].as<std::string>());
+  const std::string resolution_str = _cli_options.enable_generic_input_options
+                                         ? _vm["input-resolution"].as<std::string>()
+                                         : _vm["output-resolution"].as<std::string>();
+  boost::optional<image_size> resolution = avutils::parse_image_size(resolution_str);
+
   bool keep_proportions = _vm["keep-proportions"].as<bool>();
 
   streams::publisher<owned_image_packet> source =
