@@ -5,6 +5,7 @@
 #include "mkv_options.h"
 #include "streams/asio_streams.h"
 #include "streams/threaded_worker.h"
+#include "video_metrics.h"
 #include "video_streams.h"
 #include "vp9_encoder.h"
 
@@ -346,7 +347,7 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
     streams::publisher<network_packet> source =
         satori::video::rtm_source(client, channel);
 
-    return std::move(source) >> report_network_frame_dynamics() >> decode_network_stream()
+    return std::move(source) >> report_video_metrics(channel) >> decode_network_stream()
            >> streams::threaded_worker("decoder_worker") >> streams::flatten();
   }
 
@@ -359,9 +360,9 @@ streams::publisher<encoded_packet> configuration::encoded_publisher(
                                           _vm["input-video-file"].as<std::string>(),
                                           _vm.count("loop") > 0, batch);
     } else {
-      source = satori::video::network_replay_source(
-                   io_service, _vm["input-replay-file"].as<std::string>(), batch)
-               >> report_network_frame_dynamics() >> decode_network_stream();
+      auto replay_file = _vm["input-replay-file"].as<std::string>();
+      source = satori::video::network_replay_source(io_service, replay_file, batch)
+               >> report_video_metrics(replay_file) >> decode_network_stream();
     }
 
     if (batch) {
@@ -407,7 +408,7 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
   bool keep_proportions = _vm["keep-proportions"].as<bool>();
 
   streams::publisher<owned_image_packet> source =
-      encoded_publisher(io_service, client, channel) >> report_encoded_frame_dynamics()
+      encoded_publisher(io_service, client, channel)
       >> decode_image_frames(resolution->width, resolution->height, pixel_format,
                              keep_proportions);
 

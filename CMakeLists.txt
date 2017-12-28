@@ -87,6 +87,7 @@ add_library(satorivideo
     src/version.cpp
     src/video_bot.cpp
     src/video_error.cpp
+    src/video_metrics.cpp
     src/video_streams.cpp
     src/vp9_encoder.cpp
     )
