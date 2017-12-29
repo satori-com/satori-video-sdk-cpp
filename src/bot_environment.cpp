@@ -51,7 +51,7 @@ po::options_description bot_custom_options() {
   po::options_description bot_as_a_service_options("Bot as a service options");
   bot_as_a_service_options.add_options()(
       "pool", po::value<std::string>(),
-      "Start bot as a service for a given poll, "
+      "Start bot as a service for a given pool, "
       "in this case bot advertises its capacity "
       "on RTM channel and listens for VMGR assignations");
 
@@ -154,10 +154,11 @@ bot_configuration::bot_configuration(const nlohmann::json& config)
                         ? config["analysis_file"].get<std::string>()
                         : boost::optional<std::string>{}),
       debug_file(config.find("debug_file") != config.end()
-                        ? config["debug_file"].get<std::string>()
+                     ? config["debug_file"].get<std::string>()
                      : boost::optional<std::string>{}),
       video_cfg(config),
-      bot_config(config["config"]) {}
+      bot_config(config.find("config") != config.end() ? config["config"]
+                                                       : nlohmann::json{nullptr}) {}
 
 int bot_environment::main(int argc, char* argv[]) {
   env_configuration config{argc, argv};
@@ -314,7 +315,8 @@ void bot_environment::start_bot(const bot_configuration& config) {
 
 void bot_environment::add_job(const nlohmann::json& job) {
   CHECK(_job.is_null()) << "Can't subscribe to more than one channel";
-  start_bot(bot_configuration{job});
+  _job = job;
+  start_bot(bot_configuration{_job});
 }
 
 void bot_environment::remove_job(const nlohmann::json& job) {
@@ -324,7 +326,9 @@ void bot_environment::remove_job(const nlohmann::json& job) {
 
 nlohmann::json bot_environment::list_jobs() {
   nlohmann::json jobs = nlohmann::json::array();
-  jobs.emplace_back(_job);
+  if (!_job.is_null()) {
+    jobs.emplace_back(_job);
+  }
   return jobs;
 }
 

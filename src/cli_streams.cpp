@@ -129,8 +129,8 @@ bool validate_rtm_args(const po::variables_map &vm) {
     std::cerr << "Missing --appkey argument\n";
     return false;
   }
-  if (vm.count("channel") == 0) {
-    std::cerr << "Missing --channel argument\n";
+  if (vm.count("channel") == 0 && vm.count("pool") == 0) {
+    std::cerr << "Missing --channel or --pool (when available) argument\n";
     return false;
   }
   if (vm.count("port") == 0) {
