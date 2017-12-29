@@ -61,6 +61,7 @@ class bot_environment : public job_controller,
   void on_error(std::error_condition ec) override;
 
   bool _finished;
+  uint64_t _multiframes_counter{0};
   nlohmann::json _job;
   boost::asio::io_service _io_service;
   multiframe_bot_descriptor _bot_descriptor;

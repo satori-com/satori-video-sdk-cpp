@@ -274,32 +274,32 @@ void bot_environment::start_bot(const bot_configuration& config) {
   }
 
   _finished = false;
-  int frames_count = 0;
+  _multiframes_counter = 0;
 
   _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
-            >> streams::map([&frames_count](std::queue<owned_image_packet>&& pkt) {
-                frames_count++;
+            >> streams::map([& multiframes_counter = _multiframes_counter](
+                   std::queue<owned_image_packet> && pkt) mutable {
+                multiframes_counter++;
                 constexpr int period = 100;
-                if ((frames_count % period) == 0) {
-                  LOG(INFO) << "Processed " << frames_count << " multiframes";
+                if ((multiframes_counter % period) == 0) {
+                  LOG(INFO) << "Processed " << multiframes_counter << " multiframes";
                 }
                 return pkt;
               })
-            >> streams::do_finally(
-                   [ this, &finished = _finished, &io_service = _io_service ]() {
-                     finished = true;
+            >> streams::do_finally([this]() {
+                _finished = true;
 
-                     io_service.post([this]() {
-                       stop_metrics();
-                       if (_rtm_client) {
-                         if (auto ec = _rtm_client->stop()) {
-                           LOG(ERROR) << "error stopping rtm client: " << ec.message();
-                         } else {
-                           LOG(INFO) << "rtm client was stopped";
-                         }
-                       }
-                     });
-                   });
+                _io_service.post([this]() {
+                  stop_metrics();
+                  if (_rtm_client) {
+                    if (auto ec = _rtm_client->stop()) {
+                      LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                    } else {
+                      LOG(INFO) << "rtm client was stopped";
+                    }
+                  }
+                });
+              });
 
   auto bot_input_stream = streams::publishers::merge<bot_input>(
       std::move(_control_source)
