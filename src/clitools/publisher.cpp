@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
   expose_metrics(rtm_client.get());
 
   streams::publisher<satori::video::encoded_packet> source =
-      config.encoded_publisher(io_service, rtm_client, rtm_channel);
+      config.encoded_publisher(io_service, rtm_client);
 
   source = std::move(source) >> streams::do_finally([&io_service, &rtm_client]() {
              io_service.post([&rtm_client]() {

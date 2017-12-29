@@ -210,8 +210,7 @@ int main(int argc, char *argv[]) {
   std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<sdl_surface> source =
-      config.decoded_publisher(io_service, rtm_client, rtm_channel,
-                               image_pixel_format::BGR)
+      config.decoded_publisher(io_service, rtm_client, image_pixel_format::BGR)
       >> streams::threaded_worker("player.image_buffer") >> streams::flatten()
       >> image_to_surface() >> streams::threaded_worker("player.surface_buffer")
       >> streams::flatten() >> streams::do_finally([&io_service, &rtm_client]() {

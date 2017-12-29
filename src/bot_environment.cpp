@@ -7,11 +7,12 @@
 #include <gsl/gsl>
 #include <json.hpp>
 
+#include "avutils.h"
 #include "bot_instance.h"
 #include "bot_instance_builder.h"
-#include "cli_streams.h"
+#include "cbor_json.h"
+#include "cbor_tools.h"
 #include "logging_impl.h"
-#include "metrics.h"
 #include "ostream_sink.h"
 #include "rtm_streams.h"
 #include "signal_utils.h"
@@ -24,7 +25,6 @@ namespace video {
 namespace {
 
 using variables_map = boost::program_options::variables_map;
-namespace po = boost::program_options;
 
 po::options_description bot_custom_options() {
   po::options_description generic("Generic options");
@@ -48,9 +48,17 @@ po::options_description bot_custom_options() {
       "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
 
+  po::options_description bot_as_a_service_options("Bot as a service options");
+  bot_as_a_service_options.add_options()(
+      "pool", po::value<std::string>(),
+      "Start bot as a service for a given poll, "
+      "in this case bot advertises its capacity "
+      "on RTM channel and listens for VMGR assignations");
+
   return bot_configuration_options.add(bot_execution_options)
       .add(metrics_options())
-      .add(generic);
+      .add(generic)
+      .add(bot_as_a_service_options);
 }
 
 cli_streams::cli_options bot_cli_cfg() {
@@ -64,35 +72,33 @@ cli_streams::cli_options bot_cli_cfg() {
   return cli_cfg;
 }
 
-}  // namespace
+nlohmann::json init_config(const po::variables_map& vm) {
+  if (vm.count("config") == 0 && vm.count("config-file") == 0) {
+    return nullptr;
+  }
 
-nlohmann::json read_config_from_file(const std::string& config_file_name) {
-  nlohmann::json config;
+  nlohmann::json json_config;
+  std::string config_string;
+
+  if (vm.count("config-file") > 0) {
+    std::ifstream config_file(vm["config-file"].as<std::string>());
+    config_string = std::string((std::istreambuf_iterator<char>(config_file)),
+                                std::istreambuf_iterator<char>());
+  } else {
+    config_string = vm["config"].as<std::string>();
+  }
 
   try {
-    std::ifstream config_file(config_file_name);
-    config = nlohmann::json::parse(config_file);
+    json_config = nlohmann::json::parse(config_string);
   } catch (const nlohmann::json::parse_error& e) {
-    std::cerr << "Can't parse config file " << config_file_name << ": " << e.what()
+    std::cerr << "Can't parse config: " << e.what() << "\nArg: " << config_string
               << std::endl;
     exit(1);
   }
 
-  return config;
+  return json_config;
 }
-
-nlohmann::json read_config_from_arg(const std::string& arg) {
-  nlohmann::json config;
-
-  try {
-    config = nlohmann::json::parse(arg);
-  } catch (const nlohmann::json::parse_error& e) {
-    std::cerr << "Can't parse config: " << e.what() << "\nArg: " << arg << std::endl;
-    exit(1);
-  }
-
-  return config;
-}
+}  // namespace
 
 bot_environment& bot_environment::instance() {
   static bot_environment env;
@@ -121,82 +127,105 @@ void bot_environment::operator()(struct bot_message& msg) {
   }
 }
 
-struct bot_configuration : cli_streams::configuration {
-  bot_configuration(int argc, char* argv[])
+struct env_configuration : cli_streams::configuration {
+  env_configuration(int argc, char* argv[])
       : configuration(argc, argv, bot_cli_cfg(), bot_custom_options()) {}
-  std::string get_id() const { return _vm["id"].as<std::string>(); }
-  boost::optional<std::string> config() const {
-    return _vm.count("config") > 0 ? _vm["config"].as<std::string>()
-                                   : boost::optional<std::string>{};
+
+  bot_configuration bot_config() const { return bot_configuration{_vm}; }
+  boost::optional<std::string> pool() const {
+    return _vm.count("pool") > 0 ? _vm["pool"].as<std::string>()
+                                 : boost::optional<std::string>{};
   }
-  boost::optional<std::string> config_file() const {
-    return _vm.count("config-file") > 0 ? _vm["config-file"].as<std::string>()
-                                        : boost::optional<std::string>{};
-  }
-  boost::optional<std::string> analysis_file() const {
-    return _vm.count("analysis-file") > 0 ? _vm["analysis-file"].as<std::string>()
-                                          : boost::optional<std::string>{};
-  }
-  boost::optional<std::string> debug_file() const {
-    return _vm.count("debug-file") > 0 ? _vm["debug-file"].as<std::string>()
-                                       : boost::optional<std::string>{};
-  }
+  std::string id() const { return _vm["id"].as<std::string>(); }
 };
 
+bot_configuration::bot_configuration(const po::variables_map& vm)
+    : id(vm["id"].as<std::string>()),
+      analysis_file(vm.count("analysis-file") > 0 ? vm["analysis-file"].as<std::string>()
+                                                  : boost::optional<std::string>{}),
+      debug_file(vm.count("debug-file") > 0 ? vm["debug-file"].as<std::string>()
+                                            : boost::optional<std::string>{}),
+      video_cfg(vm),
+      bot_config(init_config(vm)) {}
+
+bot_configuration::bot_configuration(const nlohmann::json& config)
+    : id(config["id"].get<std::string>()),
+      analysis_file(config.find("analysis_file") != config.end()
+                        ? config["analysis_file"].get<std::string>()
+                        : boost::optional<std::string>{}),
+      debug_file(config.find("debug_file") != config.end()
+                        ? config["debug_file"].get<std::string>()
+                     : boost::optional<std::string>{}),
+      video_cfg(config),
+      bot_config(config["config"]) {}
+
 int bot_environment::main(int argc, char* argv[]) {
-  bot_configuration config{argc, argv};
+  env_configuration config{argc, argv};
   init_logging(argc, argv);
+  init_metrics(config.metrics(), _io_service);
 
-  boost::asio::io_service io_service;
-  init_metrics(config.metrics(), io_service);
-
-  const std::string id = config.get_id();
   const bool batch = config.is_batch_mode();
-
-  nlohmann::json bot_config;
-  if (config.config_file().is_initialized()) {
-    bot_config = read_config_from_file(config.config_file().get());
-  } else if (config.config().is_initialized()) {
-    bot_config = read_config_from_arg(config.config().get());
-  }
-
-  bot_instance_builder bot_builder =
-      bot_instance_builder{_bot_descriptor}
-          .set_execution_mode(batch ? execution_mode::BATCH : execution_mode::LIVE)
-          .set_bot_id(id)
-          .set_config(bot_config);
-
-  _bot_instance = bot_builder.build();
+  const std::string id = config.id();
 
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};
 
   _rtm_client =
-      config.rtm_client(io_service, std::this_thread::get_id(), ssl_context, *this);
+      config.rtm_client(_io_service, std::this_thread::get_id(), ssl_context, *this);
   if (_rtm_client) {
     if (auto ec = _rtm_client->start()) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
-
-    // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
-    // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
-    signal::register_handler(
-        {SIGINT, SIGTERM, SIGQUIT},
-        [&io_service, rtm_client = _rtm_client, id ](int /*signal*/) {
-          nlohmann::json die_note = nlohmann::json::object();
-          die_note["bot_id"] = id;
-          die_note["note"] = "see you in next life";
-
-          io_service.post([ rtm_client, die_note = std::move(die_note) ]() mutable {
-            rtm_client->publish("test", std::move(die_note));
-          });
-        });
   }
   expose_metrics(_rtm_client.get());
 
-  const std::string channel = config.rtm_channel();
+  if (!config.pool()) {
+    start_bot(config.bot_config());
+  } else {
+    std::string pool = config.pool().get();
+    std::string job_type = config.id();
 
-  auto single_frame_source = config.decoded_publisher(io_service, _rtm_client, channel,
-                                                      _bot_descriptor.pixel_format);
+    auto job_controller =
+        new pool_job_controller(_io_service, pool, job_type, 1, _rtm_client, *this);
+
+    // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
+    // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+    signal::register_handler({SIGINT, SIGTERM, SIGQUIT}, [job_controller](int signal) {
+      LOG(INFO) << "Got signal #" << signal;
+      job_controller->shutdown();
+    });
+
+    job_controller->start();
+  }
+
+  if (!batch) {
+    LOG(INFO) << "entering asio loop";
+    auto n = _io_service.run();
+    LOG(INFO) << "asio loop exited, executed " << n << " handlers";
+
+    while (!_finished) {
+      // batch mode has no threads
+      LOG(INFO) << "waiting for all threads to finish...";
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+
+  return 0;
+}
+
+void bot_environment::start_bot(const bot_configuration& config) {
+  const bool batch = config.video_cfg.batch;
+
+  bot_instance_builder builder =
+      bot_instance_builder{_bot_descriptor}
+          .set_execution_mode(batch ? execution_mode::BATCH : execution_mode::LIVE)
+          .set_bot_id(config.id)
+          .set_config(config.bot_config);
+
+  _bot_instance = builder.build();
+  auto single_frame_source = cli_streams::configuration::decoded_publisher(
+      _io_service, _bot_descriptor.pixel_format, config.video_cfg,
+      cli_streams::configuration::encoded_publisher(_io_service, _rtm_client,
+                                                    config.video_cfg));
   if (!batch) {
     _source =
         std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
@@ -209,31 +238,32 @@ int bot_environment::main(int argc, char* argv[]) {
         });
   }
 
-  if (config.analysis_file().is_initialized()) {
-    std::string analysis_file = config.analysis_file().get();
+  if (config.analysis_file) {
+    std::string analysis_file = config.analysis_file.get();
     LOG(INFO) << "saving analysis output to " << analysis_file;
     _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
     _analysis_sink = &streams::ostream_sink(*_analysis_file);
   } else if (_rtm_client) {
-    _analysis_sink =
-        &rtm::sink(_rtm_client, io_service, channel + analysis_channel_suffix);
+    _analysis_sink = &rtm::sink(_rtm_client, _io_service,
+                                config.video_cfg.channel.get() + analysis_channel_suffix);
   } else {
     _analysis_sink = &streams::ostream_sink(std::cout);
   }
 
-  if (config.debug_file().is_initialized()) {
-    std::string debug_file = config.debug_file().get();
+  if (config.debug_file) {
+    std::string debug_file = config.debug_file.get();
     LOG(INFO) << "saving debug output to " << debug_file;
     _debug_file = std::make_unique<std::ofstream>(debug_file.c_str());
     _debug_sink = &streams::ostream_sink(*_debug_file);
   } else if (_rtm_client) {
-    _debug_sink = &rtm::sink(_rtm_client, io_service, channel + debug_channel_suffix);
+    _debug_sink = &rtm::sink(_rtm_client, _io_service,
+                             config.video_cfg.channel.get() + debug_channel_suffix);
   } else {
     _debug_sink = &streams::ostream_sink(std::cerr);
   }
 
   if (_rtm_client) {
-    _control_sink = &rtm::sink(_rtm_client, io_service, control_channel);
+    _control_sink = &rtm::sink(_rtm_client, _io_service, control_channel);
     _control_source =
         rtm::channel(_rtm_client, control_channel, {})
         >> streams::map([](rtm::channel_data&& t) { return std::move(t.payload); });
@@ -242,7 +272,7 @@ int bot_environment::main(int argc, char* argv[]) {
     _control_source = streams::publishers::empty<nlohmann::json>();
   }
 
-  bool finished{false};
+  _finished = false;
   int frames_count = 0;
 
   _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
@@ -254,20 +284,21 @@ int bot_environment::main(int argc, char* argv[]) {
                 }
                 return pkt;
               })
-            >> streams::do_finally([this, &finished, &io_service]() {
-                finished = true;
+            >> streams::do_finally(
+                   [ this, &finished = _finished, &io_service = _io_service ]() {
+                     finished = true;
 
-                io_service.post([this]() {
-                  stop_metrics();
-                  if (_rtm_client) {
-                    if (auto ec = _rtm_client->stop()) {
-                      LOG(ERROR) << "error stopping rtm client: " << ec.message();
-                    } else {
-                      LOG(INFO) << "rtm client was stopped";
-                    }
-                  }
-                });
-              });
+                     io_service.post([this]() {
+                       stop_metrics();
+                       if (_rtm_client) {
+                         if (auto ec = _rtm_client->stop()) {
+                           LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                         } else {
+                           LOG(INFO) << "rtm client was stopped";
+                         }
+                       }
+                     });
+                   });
 
   auto bot_input_stream = streams::publishers::merge<bot_input>(
       std::move(_control_source)
@@ -279,20 +310,22 @@ int bot_environment::main(int argc, char* argv[]) {
   auto bot_output_stream = std::move(bot_input_stream) >> _bot_instance->run_bot();
 
   bot_output_stream->process([this](bot_output&& o) { boost::apply_visitor(*this, o); });
+}
 
-  if (!batch) {
-    LOG(INFO) << "entering asio loop";
-    auto n = io_service.run();
-    LOG(INFO) << "asio loop exited, executed " << n << " handlers";
+void bot_environment::add_job(const nlohmann::json& job) {
+  CHECK(_job.is_null()) << "Can't subscribe to more than one channel";
+  start_bot(bot_configuration{job});
+}
 
-    while (!finished) {
-      // batch mode has no threads
-      LOG(INFO) << "waiting for all threads to finish...";
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-  }
+void bot_environment::remove_job(const nlohmann::json& job) {
+  LOG(ERROR) << "Requested remove for the following job: " << job;
+  ABORT() << "Removing jobs is not supported";
+}
 
-  return 0;
+nlohmann::json bot_environment::list_jobs() {
+  nlohmann::json jobs = nlohmann::json::array();
+  jobs.emplace_back(_job);
+  return jobs;
 }
 
 void bot_environment::on_error(std::error_condition ec) {

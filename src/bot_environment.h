@@ -4,7 +4,10 @@
 #include <list>
 #include <memory>
 
+#include "cli_streams.h"
 #include "data.h"
+#include "metrics.h"
+#include "pool_controller.h"
 #include "rtm_client.h"
 #include "satorivideo/multiframe/bot.h"
 #include "video_streams.h"
@@ -13,6 +16,7 @@ namespace satori {
 namespace video {
 
 struct bot_instance;
+struct bot_instance_builder;
 
 struct bot_message {
   nlohmann::json data;
@@ -20,7 +24,22 @@ struct bot_message {
   frame_id id;
 };
 
-class bot_environment : private rtm::error_callbacks, boost::static_visitor<void> {
+namespace po = boost::program_options;
+
+struct bot_configuration {
+  bot_configuration(const po::variables_map& vm);
+  bot_configuration(const nlohmann::json& config);
+
+  const std::string id;
+  const boost::optional<std::string> analysis_file;
+  const boost::optional<std::string> debug_file;
+  const cli_streams::input_video_config video_cfg;
+  const nlohmann::json bot_config;
+};
+
+class bot_environment : public job_controller,
+                        private rtm::error_callbacks,
+                        boost::static_visitor<void> {
  public:
   static bot_environment& instance();
 
@@ -33,8 +52,17 @@ class bot_environment : private rtm::error_callbacks, boost::static_visitor<void
   void operator()(const owned_image_frame& frame);
   void operator()(struct bot_message& msg);
 
+  void add_job(const nlohmann::json& job) override;
+  void remove_job(const nlohmann::json& job) override;
+  nlohmann::json list_jobs() override;
+
  private:
+  void start_bot(const bot_configuration& config);
   void on_error(std::error_condition ec) override;
+
+  bool _finished;
+  nlohmann::json _job;
+  boost::asio::io_service _io_service;
   multiframe_bot_descriptor _bot_descriptor;
   std::unique_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;

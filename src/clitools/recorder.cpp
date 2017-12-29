@@ -67,8 +67,7 @@ int main(int argc, char* argv[]) {
   std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<satori::video::encoded_packet> source =
-      config.decoded_publisher(io_service, rtm_client, rtm_channel,
-                               image_pixel_format::RGB0)
+      config.decoded_publisher(io_service, rtm_client, image_pixel_format::RGB0)
       >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
       >> streams::threaded_worker("input_buffer") >> streams::flatten()
       >> satori::video::encode_vp9(25) >> streams::threaded_worker("vp9_encoded_buffer")

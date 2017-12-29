@@ -6,6 +6,7 @@
 
 #include "bot_environment.h"
 #include "data.h"
+#include "satorivideo/multiframe/bot.h"
 #include "satorivideo/video_bot.h"
 #include "streams/streams.h"
 #include "variant_utils.h"
