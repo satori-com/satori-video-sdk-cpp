@@ -7,7 +7,7 @@ namespace satori {
 namespace video {
 void bot_message(bot_context& context, const bot_message_kind kind,
                  nlohmann::json&& message, const frame_id& id) {
-  CHECK(message.is_object()) << "Message must be an object";
+  CHECK(message.is_object()) << "Message must be an object: " << message;
   static_cast<bot_instance&>(context).queue_message(kind, std::move(message), id);
 }
 
@@ -80,7 +80,7 @@ bot_ctrl_callback_t to_drop_disabling_callback(const bot_ctrl_callback_t& callba
     if (callback) {
       return callback(context, message);
     }
-    return nlohmann::json{nullptr};
+    return nlohmann::json(nullptr);
   };
 }
 

@@ -11,8 +11,8 @@ namespace sv = satori::video;
 namespace empty_bot {
 
 void process_image(sv::bot_context &context, const sv::image_frame & /*frame*/) {
-  LOG_S(INFO) << "got frame " << context.frame_metadata->width << "x"
-              << context.frame_metadata->height;
+  std::cout << "got frame " << context.frame_metadata->width << "x"
+            << context.frame_metadata->height << "\n";
   sv::bot_message(context, sv::bot_message_kind::ANALYSIS, {{"msg", "hello"}});
 }
 

@@ -116,6 +116,8 @@ streams::op<bot_input, bot_output> bot_instance::run_bot() {
 
 void bot_instance::queue_message(const bot_message_kind kind, nlohmann::json&& message,
                                  const frame_id& id) {
+  CHECK(message.is_object()) << "message is not an object: " << message;
+
   frame_id effective_frame_id =
       (id.i1 == 0 && id.i2 == 0 && _current_frame_id.i1 != 0 && _current_frame_id.i2 != 0)
           ? _current_frame_id
@@ -243,14 +245,14 @@ void bot_instance::prepare_message_buffer_for_downstream() {
         break;
     }
 
-    nlohmann::json& data = msg.data;
+    CHECK(msg.data.is_object()) << "data is not an object: " << msg.data;
 
     if (msg.id.i1 >= 0) {
-      data["i"] = {msg.id.i1, msg.id.i2};
+      msg.data["i"] = {msg.id.i1, msg.id.i2};
     }
 
     if (!_bot_id.empty()) {
-      data["from"] = _bot_id;
+      msg.data["from"] = _bot_id;
     }
   }
 }

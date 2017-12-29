@@ -360,6 +360,12 @@ ${CMAKE_BINARY_DIR}/test/test_bot \
 | tee /dev/tty \
 | grep 'processing config {\"myparam\":\"myvalue\"}'")
 
+add_test(NAME NoControlCallbackTest COMMAND bash -c "\
+${CMAKE_BINARY_DIR}/test/empty_bot \
+--input-video-file=test_data/test.mp4 \
+| tee /dev/tty \
+| grep 'got frame 320x240'")
+
 # flaky test
 # add_test(NAME FramesLimitTest COMMAND bash -c "${CMAKE_BINARY_DIR}/test/empty_bot --input-video-file=test_data/test.mp4 --frames-limit=5 | tee /dev/tty | grep -o 'got frame 320x240' | wc -l | tee /dev/tty | grep '5'")
 
