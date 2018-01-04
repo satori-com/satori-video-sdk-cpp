@@ -54,7 +54,7 @@ class bot_environment : public job_controller,
 
   void add_job(const nlohmann::json& job) override;
   void remove_job(const nlohmann::json& job) override;
-  nlohmann::json list_jobs() override;
+  nlohmann::json list_jobs() const override;
 
  private:
   void start_bot(const bot_configuration& config);

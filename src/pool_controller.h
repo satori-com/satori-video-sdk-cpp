@@ -12,7 +12,7 @@ struct job_controller {
   virtual ~job_controller() = default;
   virtual void add_job(const nlohmann::json &job) = 0;
   virtual void remove_job(const nlohmann::json &job) = 0;
-  virtual nlohmann::json list_jobs() = 0;
+  virtual nlohmann::json list_jobs() const = 0;
 };
 
 class pool_job_controller : rtm::subscription_callbacks {

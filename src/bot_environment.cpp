@@ -326,7 +326,7 @@ void bot_environment::remove_job(const nlohmann::json& job) {
   ABORT() << "Removing jobs is not supported";
 }
 
-nlohmann::json bot_environment::list_jobs() {
+nlohmann::json bot_environment::list_jobs() const {
   nlohmann::json jobs = nlohmann::json::array();
   if (!_job.is_null()) {
     jobs.emplace_back(_job);
