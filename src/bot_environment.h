@@ -63,6 +63,7 @@ class bot_environment : public job_controller,
   bool _finished;
   uint64_t _multiframes_counter{0};
   nlohmann::json _job;
+  metrics_config _metrics_config;
   boost::asio::io_service _io_service;
   multiframe_bot_descriptor _bot_descriptor;
   std::unique_ptr<bot_instance> _bot_instance;

@@ -163,7 +163,6 @@ bot_configuration::bot_configuration(const nlohmann::json& config)
 int bot_environment::main(int argc, char* argv[]) {
   env_configuration config{argc, argv};
   init_logging(argc, argv);
-  init_metrics(config.metrics(), _io_service);
 
   const bool batch = config.is_batch_mode();
   const std::string id = config.id();
@@ -177,7 +176,7 @@ int bot_environment::main(int argc, char* argv[]) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
   }
-  expose_metrics(_rtm_client.get());
+  _metrics_config = config.metrics();
 
   if (!config.pool()) {
     start_bot(config.bot_config());
@@ -214,8 +213,11 @@ int bot_environment::main(int argc, char* argv[]) {
 }
 
 void bot_environment::start_bot(const bot_configuration& config) {
-  const bool batch = config.video_cfg.batch;
+  _metrics_config.push_job = config.id;
+  init_metrics(_metrics_config, _io_service);
+  expose_metrics(_rtm_client.get());
 
+  const bool batch = config.video_cfg.batch;
   bot_instance_builder builder =
       bot_instance_builder{_bot_descriptor}
           .set_execution_mode(batch ? execution_mode::BATCH : execution_mode::LIVE)

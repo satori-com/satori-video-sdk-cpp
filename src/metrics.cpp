@@ -101,8 +101,8 @@ void report_process_metrics() {
 
 class metrics {
  public:
-  void init(metrics_config&& config, boost::asio::io_service& io_service) {
-    _config = std::move(config);
+  void init(const metrics_config& config, boost::asio::io_service& io_service) {
+    _config = config;
     _io_service = &io_service;
     start_updating_process_metrics();
   }
@@ -240,8 +240,8 @@ metrics_config::metrics_config(const boost::program_options::variables_map& vm)
       push_job(vm["metrics-push-job"].as<std::string>()),
       push_instance(vm["metrics-push-instance"].as<std::string>()) {}
 
-void init_metrics(metrics_config&& config, boost::asio::io_service& io_service) {
-  global_metrics().init(std::move(config), io_service);
+void init_metrics(const metrics_config& config, boost::asio::io_service& io_service) {
+  global_metrics().init(config, io_service);
 }
 
 void expose_metrics(rtm::publisher* publisher) {

@@ -27,7 +27,7 @@ prometheus::Registry& metrics_registry();
 
 boost::program_options::options_description metrics_options();
 
-void init_metrics(metrics_config&& config, boost::asio::io_service& io_service);
+void init_metrics(const metrics_config& config, boost::asio::io_service& io_service);
 
 void expose_metrics(rtm::publisher* publisher);
 
