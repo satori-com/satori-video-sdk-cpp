@@ -10,6 +10,7 @@
 #include "rtm_client.h"
 #include "streams/signal_breaker.h"
 #include "streams/threaded_worker.h"
+#include "tcmalloc.h"
 #include "video_streams.h"
 #include "vp9_encoder.h"
 
@@ -54,9 +55,9 @@ struct recorder_configuration : cli_streams::configuration {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  recorder_configuration config{argc, argv};
-
+  init_tcmalloc();
   init_logging(argc, argv);
+  recorder_configuration config{argc, argv};
 
   boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};

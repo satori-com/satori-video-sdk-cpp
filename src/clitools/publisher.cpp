@@ -6,6 +6,7 @@
 #include "metrics.h"
 #include "rtm_client.h"
 #include "streams/asio_streams.h"
+#include "tcmalloc.h"
 #include "video_streams.h"
 
 using namespace satori::video;
@@ -50,9 +51,9 @@ struct publisher_configuration : cli_streams::configuration {
 
 // TODO: handle SIGINT, SIGKILL, etc
 int main(int argc, char* argv[]) {
-  publisher_configuration config{argc, argv};
-
+  init_tcmalloc();
   init_logging(argc, argv);
+  publisher_configuration config{argc, argv};
 
   boost::asio::io_service io_service;
   boost::asio::ssl::context ssl_context{boost::asio::ssl::context::sslv23};

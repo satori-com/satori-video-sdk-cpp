@@ -17,6 +17,7 @@
 #include "streams/asio_streams.h"
 #include "streams/signal_breaker.h"
 #include "streams/threaded_worker.h"
+#include "tcmalloc.h"
 
 namespace satori {
 namespace video {
@@ -159,8 +160,10 @@ bot_configuration::bot_configuration(const nlohmann::json& config)
                                                        : nlohmann::json{nullptr}) {}
 
 int bot_environment::main(int argc, char* argv[]) {
-  env_configuration config{argc, argv};
+  init_tcmalloc();
   init_logging(argc, argv);
+
+  env_configuration config{argc, argv};
 
   const bool batch = config.is_batch_mode();
   const std::string id = config.id();

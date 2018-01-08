@@ -47,7 +47,7 @@ class SatorivideoConan(ConanFile):
             self.options["Opencv"].shared = False
             self.options["Opencv"].fPIC = True
         if self.options.with_gperftools:
-            self.requires("GPerfTools/2017.10.16@satorivideo/master")
+            self.requires("GPerfTools/2.6.3@satorivideo/master")
             self.options["GPerfTools"].shared = False
             self.options["GPerfTools"].fPIC = True
 

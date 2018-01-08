@@ -82,6 +82,7 @@ add_library(satorivideo
     src/streams/threaded_worker.h
     src/streams/type_traits.h
     src/streams/type_traits.h
+    src/tcmalloc.h
     src/threadutils.cpp
     src/url_source.cpp
     src/version.cpp

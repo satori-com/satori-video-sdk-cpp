@@ -9,6 +9,7 @@
 #include "logging_impl.h"
 #include "streams/streams.h"
 #include "streams/threaded_worker.h"
+#include "tcmalloc.h"
 #include "threadutils.h"
 #include "video_streams.h"
 
@@ -186,9 +187,10 @@ void run_sdl_loop(sdl_renderer &renderer, std::queue<sdl_surface> &surfaces,
 }  // namespace
 
 int main(int argc, char *argv[]) {
+  init_tcmalloc();
+  init_logging(argc, argv);
   player_configuration config{argc, argv};
 
-  init_logging(argc, argv);
 
   sdl_window window;
   sdl_renderer renderer{window};
