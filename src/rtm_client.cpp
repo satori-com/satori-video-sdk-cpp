@@ -301,6 +301,8 @@ class secure_client : public client {
     boost::beast::websocket::response_type ws_upgrade_response;
     _ws.handshake_ex(ws_upgrade_response, _host + ":" + _port, "/v2?appkey=" + _appkey,
                      [this](boost::beast::websocket::request_type &ws_upgrade_request) {
+                       ws_upgrade_request.set(
+                           boost::beast::http::field::sec_websocket_protocol, "cbor");
                        LOG(2) << "websocket upgrade request:\n" << ws_upgrade_request;
                      },
                      ec);
@@ -315,6 +317,7 @@ class secure_client : public client {
     rtm_client_start.Increment();
 
     _ws.control_callback(_control_callback);
+    _ws.binary(true);
 
     arm_ping_timer();
 
@@ -365,15 +368,15 @@ class secure_client : public client {
     body["channel"] = channel;
     body["message"] = message;
 
-    const std::string document_str = document.dump();
+    const std::string buffer = json_to_cbor(document);
 
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
-    rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(document_str.size());
-    rtm_bytes_written.Increment(document_str.size());
+    rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buffer.size());
+    rtm_bytes_written.Increment(buffer.size());
 
     boost::system::error_code ec;
     const auto before_publish = std::chrono::system_clock::now();
-    _ws.write(asio::buffer(document_str), ec);
+    _ws.write(asio::buffer(buffer), ec);
     const auto after_publish = std::chrono::system_clock::now();
     rtm_publish_time_microseconds.Observe(
         std::chrono::duration_cast<std::chrono::microseconds>(after_publish
@@ -406,11 +409,11 @@ class secure_client : public client {
     }
 
     nlohmann::json document = request.to_json();
-    const std::string document_str = document.dump();
+    const std::string buffer = json_to_cbor(document);
 
-    rtm_bytes_written.Increment(document_str.size());
+    rtm_bytes_written.Increment(buffer.size());
     boost::system::error_code ec;
-    _ws.write(asio::buffer(document_str), ec);
+    _ws.write(asio::buffer(buffer), ec);
     if (ec.value() != 0) {
       LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
       rtm_client_error.Add({{"type", "subscribe"}}).Increment();
@@ -441,12 +444,12 @@ class secure_client : public client {
 
       unsubscribe_request request{++_request_id, sub_id};
       nlohmann::json document = request.to_json();
-      const std::string document_str = document.dump();
+      const std::string buffer = json_to_cbor(document);
 
-      rtm_bytes_written.Increment(document_str.size());
+      rtm_bytes_written.Increment(buffer.size());
 
       boost::system::error_code ec;
-      _ws.write(asio::buffer(document_str), ec);
+      _ws.write(asio::buffer(buffer), ec);
       if (ec.value() != 0) {
         LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
         rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
@@ -497,28 +500,22 @@ class secure_client : public client {
           LOG(INFO) << this << " ignoring asio error because in state " << _client_state
                     << ": [" << ec << "] " << ec.message();
         }
-
         return;
       }
 
-      std::string input = boost::lexical_cast<std::string>(buffers(_read_buffer.data()));
-      auto input_size = _read_buffer.size();
-      _read_buffer.consume(input_size);
-      rtm_bytes_read.Increment(input_size);
+      const std::string buffer = boost::beast::buffers_to_string(_read_buffer.data());
+      CHECK_EQ(buffer.size(), _read_buffer.size());
+      _read_buffer.consume(_read_buffer.size());
+      rtm_bytes_read.Increment(_read_buffer.size());
 
-      LOG(9) << this << " async_read input_size = " << input_size;
-      nlohmann::json document;
-      try {
-        document = nlohmann::json::parse(input);
-      } catch (const nlohmann::json::parse_error &e) {
-        LOG(ERROR) << "Parse message error: " << e.what() << ", message: " << input;
-        rtm_client_error.Add({{"type", "parse"}}).Increment();
-        _callbacks.on_error(client_error::INVALID_MESSAGE);
+      streams::error_or<nlohmann::json> document = cbor_to_json(buffer);
+      if (!document.ok()) {
+        LOG(ERROR) << "CBOR message couldn't be processed: " << document.error_message();
         return;
       }
 
       LOG(9) << this << " async_read processing input";
-      process_input(document, input_size, arrival_time);
+      process_input(document.get(), buffer.size(), arrival_time);
 
       LOG(9) << this << " async_read asking for read";
       ask_for_read();
@@ -674,6 +671,8 @@ class secure_client : public client {
     } else if (action == "rtm/subscription/error") {
       LOG(ERROR) << "subscription error: " << pdu;
       _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
+    } else if (action == "/error") {
+      ABORT() << "got unexpected error: " << pdu;
     } else {
       ABORT() << "unsupported action: " << pdu;
     }

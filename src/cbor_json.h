@@ -1,14 +1,16 @@
 #pragma once
 
-#include <cbor.h>
 #include <json.hpp>
+#include <string>
+
+#include "streams/error_or.h"
 
 namespace satori {
 namespace video {
 
-cbor_item_t* json_to_cbor(const nlohmann::json& document);
+std::string json_to_cbor(const nlohmann::json& document);
 
-nlohmann::json cbor_to_json(const cbor_item_t* item);
+streams::error_or<nlohmann::json> cbor_to_json(const std::string& data);
 
 }  // namespace video
 }  // namespace satori

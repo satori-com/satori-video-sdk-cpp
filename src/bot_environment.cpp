@@ -10,8 +10,6 @@
 #include "avutils.h"
 #include "bot_instance.h"
 #include "bot_instance_builder.h"
-#include "cbor_json.h"
-#include "cbor_tools.h"
 #include "logging_impl.h"
 #include "ostream_sink.h"
 #include "rtm_streams.h"

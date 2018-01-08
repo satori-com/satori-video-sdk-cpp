@@ -1,5 +1,6 @@
 #define BOOST_TEST_MODULE JsonToCborTest
 
+#include <cbor.h>
 #include <list>
 
 #include <boost/test/data/test_case.hpp>
@@ -26,18 +27,30 @@ cbor_int_width negative_int_widths[] = {CBOR_INT_8,  CBOR_INT_8,  CBOR_INT_16,
                                         CBOR_INT_16, CBOR_INT_32, CBOR_INT_32,
                                         CBOR_INT_64};
 
+// TODO: remove this function and #include <cbor.h> in next PRs
+cbor_item_t *deserialize_cbor(const std::string &data) {
+  cbor_load_result load_result{0};
+  cbor_item_t *loaded_item =
+      cbor_load(reinterpret_cast<cbor_data>(data.data()), data.size(), &load_result);
+
+  BOOST_CHECK_EQUAL(load_result.error.code, CBOR_ERR_NONE);
+  CHECK_NOTNULL(loaded_item);
+  CHECK_EQ(1, cbor_refcount(loaded_item));
+  return loaded_item;
+}
+
 }  // namespace
 
 BOOST_AUTO_TEST_CASE(null_test) {
   nlohmann::json j = nullptr;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_null(c));
 }
 
 BOOST_AUTO_TEST_CASE(false_test) {
   nlohmann::json j = false;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_bool(c));
   BOOST_CHECK(!cbor_ctrl_is_bool(c));
@@ -45,7 +58,7 @@ BOOST_AUTO_TEST_CASE(false_test) {
 
 BOOST_AUTO_TEST_CASE(true_test) {
   nlohmann::json j = true;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_bool(c));
   BOOST_CHECK(cbor_ctrl_is_bool(c));
@@ -56,7 +69,7 @@ BOOST_DATA_TEST_CASE(positive_integer_test,
                          ^ positive_int_widths,
                      int_value, int_width) {
   nlohmann::json j = int_value;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_int(c));
   BOOST_CHECK_EQUAL(int_width, cbor_int_get_width(c));
@@ -68,7 +81,7 @@ BOOST_DATA_TEST_CASE(negative_integer_test,
                          ^ negative_int_widths,
                      int_value, int_width) {
   nlohmann::json j = int_value;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_int(c));
   BOOST_CHECK_EQUAL(int_width, cbor_int_get_width(c));
@@ -77,7 +90,7 @@ BOOST_DATA_TEST_CASE(negative_integer_test,
 
 BOOST_AUTO_TEST_CASE(positive_float_test) {
   nlohmann::json j = 0.23;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_float(c));
   BOOST_CHECK_CLOSE(0.23, cbor_float_get_float(c), 0.0000001);
@@ -85,7 +98,7 @@ BOOST_AUTO_TEST_CASE(positive_float_test) {
 
 BOOST_AUTO_TEST_CASE(negative_float_test) {
   nlohmann::json j = -0.23;
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_is_float(c));
   BOOST_CHECK_CLOSE(-0.23, cbor_float_get_float(c), 0.0000001);
@@ -93,7 +106,7 @@ BOOST_AUTO_TEST_CASE(negative_float_test) {
 
 BOOST_AUTO_TEST_CASE(string_test) {
   nlohmann::json j = "hello";
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_isa_string(c));
   auto h = cbor_string_handle(c);
@@ -103,7 +116,7 @@ BOOST_AUTO_TEST_CASE(string_test) {
 
 BOOST_AUTO_TEST_CASE(array_test) {
   nlohmann::json j = {6, 7, 8, 9};
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_isa_array(c));
   auto h = cbor_array_handle(c);
@@ -121,7 +134,7 @@ BOOST_AUTO_TEST_CASE(object_test) {
       {"name", "Niels"},   {"nothing", nullptr},
       {"list", {1, 0, 2}}, {"object", {{"currency", "USD"}, {"value", 42.99}}}};
 
-  cbor_item_t *c = sv::json_to_cbor(j);
+  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
   BOOST_CHECK_EQUAL(1, cbor_refcount(c));
   BOOST_CHECK(cbor_isa_map(c));
   auto h = cbor_map_handle(c);

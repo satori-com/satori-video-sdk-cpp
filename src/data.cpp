@@ -134,8 +134,10 @@ network_frame parse_network_frame(const nlohmann::json &item) {
     CHECK(item.find("l") != item.end());
     auto &c = item["c"];
     auto &l = item["l"];
-    CHECK(c.is_number_unsigned()) << "bad item: " << item;
-    CHECK(l.is_number_unsigned()) << "bad item: " << item;
+    // TODO: RTM in JSON mode treats all numbers as double values,
+    // so we can't expect that 'c' and 'l' will be of integer type.
+    CHECK(c.is_number()) << "bad item: " << item;
+    CHECK(l.is_number()) << "bad item: " << item;
     chunk = c;
     chunks = l;
   }
