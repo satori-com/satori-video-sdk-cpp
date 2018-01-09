@@ -32,7 +32,8 @@ enum class client_error : unsigned char {
   SUBSCRIBE_ERROR = 6,
   UNSUBSCRIBE_ERROR = 7,
   ASIO_ERROR = 8,
-  INVALID_MESSAGE = 9
+  INVALID_MESSAGE = 9,
+  PUBLISH_ERROR = 10
 };
 
 std::error_condition make_error_condition(client_error e);

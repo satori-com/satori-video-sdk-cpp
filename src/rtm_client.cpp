@@ -53,6 +53,8 @@ struct client_error_category : std::error_category {
         return "asio error";
       case client_error::INVALID_MESSAGE:
         return "invalid message";
+      case client_error::PUBLISH_ERROR:
+        return "publish error";
     }
   }
 };
@@ -132,6 +134,11 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Register(metrics_registry())
                                        .Add({});
 
+auto &rtm_subscription_error_total = prometheus::BuildCounter()
+                                         .Name("rtm_subscription_error_total")
+                                         .Register(metrics_registry())
+                                         .Add({});
+
 auto &rtm_publish_time_microseconds =
     prometheus::BuildHistogram()
         .Name("rtm_publish_time_microseconds")
@@ -139,6 +146,35 @@ auto &rtm_publish_time_microseconds =
         .Add({}, std::vector<double>{0,    1,    5,     10,    25,    50,    100,
                                      250,  500,  750,   1000,  2000,  3000,  4000,
                                      5000, 7500, 10000, 25000, 50000, 100000});
+
+auto &rtm_publish_ack_time_delta_millis_family =
+    prometheus::BuildHistogram()
+        .Name("rtm_publish_ack_time_delta_millis")
+        .Register(metrics_registry())
+        .Add({},
+             std::vector<double>{0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
+                                 15,  20,  25,  30,  40,  50,  60,  70,  80,  90,  100,
+                                 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000});
+
+auto &rtm_publish_error_total = prometheus::BuildCounter()
+                                    .Name("rtm_publish_error_total")
+                                    .Register(metrics_registry())
+                                    .Add({});
+
+auto &rtm_publish_inflight_total = prometheus::BuildGauge()
+                                       .Name("rtm_publish_inflight_total")
+                                       .Register(metrics_registry())
+                                       .Add({});
+
+auto &rtm_subscribe_error_total = prometheus::BuildCounter()
+                                      .Name("rtm_subscribe_error_total")
+                                      .Register(metrics_registry())
+                                      .Add({});
+
+auto &rtm_unsubscribe_error_total = prometheus::BuildCounter()
+                                        .Name("rtm_unsubscribe_error_total")
+                                        .Register(metrics_registry())
+                                        .Add({});
 
 struct subscribe_request {
   const uint64_t id;
@@ -360,13 +396,16 @@ class secure_client : public client {
     CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
     nlohmann::json document =
-        R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}})"_json;
+        R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}, "id":"<not_set>"})"_json;
 
     CHECK(document.is_object());
 
     auto &body = document["body"];
     body["channel"] = channel;
     body["message"] = message;
+
+    const uint64_t request_id = ++_request_id;
+    document["id"] = request_id;
 
     const std::string buffer = json_to_cbor(document);
 
@@ -378,6 +417,7 @@ class secure_client : public client {
     const auto before_publish = std::chrono::system_clock::now();
     _ws.write(asio::buffer(buffer), ec);
     const auto after_publish = std::chrono::system_clock::now();
+    _publish_times.emplace(request_id, before_publish);
     rtm_publish_time_microseconds.Observe(
         std::chrono::duration_cast<std::chrono::microseconds>(after_publish
                                                               - before_publish)
@@ -567,6 +607,22 @@ class secure_client : public client {
     });
   }
 
+  void process_publish_confirmation(
+      const nlohmann::json &pdu,
+      const std::chrono::system_clock::time_point arrival_time) {
+    CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
+    const uint64_t id = pdu["id"];
+    auto it = _publish_times.find(id);
+    CHECK(it != _publish_times.end()) << "unexpected publish confirmation: " << pdu;
+    const std::chrono::system_clock::time_point publish_time = it->second;
+    _publish_times.erase(it);
+    const double delta = std::abs(
+        std::chrono::duration_cast<std::chrono::milliseconds>(arrival_time - publish_time)
+            .count());
+    rtm_publish_ack_time_delta_millis_family.Observe(delta);
+    rtm_publish_inflight_total.Set(_publish_times.size());
+  }
+
   void process_input(const nlohmann::json &pdu, size_t byte_size,
                      std::chrono::system_clock::time_point arrival_time) {
     CHECK(pdu.is_object()) << "not an object: " << pdu;
@@ -605,6 +661,17 @@ class secure_client : public client {
         channel_data data{std::move(m), arrival_time};
         sub.callbacks.on_data(sub.sub, std::move(data));
       }
+    } else if (action == "rtm/subscription/error") {
+      LOG(ERROR) << "subscription error: " << pdu;
+      rtm_subscription_error_total.Increment();
+      _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
+    } else if (action == "rtm/publish/ok") {
+      process_publish_confirmation(pdu, arrival_time);
+    } else if (action == "rtm/publish/error") {
+      process_publish_confirmation(pdu, arrival_time);
+      LOG(ERROR) << "got publish error: " << pdu;
+      rtm_publish_error_total.Increment();
+      _callbacks.on_error(client_error::PUBLISH_ERROR);
     } else if (action == "rtm/subscribe/ok") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
       const uint64_t id = pdu["id"];
@@ -631,6 +698,7 @@ class secure_client : public client {
           LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
                      << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
+          rtm_subscribe_error_total.Increment();
           _callbacks.on_error(client_error::SUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
@@ -662,15 +730,13 @@ class secure_client : public client {
           LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
                      << " in status " << sub.status << ": " << pdu;
           CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
+          rtm_unsubscribe_error_total.Increment();
           _callbacks.on_error(client_error::UNSUBSCRIBE_ERROR);
           _subscriptions.erase(it);
           return;
         }
       }
       ABORT() << "got unexpected unsubscribe error: " << pdu;
-    } else if (action == "rtm/subscription/error") {
-      LOG(ERROR) << "subscription error: " << pdu;
-      _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
     } else if (action == "/error") {
       ABORT() << "got unexpected error: " << pdu;
     } else {
@@ -692,6 +758,7 @@ class secure_client : public client {
   uint64_t _request_id{0};
   boost::beast::multi_buffer _read_buffer{read_buffer_size};
   std::map<std::string, subscription_impl> _subscriptions;
+  std::map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
   boost::asio::deadline_timer _ping_timer;
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
