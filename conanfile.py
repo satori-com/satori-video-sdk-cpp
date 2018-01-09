@@ -43,7 +43,7 @@ class SatorivideoConan(ConanFile):
 
     def requirements(self):
         if self.options.with_opencv:
-            self.requires("Opencv/3.3.1@satorivideo/master")
+            self.requires("Opencv/3.4.0@satorivideo/master")
             self.options["Opencv"].shared = False
             self.options["Opencv"].fPIC = True
         if self.options.with_gperftools:
