@@ -657,8 +657,9 @@ class secure_client : public client {
       rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
       rtm_messages_in_pdu.Observe(messages.size());
 
-      for (auto &m : messages) {
-        channel_data data{std::move(m), arrival_time};
+      for (const auto &m : messages) {
+        // TODO: eliminate copies of m
+        channel_data data{m, arrival_time};
         sub.callbacks.on_data(sub.sub, std::move(data));
       }
     } else if (action == "rtm/subscription/error") {
