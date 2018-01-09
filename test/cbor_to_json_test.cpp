@@ -2,43 +2,27 @@
 #include <boost/test/floating_point_comparison.hpp>
 #include <boost/test/included/unit_test.hpp>
 
-#include <cbor.h>
-#include <gsl/gsl>
-
 #include "cbor_json.h"
 
 namespace sv = satori::video;
 
-namespace {
-
-// TODO: remove this function and #include <cbor.h> in next PRs
-std::string serialize_cbor(const cbor_item_t *c) {
-  BOOST_CHECK(c);
-  uint8_t *buffer{nullptr};
-  size_t buffer_size_ignore{0};
-  const size_t buffer_length = cbor_serialize_alloc(c, &buffer, &buffer_size_ignore);
-
-  CHECK_NOTNULL(buffer) << "failed to allocate cbor buffer: null";
-  CHECK_GT(buffer_length, 0) << "failed to allocate cbor buffer: " << buffer_length;
-
-  auto free_buffer = gsl::finally([buffer]() { free(buffer); });
-
-  return std::string{buffer, buffer + buffer_length};
-}
-
-}  // namespace
-
 BOOST_AUTO_TEST_CASE(null_test) {
-  cbor_item_t *c = cbor_new_null();
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b11110110 /* Major type 7, value 22 = null */
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_null());
 }
 
 BOOST_AUTO_TEST_CASE(false_test) {
-  cbor_item_t *c = cbor_build_bool(false);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b11110100 /* Major type 7, value 20 = false */
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_boolean());
@@ -46,263 +30,466 @@ BOOST_AUTO_TEST_CASE(false_test) {
 }
 
 BOOST_AUTO_TEST_CASE(true_test) {
-  cbor_item_t *c = cbor_build_bool(true);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b11110101 /* Major type 7, value 21 = true */
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_boolean());
   BOOST_CHECK_EQUAL(true, j.get<bool>());
 }
 
+BOOST_AUTO_TEST_CASE(positive_int_no_additional_data_test) {
+  {
+    const uint8_t data[]{
+        0b00000000 /* Major type 0, value 0 */
+    };
+    sv::streams::error_or<nlohmann::json> result =
+        sv::cbor_to_json(std::string{data, data + sizeof(data)});
+    BOOST_CHECK(result.ok());
+    const nlohmann::json &j = result.get();
+    BOOST_CHECK(j.is_number_unsigned());
+    BOOST_CHECK_EQUAL(0, j.get<uint8_t>());
+  }
+  {
+    const uint8_t data[]{
+        0b00010111 /* Major type 0, value 23 */
+    };
+    sv::streams::error_or<nlohmann::json> result =
+        sv::cbor_to_json(std::string{data, data + sizeof(data)});
+    BOOST_CHECK(result.ok());
+    const nlohmann::json &j = result.get();
+    BOOST_CHECK(j.is_number_unsigned());
+    BOOST_CHECK_EQUAL(23, j.get<uint8_t>());
+  }
+}
+
 BOOST_AUTO_TEST_CASE(positive_int8_test) {
-  cbor_item_t *c = cbor_build_uint8(0);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 24,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_unsigned());
-  BOOST_CHECK_EQUAL(0, j.get<uint8_t>());
+  BOOST_CHECK_EQUAL(24, j.get<uint8_t>());
 }
 
 BOOST_AUTO_TEST_CASE(positive_int16_test) {
-  cbor_item_t *c = cbor_build_uint16((1LL << 8) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b00000001,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_unsigned());
-  BOOST_CHECK_EQUAL((1LL << 8) + 1, j.get<uint16_t>());
+  BOOST_CHECK_EQUAL(1LL << 8, j.get<uint16_t>());
 }
 
 BOOST_AUTO_TEST_CASE(positive_int32_test) {
-  cbor_item_t *c = cbor_build_uint32((1LL << 16) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00011010 /* Major type 0, value 26 = additional data as uint32_t */,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_unsigned());
-  BOOST_CHECK_EQUAL((1LL << 16) + 1, j.get<uint32_t>());
+  BOOST_CHECK_EQUAL(1LL << 24, j.get<uint32_t>());
 }
 
 BOOST_AUTO_TEST_CASE(positive_int64_test) {
-  cbor_item_t *c = cbor_build_uint64((1LL << 32) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00011011 /* Major type 0, value 27 = additional data as uint64_t */,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_unsigned());
-  BOOST_CHECK_EQUAL((1LL << 32) + 1, j.get<uint64_t>());
+  BOOST_CHECK_EQUAL(1LL << 56, j.get<uint64_t>());
+}
+
+BOOST_AUTO_TEST_CASE(negative_int_no_additional_data_test) {
+  {
+    const uint8_t data[]{
+        0b00100000 /* Major type 1, value -1 */
+    };
+    sv::streams::error_or<nlohmann::json> result =
+        sv::cbor_to_json(std::string{data, data + sizeof(data)});
+    BOOST_CHECK(result.ok());
+    const nlohmann::json &j = result.get();
+    BOOST_CHECK(j.is_number_integer());
+    BOOST_CHECK(!j.is_number_unsigned());
+    BOOST_CHECK_EQUAL(-1, j.get<int8_t>());
+  }
+  {
+    const uint8_t data[]{
+        0b00110111 /* Major type 0, value -24 */
+    };
+    sv::streams::error_or<nlohmann::json> result =
+        sv::cbor_to_json(std::string{data, data + sizeof(data)});
+    BOOST_CHECK(result.ok());
+    const nlohmann::json &j = result.get();
+    BOOST_CHECK(j.is_number_integer());
+    BOOST_CHECK(!j.is_number_unsigned());
+    BOOST_CHECK_EQUAL(-24, j.get<int8_t>());
+  }
 }
 
 BOOST_AUTO_TEST_CASE(negative_int8_test) {
-  cbor_item_t *c = cbor_build_negint8(0);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 24,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_integer());
   BOOST_CHECK(!j.is_number_unsigned());
-  BOOST_CHECK_EQUAL(-1, j.get<int8_t>());
+  BOOST_CHECK_EQUAL(-25, j.get<int8_t>());
 }
 
 BOOST_AUTO_TEST_CASE(negative_int16_test) {
-  cbor_item_t *c = cbor_build_negint16((1LL << 8) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b00000001,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_integer());
   BOOST_CHECK(!j.is_number_unsigned());
-  BOOST_CHECK_EQUAL(-(1LL << 8) - 2, j.get<int16_t>());
+  BOOST_CHECK_EQUAL(-(1LL << 8) - 1, j.get<int16_t>());
 }
 
 BOOST_AUTO_TEST_CASE(negative_int32_test) {
-  cbor_item_t *c = cbor_build_negint32((1LL << 16) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00111010 /* Major type 1, value 26 = additional data as uint32_t */,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_integer());
   BOOST_CHECK(!j.is_number_unsigned());
-  BOOST_CHECK_EQUAL(-(1LL << 16) - 2, j.get<int32_t>());
+  BOOST_CHECK_EQUAL(-(1LL << 24) - 1, j.get<int32_t>());
 }
 
 BOOST_AUTO_TEST_CASE(negative_int64_test) {
-  cbor_item_t *c = cbor_build_negint64((1LL << 32) + 1);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b00111011 /* Major type 1, value 27 = additional data as uint64_t */,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_integer());
   BOOST_CHECK(!j.is_number_unsigned());
-  BOOST_CHECK_EQUAL(-(1LL << 32) - 2, j.get<int64_t>());
+  BOOST_CHECK_EQUAL(-(1LL << 56) - 1, j.get<int64_t>());
 }
 
-// TODO: enable this test when <cbor.h> is removed from this file
-// BOOST_AUTO_TEST_CASE(positive_float2_test) {
-//  cbor_item_t *c = cbor_build_float2(0.23f);
-//  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
-//  BOOST_CHECK(result.ok());
-//  const nlohmann::json &j = result.get();
-//  BOOST_CHECK(j.is_number_float());
-//  BOOST_CHECK_CLOSE(0.23, j.get<float>(), 0.00001);
-//}
-
-BOOST_AUTO_TEST_CASE(positive_float4_test) {
-  cbor_item_t *c = cbor_build_float4(0.23f);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+BOOST_AUTO_TEST_CASE(positive_float2_test) {
+  const uint8_t data[]{
+      0b11111001 /* Major type 7, value 25 = half-precision float */, 0b00111100,
+      0b00000001,
+  };  // 1 + 2^−10
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_float());
-  BOOST_CHECK_CLOSE(0.23, j.get<float>(), 0.00001);
+  BOOST_CHECK_CLOSE(1 + std::pow(2, -10), j.get<float>(), 0.000001);
+}
+
+BOOST_AUTO_TEST_CASE(positive_float4_test) {
+  const uint8_t data[]{
+      0b11111010 /* Major type 7, value 26 = single-precision float */,
+      0b00111111,
+      0b10000000,
+      0b00000000,
+      0b00000001,
+  };  // 1 + 2^−23
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_number_float());
+  BOOST_CHECK_CLOSE(1 + std::pow(2, -23), j.get<float>(), 0.000000001);
 }
 
 BOOST_AUTO_TEST_CASE(positive_float8_test) {
-  cbor_item_t *c = cbor_build_float8(0.23);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b11111011 /* Major type 7, value 27 = double-precision float */,
+      0b00111111,
+      0b11110000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+  };  // 1 + 2^−52
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_float());
-  BOOST_CHECK_CLOSE(0.23, j.get<double>(), 0.0000000000001);
+  BOOST_CHECK_CLOSE(1 + std::pow(2, -52), j.get<double>(), 0.0000000000001);
 }
 
-// TODO: enable this test when <cbor.h> is removed from this file
-// BOOST_AUTO_TEST_CASE(negative_float2_test) {
-//  cbor_item_t *c = cbor_build_float2(-0.23f);
-//  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
-//  BOOST_CHECK(result.ok());
-//  const nlohmann::json &j = result.get();
-//  BOOST_CHECK(j.is_number_float());
-//  BOOST_CHECK_CLOSE(-0.23, j.get<float>(), 0.00001);
-//}
-
-BOOST_AUTO_TEST_CASE(negative_float4_test) {
-  cbor_item_t *c = cbor_build_float4(-0.23f);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+BOOST_AUTO_TEST_CASE(negative_float2_test) {
+  const uint8_t data[]{
+      0b11111001 /* Major type 7, value 25 = half-precision float */, 0b10111100,
+      0b00000001,
+  };  // -(1 + 2^−10)
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_float());
-  BOOST_CHECK_CLOSE(-0.23, j.get<float>(), 0.00001);
+  BOOST_CHECK_CLOSE(-1 - std::pow(2, -10), j.get<float>(), 0.000001);
+}
+
+BOOST_AUTO_TEST_CASE(negative_float4_test) {
+  const uint8_t data[]{
+      0b11111010 /* Major type 7, value 26 = single-precision float */,
+      0b10111111,
+      0b10000000,
+      0b00000000,
+      0b00000001,
+  };  // -(1 + 2^−23)
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_number_float());
+  BOOST_CHECK_CLOSE(-1 - std::pow(2, -23), j.get<float>(), 0.000000001);
 }
 
 BOOST_AUTO_TEST_CASE(negative_float8_test) {
-  cbor_item_t *c = cbor_build_float8(-0.23);
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+  const uint8_t data[]{
+      0b11111011 /* Major type 7, value 27 = double-precision float */,
+      0b10111111,
+      0b11110000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+  };  // -(1 + 2^−52)
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_float());
-  BOOST_CHECK_CLOSE(-0.23, j.get<double>(), 0.0000000000001);
+  BOOST_CHECK_CLOSE(-1 - std::pow(2, -52), j.get<double>(), 0.0000000000001);
 }
 
-BOOST_AUTO_TEST_CASE(definite_string_test) {
-  cbor_item_t *c = cbor_build_string("hello");
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+BOOST_AUTO_TEST_CASE(definite_length_string_test) {
+  const uint8_t data[]{
+      0b01100100 /* Major type 3, definite-length string of size 4 */, 'a', 'b', 'c', 'd',
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_string());
-  BOOST_CHECK_EQUAL("hello", j.get<std::string>());
+  BOOST_CHECK_EQUAL("abcd", j.get<std::string>());
 }
 
-BOOST_AUTO_TEST_CASE(indefinite_string_test) {
-  const uint8_t data[] = {0b01111111 /* indefinite-length string */,
-                          0b01100100 /* chunk of size 4 */,
-                          'a',
-                          'b',
-                          'c',
-                          'd',
-                          0b01100101 /* chunk of size 5 */,
-                          'e',
-                          'f',
-                          'g',
-                          'h',
-                          'i',
-                          0b11111111 /* end of string */};
-
-  cbor_load_result load_result;
-  cbor_item_t *c = cbor_load(data, sizeof(data), &load_result);
-  BOOST_CHECK_EQUAL(CBOR_ERR_NONE, load_result.error.code);
-  BOOST_CHECK_EQUAL(sizeof(data), load_result.read);
-  BOOST_CHECK(cbor_string_is_indefinite(c));
-  BOOST_CHECK_EQUAL(0, cbor_string_length(c));
-
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+BOOST_AUTO_TEST_CASE(indefinite_length_string_test) {
+  const uint8_t data[]{
+      0b01111111 /* Major type 3, value 31 = indefinite-length string */,
+      0b01100001 /* chunk of size 1 */,
+      'a',
+      0b01100010 /* chunk of size 2 */,
+      'b',
+      'c',
+      0b11111111 /* end of string */,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_string());
-  BOOST_CHECK_EQUAL("abcdefghi", j.get<std::string>());
+  BOOST_CHECK_EQUAL("abc", j.get<std::string>());
 }
 
-BOOST_AUTO_TEST_CASE(array_test) {
-  cbor_item_t *c = cbor_new_definite_array(3);
-  cbor_array_set(c, 0, cbor_build_string("hi"));
-  cbor_array_set(c, 1, cbor_build_string("there"));
-  cbor_array_set(c, 2, cbor_build_string("bye"));
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(c));
+BOOST_AUTO_TEST_CASE(definite_length_array_test) {
+  const uint8_t data[]{
+      0b10000011 /* Major type 4, value 3 = array with 3 items */,
+      0b01100001 /* string of size 1 */,
+      'a',
+      0b01100001 /* string of size 1 */,
+      'b',
+      0b01100001 /* string of size 1 */,
+      'c',
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_array());
   BOOST_CHECK_EQUAL(3, j.size());
-  BOOST_CHECK_EQUAL("hi", j[0].get<std::string>());
-  BOOST_CHECK_EQUAL("there", j[1].get<std::string>());
-  BOOST_CHECK_EQUAL("bye", j[2].get<std::string>());
+  BOOST_CHECK_EQUAL("a", j[0].get<std::string>());
+  BOOST_CHECK_EQUAL("b", j[1].get<std::string>());
+  BOOST_CHECK_EQUAL("c", j[2].get<std::string>());
 }
 
-BOOST_AUTO_TEST_CASE(map_test) {
-  cbor_item_t *children = cbor_new_indefinite_array();
-  cbor_array_set(children, 0, cbor_build_string("Bill"));
-  cbor_array_set(children, 1, cbor_build_string("Mark"));
+BOOST_AUTO_TEST_CASE(indefinite_length_array_test) {
+  const uint8_t data[]{
+      0b10011111 /* Major type 4, value 31 = indefinite-length array */,
+      0b01100001 /* string of size 1 */,
+      'a',
+      0b01100001 /* string of size 1 */,
+      'b',
+      0b11111111 /* end of array */,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_array());
+  BOOST_CHECK_EQUAL(2, j.size());
+  BOOST_CHECK_EQUAL("a", j[0].get<std::string>());
+  BOOST_CHECK_EQUAL("b", j[1].get<std::string>());
+}
 
-  cbor_item_t *car = cbor_new_indefinite_map();
-  cbor_map_add(car, {cbor_build_string("make"), cbor_build_string("Honda")});
-  cbor_map_add(car, {cbor_build_string("model"), cbor_build_string("Accord")});
-  cbor_map_add(car, {cbor_build_string("year"), cbor_build_uint16(2000)});
-
-  cbor_item_t *person = cbor_new_indefinite_map();
-  cbor_map_add(person, {cbor_build_string("name"), cbor_build_string("Niels")});
-  cbor_map_add(person, {cbor_build_string("age"), cbor_build_uint8(50)});
-  cbor_map_add(person, {cbor_build_string("children"), cbor_move(children)});
-  cbor_map_add(person, {cbor_build_string("car"), cbor_move(car)});
-
-  sv::streams::error_or<nlohmann::json> result = sv::cbor_to_json(serialize_cbor(person));
+BOOST_AUTO_TEST_CASE(definite_length_map_test) {
+  const uint8_t data[]{
+      0b10100100 /* Major type 5, value 4 = map with 4 entries */,
+      0b01100001 /* string of size 1 */,
+      's',
+      0b01100010 /* string of size 2 */,
+      'a',
+      'b',
+      0b01100001 /* string of size 1 */,
+      'i',
+      0b00011000 /* uint8_t is following with value 50 */,
+      50,
+      0b01100001 /* string of size 1 */,
+      'l',
+      0b10000010 /* array with 2 items */,
+      0b00000000 /* 0 */,
+      0b00000001 /* 1 */,
+      0b01100001 /* string of size 1 */,
+      'o',
+      0b10100001 /* map with 1 entry */,
+      0b01100001 /* string of size 1 */,
+      's',
+      0b01100010 /* string of size 2 */,
+      'd',
+      'e',
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_object());
   BOOST_CHECK_EQUAL(4, j.size());
-  BOOST_CHECK_EQUAL("Niels", j["name"]);
-  BOOST_CHECK_EQUAL(50, j["age"]);
-  BOOST_CHECK_EQUAL("Bill", j["children"][0]);
-  BOOST_CHECK_EQUAL("Mark", j["children"][1]);
-  BOOST_CHECK_EQUAL("Honda", j["car"]["make"]);
-  BOOST_CHECK_EQUAL("Accord", j["car"]["model"]);
-  BOOST_CHECK_EQUAL(2000, j["car"]["year"]);
+  BOOST_CHECK_EQUAL("ab", j["s"]);
+  BOOST_CHECK_EQUAL(50, j["i"]);
+  BOOST_CHECK_EQUAL(0, j["l"][0]);
+  BOOST_CHECK_EQUAL(1, j["l"][1]);
+  BOOST_CHECK_EQUAL("de", j["o"]["s"]);
+}
+
+BOOST_AUTO_TEST_CASE(indefinite_length_map_test) {
+  const uint8_t data[]{
+      0b10111111 /* Major type 5, value 31 = indefinite-length map */,
+      0b01100001 /* string of size 1 */,
+      's',
+      0b01100010 /* string of size 2 */,
+      'a',
+      'b',
+      0b01100001 /* string of size 1 */,
+      'i',
+      0b00011000 /* uint8_t is following with value 50 */,
+      50,
+      0b11111111 /* end of map */,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_object());
+  BOOST_CHECK_EQUAL(2, j.size());
+  BOOST_CHECK_EQUAL("ab", j["s"]);
+  BOOST_CHECK_EQUAL(50, j["i"]);
 }
 
 BOOST_AUTO_TEST_CASE(empty_array) {
-  cbor_item_t *detections = cbor_new_indefinite_array();
-  cbor_item_t *analysis_message = cbor_new_indefinite_map();
-  cbor_map_add(analysis_message,
-               {cbor_move(cbor_build_string("detected_objects")), cbor_move(detections)});
-
+  const uint8_t data[]{
+      0b10111111 /* Major type 5, value 31 = indefinite-length map */,
+      0b01100001 /* string of size 1 */,
+      'o',
+      0b10011111 /* Major type 4, value 31 = indefinite-length array */,
+      0b11111111 /* end of array */,
+      0b11111111 /* end of map */,
+  };
   sv::streams::error_or<nlohmann::json> result =
-      sv::cbor_to_json(serialize_cbor(analysis_message));
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
 
-  auto &detected_objects = j["detected_objects"];
+  auto &objects = j["o"];
 
-  BOOST_CHECK(!detected_objects.is_null());
-  BOOST_CHECK(detected_objects.is_array());
-  BOOST_CHECK_EQUAL(0, detected_objects.size());
+  BOOST_CHECK(!objects.is_null());
+  BOOST_CHECK(objects.is_array());
+  BOOST_CHECK_EQUAL(0, objects.size());
 }
 
 BOOST_AUTO_TEST_CASE(empty_map) {
-  cbor_item_t *detection = cbor_new_indefinite_map();
-  cbor_item_t *analysis_message = cbor_new_indefinite_map();
-  cbor_map_add(analysis_message,
-               {cbor_move(cbor_build_string("detection")), cbor_move(detection)});
-
+  const uint8_t data[]{
+      0b10111111 /* Major type 5, value 31 = indefinite-length map */,
+      0b01100001 /* string of size 1 */,
+      'd',
+      0b10111111 /* Major type 5, value 31 = indefinite-length map */,
+      0b11111111 /* end of map */,
+      0b11111111 /* end of map */,
+  };
   sv::streams::error_or<nlohmann::json> result =
-      sv::cbor_to_json(serialize_cbor(analysis_message));
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
   BOOST_CHECK(result.ok());
   const nlohmann::json &j = result.get();
 
-  auto &detected_objects = j["detection"];
+  auto &detection = j["d"];
 
-  BOOST_CHECK(!detected_objects.is_null());
-  BOOST_CHECK(detected_objects.is_object());
-  BOOST_CHECK_EQUAL(0, detected_objects.size());
+  BOOST_CHECK(!detection.is_null());
+  BOOST_CHECK(detection.is_object());
+  BOOST_CHECK_EQUAL(0, detection.size());
 }
 
 BOOST_AUTO_TEST_CASE(bad_cbor) {

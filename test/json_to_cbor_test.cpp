@@ -1,9 +1,5 @@
 #define BOOST_TEST_MODULE JsonToCborTest
 
-#include <cbor.h>
-#include <list>
-
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/floating_point_comparison.hpp>
 #include <boost/test/included/unit_test.hpp>
 
@@ -11,152 +7,294 @@
 
 namespace sv = satori::video;
 
-namespace {
-
-int64_t positive_int_values[] = {
-    0,           (1LL << 8) - 1,  (1LL << 8), (1LL << 16) - 1,
-    (1LL << 16), (1LL << 32) - 1, (1LL << 32)};
-cbor_int_width positive_int_widths[] = {CBOR_INT_8,  CBOR_INT_8,  CBOR_INT_16,
-                                        CBOR_INT_16, CBOR_INT_32, CBOR_INT_32,
-                                        CBOR_INT_64};
-
-int64_t negative_int_values[] = {
-    -1,           -(1LL << 8),     -(1LL << 8) - 1, -(1LL << 16), -(1LL << 16) - 1,
-    -(1LL << 32), -(1LL << 32) - 1};
-cbor_int_width negative_int_widths[] = {CBOR_INT_8,  CBOR_INT_8,  CBOR_INT_16,
-                                        CBOR_INT_16, CBOR_INT_32, CBOR_INT_32,
-                                        CBOR_INT_64};
-
-// TODO: remove this function and #include <cbor.h> in next PRs
-cbor_item_t *deserialize_cbor(const std::string &data) {
-  cbor_load_result load_result{0};
-  cbor_item_t *loaded_item =
-      cbor_load(reinterpret_cast<cbor_data>(data.data()), data.size(), &load_result);
-
-  BOOST_CHECK_EQUAL(load_result.error.code, CBOR_ERR_NONE);
-  CHECK_NOTNULL(loaded_item);
-  CHECK_EQ(1, cbor_refcount(loaded_item));
-  return loaded_item;
-}
-
-}  // namespace
-
 BOOST_AUTO_TEST_CASE(null_test) {
-  nlohmann::json j = nullptr;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_null(c));
+  const uint8_t data[]{
+      0b11110110 /* Major type 7, value 22 = null */
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(nullptr));
 }
 
 BOOST_AUTO_TEST_CASE(false_test) {
-  nlohmann::json j = false;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_bool(c));
-  BOOST_CHECK(!cbor_ctrl_is_bool(c));
+  const uint8_t data[]{
+      0b11110100 /* Major type 7, value 20 = false */
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(false));
 }
 
 BOOST_AUTO_TEST_CASE(true_test) {
-  nlohmann::json j = true;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_bool(c));
-  BOOST_CHECK(cbor_ctrl_is_bool(c));
+  const uint8_t data[]{
+      0b11110101 /* Major type 7, value 21 = true */
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(true));
 }
 
-BOOST_DATA_TEST_CASE(positive_integer_test,
-                     boost::unit_test::data::make(positive_int_values)
-                         ^ positive_int_widths,
-                     int_value, int_width) {
-  nlohmann::json j = int_value;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_int(c));
-  BOOST_CHECK_EQUAL(int_width, cbor_int_get_width(c));
-  BOOST_CHECK_EQUAL(int_value, cbor_get_int(c));
+BOOST_AUTO_TEST_CASE(positive_int_no_additional_data_test) {
+  {
+    const uint8_t data[]{
+        0b00000000 /* Major type 0, value 0 */
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(0));
+  }
+  {
+    const uint8_t data[]{
+        0b00010111 /* Major type 0, value 23 */
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(23));
+  }
 }
 
-BOOST_DATA_TEST_CASE(negative_integer_test,
-                     boost::unit_test::data::make(negative_int_values)
-                         ^ negative_int_widths,
-                     int_value, int_width) {
-  nlohmann::json j = int_value;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_int(c));
-  BOOST_CHECK_EQUAL(int_width, cbor_int_get_width(c));
-  BOOST_CHECK_EQUAL(int_value, -1 - cbor_get_int(c));
+BOOST_AUTO_TEST_CASE(positive_int8_test) {
+  {
+    const uint8_t data[]{
+        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 24,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(24));
+  }
+  {
+    const uint8_t data[]{
+        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor((1LL << 8) - 1));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(positive_int16_test) {
+  {
+    const uint8_t data[]{
+        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b00000001,
+        0b00000000,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(1LL << 8));
+  }
+  {
+    const uint8_t data[]{
+        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b11111111,
+        0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor((1LL << 16) - 1));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(positive_int32_test) {
+  {
+    const uint8_t data[]{
+        0b00011010 /* Major type 0, value 26 = additional data as uint32_t */,
+        0b00000000,
+        0b00000001,
+        0b00000000,
+        0b00000000,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(1LL << 16));
+  }
+  {
+    const uint8_t data[]{
+        0b00011010 /* Major type 0, value 26 = additional data as uint32_t */,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor((1LL << 32) - 1));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(positive_int64_test) {
+  const uint8_t data[]{
+      0b00011011 /* Major type 0, value 27 = additional data as uint64_t */,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(1LL << 32));
+}
+
+BOOST_AUTO_TEST_CASE(negative_int_no_additional_data_test) {
+  {
+    const uint8_t data[]{
+        0b00100000 /* Major type 1, value -1 */
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-1));
+  }
+  {
+    const uint8_t data[]{
+        0b00110111 /* Major type 1, value -24 */
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-24));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(negative_int8_test) {
+  {
+    const uint8_t data[]{
+        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 24,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-25));
+  }
+  {
+    const uint8_t data[]{
+        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 8)));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(negative_int16_test) {
+  {
+    const uint8_t data[]{
+        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b00000001,
+        0b00000000,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 8) - 1));
+  }
+  {
+    const uint8_t data[]{
+        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b11111111,
+        0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 16)));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(negative_int32_test) {
+  {
+    const uint8_t data[]{
+        0b00111010 /* Major type 1, value 26 = additional data as uint32_t */,
+        0b00000000,
+        0b00000001,
+        0b00000000,
+        0b00000000,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 16) - 1));
+  }
+  {
+    const uint8_t data[]{
+        0b00111010 /* Major type 1, value 26 = additional data as uint32_t */,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+        0b11111111,
+    };
+    const std::string expected{data, data + sizeof(data)};
+    BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 32)));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(negative_int64_test) {
+  const uint8_t data[]{
+      0b00111011 /* Major type 1, value 27 = additional data as uint64_t */,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 32) - 1));
 }
 
 BOOST_AUTO_TEST_CASE(positive_float_test) {
-  nlohmann::json j = 0.23;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_float(c));
-  BOOST_CHECK_CLOSE(0.23, cbor_float_get_float(c), 0.0000001);
+  const uint8_t data[]{
+      0b11111011 /* Major type 7, value 27 = double-precision float */,
+      0b00111111,
+      0b11110000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+  };  // 1 + 2^−52
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(1 + std::pow(2, -52)));
 }
 
 BOOST_AUTO_TEST_CASE(negative_float_test) {
-  nlohmann::json j = -0.23;
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_is_float(c));
-  BOOST_CHECK_CLOSE(-0.23, cbor_float_get_float(c), 0.0000001);
+  const uint8_t data[]{
+      0b11111011 /* Major type 7, value 27 = double-precision float */,
+      0b10111111,
+      0b11110000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000000,
+      0b00000001,
+  };  // -(1 + 2^−52)
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-1 - std::pow(2, -52)));
 }
 
 BOOST_AUTO_TEST_CASE(string_test) {
-  nlohmann::json j = "hello";
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_isa_string(c));
-  auto h = cbor_string_handle(c);
-  std::string result{h, h + cbor_string_length(c)};
-  BOOST_CHECK_EQUAL("hello", result);
+  const uint8_t data[]{
+      0b01100100 /* Major type 3, definite-length string of size 4 */, 'a', 'b', 'c', 'd',
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor("abcd"));
 }
 
 BOOST_AUTO_TEST_CASE(array_test) {
-  nlohmann::json j = {6, 7, 8, 9};
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_isa_array(c));
-  auto h = cbor_array_handle(c);
-
-  BOOST_CHECK_EQUAL(4, cbor_array_size(c));
-  BOOST_CHECK_EQUAL(6, cbor_get_int(h[0]));
-  BOOST_CHECK_EQUAL(7, cbor_get_int(h[1]));
-  BOOST_CHECK_EQUAL(8, cbor_get_int(h[2]));
-  BOOST_CHECK_EQUAL(9, cbor_get_int(h[3]));
+  const uint8_t data[]{
+      0b10000011 /* Major type 4, value 3 = array with 3 items */,
+      0b01100001 /* string of size 1 */,
+      'a',
+      0b01100001 /* string of size 1 */,
+      'b',
+      0b01100001 /* string of size 1 */,
+      'c',
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor({"a", "b", "c"}));
 }
 
 BOOST_AUTO_TEST_CASE(object_test) {
-  nlohmann::json j = {
-      {"pi", 3.141},       {"happy", true},
-      {"name", "Niels"},   {"nothing", nullptr},
-      {"list", {1, 0, 2}}, {"object", {{"currency", "USD"}, {"value", 42.99}}}};
-
-  cbor_item_t *c = deserialize_cbor(sv::json_to_cbor(j));
-  BOOST_CHECK_EQUAL(1, cbor_refcount(c));
-  BOOST_CHECK(cbor_isa_map(c));
-  auto h = cbor_map_handle(c);
-  BOOST_CHECK_EQUAL(6, cbor_map_size(c));
-  for (size_t i = 0; i < cbor_map_size(c); i++) {
-    const std::string key{cbor_string_handle(h[i].key),
-                          cbor_string_handle(h[i].key) + cbor_string_length(h[i].key)};
-
-    if (key == "pi") {
-      BOOST_CHECK(cbor_is_float(h[i].value));
-    } else if (key == "happy") {
-      BOOST_CHECK(cbor_is_bool(h[i].value));
-    } else if (key == "name") {
-      BOOST_CHECK(cbor_isa_string(h[i].value));
-    } else if (key == "nothing") {
-      BOOST_CHECK(cbor_is_null(h[i].value));
-    } else if (key == "list") {
-      BOOST_CHECK(cbor_isa_array(h[i].value));
-    } else if (key == "object") {
-      BOOST_CHECK(cbor_isa_map(h[i].value));
-    } else {
-      BOOST_CHECK(false);
-    }
-  }
+  const uint8_t data[]{
+      0b10100100 /* Major type 5, value 4 = map with 4 entries */,
+      0b01100001 /* string of size 1 */,
+      'b',
+      0b11110101 /* Major type 7, value 21 = true */,
+      0b01100001 /* string of size 1 */,
+      'l',
+      0b10000010 /* array with 2 items */,
+      0b00000000 /* 0 */,
+      0b00000001 /* 1 */,
+      0b01100001 /* string of size 1 */,
+      'n',
+      0b11110110 /* Major type 7, value 22 = null */,
+      0b01100001 /* string of size 1 */,
+      's',
+      0b01100010 /* string of size 2 */,
+      'a',
+      'b',
+  };
+  const std::string expected{data, data + sizeof(data)};
+  BOOST_CHECK_EQUAL(
+      expected,
+      sv::json_to_cbor({{"b", true}, {"l", {0, 1}}, {"n", nullptr}, {"s", "ab"}}));
 }
