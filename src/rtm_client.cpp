@@ -354,6 +354,7 @@ class secure_client : public client {
     _ws.control_callback(_control_callback);
     _ws.binary(true);
 
+    _last_ping_time = std::chrono::system_clock::now();
     arm_ping_timer();
 
     _client_state = client_state::RUNNING;
@@ -519,19 +520,14 @@ class secure_client : public client {
                                         unsigned long) {
       const auto arrival_time = std::chrono::system_clock::now();
 
-      LOG(9) << this << " async_read";
-      if (ec == boost::asio::error::operation_aborted) {
-        LOG(9) << this << " async_read operation is aborted/cancelled";
-        CHECK(_client_state == client_state::PENDING_STOPPED);
-        LOG(INFO) << "Got stop request for async_read loop";
-        _client_state = client_state::STOPPED;
-        _subscriptions.clear();
-        return;
-      }
-
-      LOG(9) << this << " async_read ec=" << ec;
+      LOG(2) << this << " async_read ec=" << ec;
       if (ec.value() != 0) {
-        if (_client_state == client_state::RUNNING) {
+        if (ec == boost::asio::error::operation_aborted) {
+          LOG(INFO) << this << " async_read operation is cancelled";
+          CHECK(_client_state == client_state::PENDING_STOPPED);
+          _client_state = client_state::STOPPED;
+          _subscriptions.clear();
+        } else if (_client_state == client_state::RUNNING) {
           rtm_client_error.Add({{"type", "read"}}).Increment();
           LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
           _callbacks.on_error(client_error::ASIO_ERROR);
@@ -566,41 +562,49 @@ class secure_client : public client {
 
     _ping_timer.expires_from_now(ws_ping_interval);
     _ping_timer.async_wait([this](const boost::system::error_code &ec_timer) {
-      rtm_pings_sent_total.Increment();
-      auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
-      rtm_last_ping_time_seconds.Set(
-          std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
-
+      LOG(2) << this << " ping timer ec=" << ec_timer;
       if (ec_timer.value() != 0) {
-        LOG(ERROR) << this << " ping timer error: [" << ec_timer << "] "
-                   << ec_timer.message();
-        rtm_client_error.Add({{"type", "ping_timer"}}).Increment();
+        if (ec_timer == boost::asio::error::operation_aborted) {
+          LOG(INFO) << this << " ping timer is cancelled";
+        } else if (_client_state == client_state::RUNNING) {
+          LOG(ERROR) << this << " ping timer error for ping timer: [" << ec_timer << "] "
+                     << ec_timer.message();
+          rtm_client_error.Add({{"type", "ping_timer"}}).Increment();
+          _callbacks.on_error(client_error::ASIO_ERROR);
+        } else {
+          LOG(INFO) << this << " ignoring asio error for ping timer because in state "
+                    << _client_state << ": [" << ec_timer << "] " << ec_timer.message();
+        }
+        return;
       }
 
       _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec_ping) {
-        LOG(2) << this << " ping_write_handler";
-        if (ec_ping == boost::asio::error::operation_aborted) {
-          LOG(ERROR) << this << " ping operation is aborted/cancelled";
-          // TODO: should we react, or just rely on _ws.async_read()
-          return;
-        }
-
-        LOG(2) << this << " ping_write_handler ec=" << ec_ping;
+        LOG(2) << this << " ping write ec=" << ec_ping;
         if (ec_ping.value() != 0) {
-          if (_client_state == client_state::RUNNING) {
-            LOG(ERROR) << this << " asio error: [" << ec_ping << "] "
+          if (ec_ping == boost::asio::error::operation_aborted) {
+            LOG(INFO) << this << " ping operation is cancelled";
+          } else if (_client_state == client_state::RUNNING) {
+            LOG(ERROR) << this << " asio error for ping operation: [" << ec_ping << "] "
                        << ec_ping.message();
             rtm_client_error.Add({{"type", "ping"}}).Increment();
             _callbacks.on_error(client_error::ASIO_ERROR);
           } else {
-            LOG(INFO) << this << " ignoring asio error because in state " << _client_state
-                      << ": [" << ec_ping << "] " << ec_ping.message();
+            LOG(INFO) << this
+                      << " ignoring asio error for ping operation because in state "
+                      << _client_state << ": [" << ec_ping << "] " << ec_ping.message();
           }
-
           return;
         }
 
-        LOG(2) << this << " requesting another ping";
+        rtm_pings_sent_total.Increment();
+        const auto now = std::chrono::system_clock::now();
+        rtm_last_ping_time_seconds.Set(
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - _last_ping_time)
+                .count()
+            / 1000.0);
+        _last_ping_time = now;
+
+        LOG(2) << this << " scheduling next ping";
         arm_ping_timer();
       });
     });
@@ -760,6 +764,7 @@ class secure_client : public client {
   std::map<std::string, subscription_impl> _subscriptions;
   std::map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
   boost::asio::deadline_timer _ping_timer;
+  std::chrono::system_clock::time_point _last_ping_time;
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
