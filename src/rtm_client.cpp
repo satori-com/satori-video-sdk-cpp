@@ -66,6 +66,7 @@ std::error_condition make_error_condition(client_error e) {
 namespace {
 
 constexpr int read_buffer_size = 100000;
+constexpr bool use_cbor = true;
 
 const boost::posix_time::minutes ws_ping_interval{1};
 
@@ -336,8 +337,10 @@ class secure_client : public client {
     boost::beast::websocket::response_type ws_upgrade_response;
     _ws.handshake_ex(ws_upgrade_response, _host + ":" + _port, "/v2?appkey=" + _appkey,
                      [this](boost::beast::websocket::request_type &ws_upgrade_request) {
-                       ws_upgrade_request.set(
-                           boost::beast::http::field::sec_websocket_protocol, "cbor");
+                       if (use_cbor) {
+                         ws_upgrade_request.set(
+                             boost::beast::http::field::sec_websocket_protocol, "cbor");
+                       }
                        LOG(2) << "websocket upgrade request:\n" << ws_upgrade_request;
                      },
                      ec);
@@ -352,7 +355,9 @@ class secure_client : public client {
     rtm_client_start.Increment();
 
     _ws.control_callback(_control_callback);
-    _ws.binary(true);
+    if (use_cbor) {
+      _ws.binary(true);
+    }
 
     _last_ping_time = std::chrono::system_clock::now();
     arm_ping_timer();
@@ -407,7 +412,7 @@ class secure_client : public client {
     const uint64_t request_id = ++_request_id;
     document["id"] = request_id;
 
-    const std::string buffer = json_to_cbor(document);
+    const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buffer.size());
@@ -449,7 +454,7 @@ class secure_client : public client {
     }
 
     nlohmann::json document = request.to_json();
-    const std::string buffer = json_to_cbor(document);
+    const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
     rtm_bytes_written.Increment(buffer.size());
     boost::system::error_code ec;
@@ -484,7 +489,7 @@ class secure_client : public client {
 
       unsubscribe_request request{++_request_id, sub_id};
       nlohmann::json document = request.to_json();
-      const std::string buffer = json_to_cbor(document);
+      const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
       rtm_bytes_written.Increment(buffer.size());
 
@@ -543,14 +548,27 @@ class secure_client : public client {
       _read_buffer.consume(_read_buffer.size());
       rtm_bytes_read.Increment(_read_buffer.size());
 
-      streams::error_or<nlohmann::json> document = cbor_to_json(buffer);
-      if (!document.ok()) {
-        LOG(ERROR) << "CBOR message couldn't be processed: " << document.error_message();
-        return;
+      nlohmann::json document;
+
+      if (use_cbor) {
+        auto doc_or_error = cbor_to_json(buffer);
+        if (!doc_or_error.ok()) {
+          LOG(ERROR) << "CBOR message couldn't be processed: "
+                     << doc_or_error.error_message();
+          return;
+        }
+        document = doc_or_error.get();
+      } else {
+        try {
+          document = nlohmann::json::parse(buffer);
+        } catch (const std::exception &e) {
+          LOG(ERROR) << "Bad data: " << e.what() << " " << buffer;
+          return;
+        }
       }
 
       LOG(9) << this << " async_read processing input";
-      process_input(document.get(), buffer.size(), arrival_time);
+      process_input(document, buffer.size(), arrival_time);
 
       LOG(9) << this << " async_read asking for read";
       ask_for_read();
