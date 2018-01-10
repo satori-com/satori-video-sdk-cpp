@@ -525,7 +525,7 @@ class secure_client : public client {
                                         unsigned long) {
       const auto arrival_time = std::chrono::system_clock::now();
 
-      LOG(2) << this << " async_read ec=" << ec;
+      LOG(4) << this << " async_read ec=" << ec;
       if (ec.value() != 0) {
         if (ec == boost::asio::error::operation_aborted) {
           LOG(INFO) << this << " async_read operation is cancelled";
