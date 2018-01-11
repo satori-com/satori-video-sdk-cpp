@@ -69,7 +69,7 @@ namespace {
 constexpr int read_buffer_size = 100000;
 constexpr bool use_cbor = true;
 
-const boost::posix_time::minutes ws_ping_interval{1};
+const boost::posix_time::seconds ws_ping_interval{1};
 
 auto &rtm_client_start = prometheus::BuildCounter()
                              .Name("rtm_client_start")
@@ -134,6 +134,15 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Name("rtm_last_ping_time_seconds")
                                        .Register(metrics_registry())
                                        .Add({});
+
+auto &rtm_ping_latency_millis =
+    prometheus::BuildHistogram()
+        .Name("rtm_ping_latency_millis")
+        .Register(metrics_registry())
+        .Add({},
+             std::vector<double>{0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
+                                 15,  20,  25,  30,  40,  50,  60,  70,  80,  90,  100,
+                                 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000});
 
 auto &rtm_pending_requests = prometheus::BuildGauge()
                                  .Name("rtm_pending_requests")
@@ -272,6 +281,7 @@ std::ostream &operator<<(std::ostream &out, client_state const &s) {
 using request_done_cb = std::function<void(boost::system::error_code)>;
 
 struct ping_request {
+  uint64_t id;
   request_done_cb done_cb;
 };
 
@@ -309,8 +319,8 @@ class secure_client : public client, public boost::static_visitor<> {
         _client_id{client_id},
         _callbacks{callbacks},
         _ping_timer{io_service} {
-    _control_callback = [](boost::beast::websocket::frame_type type,
-                           boost::beast::string_view payload) {
+    _control_callback = [this](boost::beast::websocket::frame_type type,
+                               const boost::beast::string_view &payload) {
       switch (type) {
         case boost::beast::websocket::frame_type::close:
           rtm_frames_received_total.Add({{"type", "close"}}).Increment();
@@ -321,11 +331,9 @@ class secure_client : public client, public boost::static_visitor<> {
           LOG(2) << "got ping frame " << payload;
           break;
         case boost::beast::websocket::frame_type::pong:
-          rtm_frames_received_total.Add({{"type", "pong"}}).Increment();
-          auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
-          rtm_last_pong_time_seconds.Set(
-              std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
-          LOG(2) << "got pong frame " << payload;
+          rtm_frames_received_total.Add({{"type", "ping"}}).Increment();
+          LOG(4) << "got pong frame " << payload;
+          on_pong(payload);
           break;
       }
     };
@@ -391,7 +399,6 @@ class secure_client : public client, public boost::static_visitor<> {
       _ws.binary(true);
     }
 
-    _last_ping_time = std::chrono::system_clock::now();
     arm_ping_timer();
 
     _client_state = client_state::RUNNING;
@@ -441,7 +448,7 @@ class secure_client : public client, public boost::static_visitor<> {
     body["channel"] = channel;
     body["message"] = message;
 
-    const uint64_t request_id = ++_request_id;
+    const uint64_t request_id = ++_last_request_id;
     document["id"] = request_id;
 
     std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
@@ -474,16 +481,15 @@ class secure_client : public client, public boost::static_visitor<> {
     }
     CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
-    _subscriptions.emplace(std::make_pair(
-        channel,
-        subscription_impl{channel, sub, callbacks, subscription_status::PENDING_SUBSCRIBE,
-                          ++_request_id}));
-
-    subscribe_request request{_request_id, channel};
+    subscribe_request request{++_last_request_id, channel};
     if (options != nullptr) {
       request.age = options->history.age;
       request.count = options->history.count;
     }
+
+    _subscriptions.emplace(std::make_pair(
+        channel, subscription_impl{channel, sub, callbacks,
+                                   subscription_status::PENDING_SUBSCRIBE, request.id}));
 
     nlohmann::json document = request.to_json();
     std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
@@ -518,13 +524,13 @@ class secure_client : public client, public boost::static_visitor<> {
         continue;
       }
 
-      unsubscribe_request request{++_request_id, sub_id};
+      unsubscribe_request request{++_last_request_id, sub_id};
       nlohmann::json document = request.to_json();
       std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
       rtm_bytes_written.Increment(buffer.size());
 
-      sub.pending_request_id = _request_id;
+      sub.pending_request_id = request.id;
       sub.status = subscription_status::PENDING_UNSUBSCRIBE;
       LOG(1) << "requested unsubscribe: " << document;
 
@@ -550,6 +556,29 @@ class secure_client : public client, public boost::static_visitor<> {
   }
 
  private:
+  void on_pong(const boost::beast::string_view &payload) {
+    const auto now = std::chrono::system_clock::now();
+    rtm_last_pong_time_seconds.Set(
+        std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+
+    uint64_t value;
+    try {
+      value = std::stoull(std::string{payload.data(), payload.size()});
+    } catch (const std::exception &e) {
+      ABORT() << "Invalid pong value: " << e.what() << " " << payload;
+      return;
+    }
+
+    auto it = _ping_times.find(value);
+    CHECK(it != _ping_times.end()) << "Unexpected pong value: " << payload;
+    const std::chrono::system_clock::time_point ping_time = it->second;
+    _ping_times.erase(it);
+
+    const double latency = std::abs(
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - ping_time).count());
+    rtm_ping_latency_millis.Observe(latency);
+  }
+
   void ask_for_read() {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
                                         unsigned long bytes_read) {
@@ -606,11 +635,11 @@ class secure_client : public client, public boost::static_visitor<> {
   }
 
   void arm_ping_timer() {
-    LOG(2) << this << " setting ws ping timer";
+    LOG(4) << this << " setting ws ping timer";
 
     _ping_timer.expires_from_now(ws_ping_interval);
     _ping_timer.async_wait([this](const boost::system::error_code &ec_timer) {
-      LOG(2) << this << " ping timer ec=" << ec_timer;
+      LOG(4) << this << " ping timer ec=" << ec_timer;
       if (ec_timer.value() != 0) {
         if (ec_timer == boost::asio::error::operation_aborted) {
           LOG(INFO) << this << " ping timer is cancelled";
@@ -626,8 +655,10 @@ class secure_client : public client, public boost::static_visitor<> {
         return;
       }
 
-      ping([this](boost::system::error_code const &ec_ping) {
-        LOG(2) << this << " ping write ec=" << ec_ping;
+      const auto request_id = ++_last_request_id;
+      _ping_times.emplace(request_id, std::chrono::system_clock::now());
+      ping(request_id, [this](boost::system::error_code const &ec_ping) {
+        LOG(4) << this << " ping write ec=" << ec_ping;
         if (ec_ping.value() != 0) {
           if (ec_ping == boost::asio::error::operation_aborted) {
             LOG(INFO) << this << " ping operation is cancelled";
@@ -645,14 +676,12 @@ class secure_client : public client, public boost::static_visitor<> {
         }
 
         rtm_pings_sent_total.Increment();
-        const auto now = std::chrono::system_clock::now();
-        rtm_last_ping_time_seconds.Set(
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - _last_ping_time)
-                .count()
-            / 1000.0);
-        _last_ping_time = now;
 
-        LOG(2) << this << " scheduling next ping";
+        auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
+        rtm_last_ping_time_seconds.Set(
+            std::chrono::duration_cast<std::chrono::seconds>(time_since_epoch).count());
+
+        LOG(4) << this << " scheduling next ping";
         arm_ping_timer();
       });
     });
@@ -802,9 +831,9 @@ class secure_client : public client, public boost::static_visitor<> {
     drain_requests();
   }
 
-  void ping(request_done_cb &&done_cb) {
-    LOG(2) << "ping";
-    _requests.push(ping_request{std::move(done_cb)});
+  void ping(uint64_t request_id, request_done_cb &&done_cb) {
+    LOG(4) << "ping";
+    _requests.push(ping_request{request_id, std::move(done_cb)});
     drain_requests();
   }
 
@@ -835,10 +864,11 @@ class secure_client : public client, public boost::static_visitor<> {
     });
   }
 
-  void operator()(const ping_request & /*unused*/) {
-    LOG(2) << "ping request";
-    _ws.async_ping("ping_msg", [this](boost::system::error_code ec) {
-      LOG(2) << "ping done";
+  void operator()(const ping_request &request) {
+    LOG(4) << "ping request";
+    boost::beast::websocket::ping_data payload{std::to_string(request.id)};
+    _ws.async_ping(payload, [this](boost::system::error_code ec) {
+      LOG(4) << "ping done";
       on_request_done(ec);
     });
   }
@@ -863,12 +893,12 @@ class secure_client : public client, public boost::static_visitor<> {
   asio::ip::tcp::resolver _tcp_resolver;
   boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
-  uint64_t _request_id{0};
+  uint64_t _last_request_id{0};
   boost::beast::multi_buffer _read_buffer{read_buffer_size};
   std::map<std::string, subscription_impl> _subscriptions;
   std::map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
   boost::asio::deadline_timer _ping_timer;
-  std::chrono::system_clock::time_point _last_ping_time;
+  std::map<uint64_t, std::chrono::system_clock::time_point> _ping_times;
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
