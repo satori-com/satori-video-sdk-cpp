@@ -18,7 +18,7 @@ DOCKER_TAG=satorivideo
 all: conan-create-in-docker
 
 conan-create:
-> conan create satorivideo/master ${CONAN_CREATE_ARGS}
+> conan create . satorivideo/master ${CONAN_CREATE_ARGS}
 
 conan-create-in-docker:
 > docker build ${DOCKER_BUILD_OPTIONS} \
