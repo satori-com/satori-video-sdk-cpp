@@ -7,11 +7,12 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
-#include <deque>
+#include <boost/variant.hpp>
 #include <gsl/gsl>
 #include <iostream>
 #include <json.hpp>
 #include <memory>
+#include <queue>
 #include <utility>
 
 #include "cbor_json.h"
@@ -133,6 +134,11 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Name("rtm_last_ping_time_seconds")
                                        .Register(metrics_registry())
                                        .Add({});
+
+auto &rtm_pending_requests = prometheus::BuildGauge()
+                                 .Name("rtm_pending_requests")
+                                 .Register(metrics_registry())
+                                 .Add({});
 
 auto &rtm_subscription_error_total = prometheus::BuildCounter()
                                          .Name("rtm_subscription_error_total")
@@ -263,7 +269,33 @@ std::ostream &operator<<(std::ostream &out, client_state const &s) {
   }
 }
 
-class secure_client : public client {
+using request_done_cb = std::function<void(boost::system::error_code)>;
+
+struct ping_request {
+  request_done_cb done_cb;
+};
+
+struct write_request {
+  write_request(std::string &&str, request_done_cb &&done_cb)
+      : data(std::move(str)), done_cb(std::move(done_cb)), buffer(asio::buffer(data)) {}
+  std::string data;
+  request_done_cb done_cb;
+  boost::asio::const_buffer buffer;
+};
+
+using io_request = boost::variant<ping_request, write_request>;
+
+struct get_done_cb_visitor : public boost::static_visitor<const request_done_cb &> {
+  const request_done_cb &operator()(const write_request &request) const {
+    return request.done_cb;
+  }
+
+  const request_done_cb &operator()(const ping_request &request) const {
+    return request.done_cb;
+  }
+};
+
+class secure_client : public client, public boost::static_visitor<> {
  public:
   explicit secure_client(const std::string &host, const std::string &port,
                          const std::string &appkey, uint64_t client_id,
@@ -412,25 +444,25 @@ class secure_client : public client {
     const uint64_t request_id = ++_request_id;
     document["id"] = request_id;
 
-    const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buffer.size());
     rtm_bytes_written.Increment(buffer.size());
 
-    boost::system::error_code ec;
     const auto before_publish = std::chrono::system_clock::now();
-    _ws.write(asio::buffer(buffer), ec);
-    const auto after_publish = std::chrono::system_clock::now();
     _publish_times.emplace(request_id, before_publish);
-    rtm_publish_time_microseconds.Observe(
-        std::chrono::duration_cast<std::chrono::microseconds>(after_publish
-                                                              - before_publish)
-            .count());
-    if (ec.value() != 0) {
-      LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
-      rtm_client_error.Add({{"type", "publish"}}).Increment();
-    }
+    write(std::move(buffer), [before_publish](boost::system::error_code ec) {
+      const auto after_publish = std::chrono::system_clock::now();
+      rtm_publish_time_microseconds.Observe(
+          std::chrono::duration_cast<std::chrono::microseconds>(after_publish
+                                                                - before_publish)
+              .count());
+      if (ec.value() != 0) {
+        LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
+        rtm_client_error.Add({{"type", "publish"}}).Increment();
+      }
+    });
   }
 
   void subscribe_channel(const std::string &channel, const subscription &sub,
@@ -454,17 +486,16 @@ class secure_client : public client {
     }
 
     nlohmann::json document = request.to_json();
-    const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
     rtm_bytes_written.Increment(buffer.size());
-    boost::system::error_code ec;
-    _ws.write(asio::buffer(buffer), ec);
-    if (ec.value() != 0) {
-      LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
-      rtm_client_error.Add({{"type", "subscribe"}}).Increment();
-    }
-
     LOG(1) << "requested subscribe: " << document;
+    write(std::move(buffer), [](boost::system::error_code ec) {
+      if (ec.value() != 0) {
+        LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
+        rtm_client_error.Add({{"type", "subscribe"}}).Increment();
+      }
+    });
   }
 
   void subscribe_filter(const std::string & /*filter*/, const subscription & /*sub*/,
@@ -489,21 +520,20 @@ class secure_client : public client {
 
       unsubscribe_request request{++_request_id, sub_id};
       nlohmann::json document = request.to_json();
-      const std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+      std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
 
       rtm_bytes_written.Increment(buffer.size());
 
-      boost::system::error_code ec;
-      _ws.write(asio::buffer(buffer), ec);
-      if (ec.value() != 0) {
-        LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
-        rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
-      }
-
       sub.pending_request_id = _request_id;
       sub.status = subscription_status::PENDING_UNSUBSCRIBE;
-
       LOG(1) << "requested unsubscribe: " << document;
+
+      write(std::move(buffer), [](boost::system::error_code ec) {
+        if (ec.value() != 0) {
+          LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
+          rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
+        }
+      });
       return;
     }
     ABORT() << "didn't find subscription";
@@ -522,10 +552,10 @@ class secure_client : public client {
  private:
   void ask_for_read() {
     _ws.async_read(_read_buffer, [this](boost::system::error_code const &ec,
-                                        unsigned long) {
+                                        unsigned long bytes_read) {
       const auto arrival_time = std::chrono::system_clock::now();
 
-      LOG(4) << this << " async_read ec=" << ec;
+      LOG(4) << this << " async_read " << bytes_read << " bytes ec=" << ec;
       if (ec.value() != 0) {
         if (ec == boost::asio::error::operation_aborted) {
           LOG(INFO) << this << " async_read operation is cancelled";
@@ -596,7 +626,7 @@ class secure_client : public client {
         return;
       }
 
-      _ws.async_ping("pingmsg", [this](boost::system::error_code const &ec_ping) {
+      ping([this](boost::system::error_code const &ec_ping) {
         LOG(2) << this << " ping write ec=" << ec_ping;
         if (ec_ping.value() != 0) {
           if (ec_ping == boost::asio::error::operation_aborted) {
@@ -766,6 +796,62 @@ class secure_client : public client {
     }
   }
 
+  void write(std::string &&data, request_done_cb &&done_cb) {
+    LOG(4) << "write " << data.size();
+    _requests.push(write_request{std::move(data), std::move(done_cb)});
+    drain_requests();
+  }
+
+  void ping(request_done_cb &&done_cb) {
+    LOG(2) << "ping";
+    _requests.push(ping_request{std::move(done_cb)});
+    drain_requests();
+  }
+
+  void drain_requests() {
+    LOG(4) << "drain requests " << _requests.size();
+    rtm_pending_requests.Set(_requests.size());
+    if (_requests.empty() || _request_in_flight) {
+      return;
+    }
+
+    _request_in_flight = true;
+    const auto &request = _requests.front();
+    boost::apply_visitor(*this, request);
+  }
+
+ public:
+  // public for visitor
+  void operator()(const write_request &request) {
+    LOG(4) << "write request";
+    auto buffer_size = request.data.size();
+    _ws.async_write(request.buffer, [this, buffer_size](boost::system::error_code ec,
+                                                        std::size_t bytes_transferred) {
+      LOG(4) << "write done " << bytes_transferred;
+      if (!ec) {
+        CHECK(buffer_size == bytes_transferred);
+      }
+      on_request_done(ec);
+    });
+  }
+
+  void operator()(const ping_request &/*unused*/) {
+    LOG(2) << "ping request";
+    _ws.async_ping("ping_msg", [this](boost::system::error_code ec) {
+      LOG(2) << "ping done";
+      on_request_done(ec);
+    });
+  }
+
+ private:
+  void on_request_done(boost::system::error_code ec) {
+    const auto &request = _requests.front();
+    boost::apply_visitor(get_done_cb_visitor{}, request)(ec);
+    _requests.pop();
+    _request_in_flight = false;
+    drain_requests();
+  }
+
   std::atomic<client_state> _client_state{client_state::STOPPED};
 
   const std::string _host;
@@ -786,6 +872,8 @@ class secure_client : public client {
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
+  std::queue<io_request> _requests;
+  bool _request_in_flight{false};
 };
 
 }  // namespace

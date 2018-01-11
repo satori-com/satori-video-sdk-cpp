@@ -179,27 +179,30 @@ int bot_environment::main(int argc, char* argv[]) {
   }
   _metrics_config = config.metrics();
 
-  if (!config.pool()) {
-    start_bot(config.bot_config());
-  } else {
-    std::string pool = config.pool().get();
-    std::string job_type = config.id();
+  auto start = [config, this]() {
+    if (!config.pool()) {
+      start_bot(config.bot_config());
+    } else {
+      std::string pool = config.pool().get();
+      std::string job_type = config.id();
 
-    auto job_controller =
-        new pool_job_controller(_io_service, pool, job_type, 1, _rtm_client, *this);
+      auto job_controller =
+          new pool_job_controller(_io_service, pool, job_type, 1, _rtm_client, *this);
 
-    // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
-    // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
-    signal::register_handler({SIGINT, SIGTERM, SIGQUIT}, [job_controller](int signal) {
-      LOG(INFO) << "Got signal #" << signal;
-      job_controller->shutdown();
-    });
+      // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
+      // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+      signal::register_handler({SIGINT, SIGTERM, SIGQUIT}, [job_controller](int signal) {
+        LOG(INFO) << "Got signal #" << signal;
+        job_controller->shutdown();
+      });
 
-    job_controller->start();
-  }
+      job_controller->start();
+    }
+  };
 
   if (!batch) {
     LOG(INFO) << "entering asio loop";
+    _io_service.post(start);
     auto n = _io_service.run();
     LOG(INFO) << "asio loop exited, executed " << n << " handlers";
 
@@ -208,6 +211,8 @@ int bot_environment::main(int argc, char* argv[]) {
       LOG(INFO) << "waiting for all threads to finish...";
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+  } else {
+    start();
   }
 
   return 0;
