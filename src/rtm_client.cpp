@@ -153,9 +153,9 @@ auto &rtm_publish_time_microseconds =
                                      250,  500,  750,   1000,  2000,  3000,  4000,
                                      5000, 7500, 10000, 25000, 50000, 100000});
 
-auto &rtm_publish_ack_time_delta_millis_family =
+auto &rtm_publish_ack_latency_millis =
     prometheus::BuildHistogram()
-        .Name("rtm_publish_ack_time_delta_millis")
+        .Name("rtm_publish_ack_latency_millis")
         .Register(metrics_registry())
         .Add({},
              std::vector<double>{0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
@@ -667,10 +667,10 @@ class secure_client : public client, public boost::static_visitor<> {
     CHECK(it != _publish_times.end()) << "unexpected publish confirmation: " << pdu;
     const std::chrono::system_clock::time_point publish_time = it->second;
     _publish_times.erase(it);
-    const double delta = std::abs(
+    const double latency = std::abs(
         std::chrono::duration_cast<std::chrono::milliseconds>(arrival_time - publish_time)
             .count());
-    rtm_publish_ack_time_delta_millis_family.Observe(delta);
+    rtm_publish_ack_latency_millis.Observe(latency);
     rtm_publish_inflight_total.Set(_publish_times.size());
   }
 
@@ -835,7 +835,7 @@ class secure_client : public client, public boost::static_visitor<> {
     });
   }
 
-  void operator()(const ping_request &/*unused*/) {
+  void operator()(const ping_request & /*unused*/) {
     LOG(2) << "ping request";
     _ws.async_ping("ping_msg", [this](boost::system::error_code ec) {
       LOG(2) << "ping done";
