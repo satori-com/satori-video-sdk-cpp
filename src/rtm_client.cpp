@@ -71,6 +71,12 @@ constexpr bool use_cbor = true;
 
 const boost::posix_time::seconds ws_ping_interval{1};
 
+const std::vector<double> latency_buckets{
+    0,    1,    2,    3,    4,    5,     6,     7,     8,     9,    10,   15,
+    20,   25,   30,   40,   50,   60,    70,    80,    90,    100,  150,  200,
+    250,  300,  400,  500,  600,  700,   800,   900,   1000,  2000, 3000, 4000,
+    5000, 6000, 7000, 8000, 9000, 10000, 25000, 50000, 100000};
+
 auto &rtm_client_start = prometheus::BuildCounter()
                              .Name("rtm_client_start")
                              .Register(metrics_registry())
@@ -135,14 +141,10 @@ auto &rtm_last_ping_time_seconds = prometheus::BuildGauge()
                                        .Register(metrics_registry())
                                        .Add({});
 
-auto &rtm_ping_latency_millis =
-    prometheus::BuildHistogram()
-        .Name("rtm_ping_latency_millis")
-        .Register(metrics_registry())
-        .Add({},
-             std::vector<double>{0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
-                                 15,  20,  25,  30,  40,  50,  60,  70,  80,  90,  100,
-                                 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000});
+auto &rtm_ping_latency_millis = prometheus::BuildHistogram()
+                                    .Name("rtm_ping_latency_millis")
+                                    .Register(metrics_registry())
+                                    .Add({}, latency_buckets);
 
 auto &rtm_pending_requests = prometheus::BuildGauge()
                                  .Name("rtm_pending_requests")
@@ -162,14 +164,10 @@ auto &rtm_publish_time_microseconds =
                                      250,  500,  750,   1000,  2000,  3000,  4000,
                                      5000, 7500, 10000, 25000, 50000, 100000});
 
-auto &rtm_publish_ack_latency_millis =
-    prometheus::BuildHistogram()
-        .Name("rtm_publish_ack_latency_millis")
-        .Register(metrics_registry())
-        .Add({},
-             std::vector<double>{0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
-                                 15,  20,  25,  30,  40,  50,  60,  70,  80,  90,  100,
-                                 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000});
+auto &rtm_publish_ack_latency_millis = prometheus::BuildHistogram()
+                                           .Name("rtm_publish_ack_latency_millis")
+                                           .Register(metrics_registry())
+                                           .Add({}, latency_buckets);
 
 auto &rtm_publish_error_total = prometheus::BuildCounter()
                                     .Name("rtm_publish_error_total")
