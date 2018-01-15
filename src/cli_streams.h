@@ -30,16 +30,16 @@ struct cli_options {
 };
 
 struct input_video_config {
-  input_video_config(const po::variables_map &vm);
-  input_video_config(const nlohmann::json &config);
+  explicit input_video_config(const po::variables_map &vm);
+  explicit input_video_config(const nlohmann::json &config);
 
-  const boost::optional<std::string> channel;
   const bool batch;
   const boost::optional<std::string> resolution;
   const bool keep_proportions;
   const boost::optional<std::string> input_video_file;
   const boost::optional<std::string> input_replay_file;
   const boost::optional<std::string> input_url;
+  const boost::optional<std::string> input_channel;
   const bool input_camera;
   const bool loop;
   const boost::optional<long> time_limit;

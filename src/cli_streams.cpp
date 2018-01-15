@@ -20,7 +20,6 @@ po::options_description rtm_options() {
   online.add_options()("endpoint", po::value<std::string>(), "app endpoint");
   online.add_options()("appkey", po::value<std::string>(), "app key");
   online.add_options()("port", po::value<std::string>()->default_value("443"), "port");
-  online.add_options()("channel", po::value<std::string>(), "channel");
 
   return online;
 }
@@ -100,7 +99,8 @@ po::options_description file_output_options() {
 }
 
 bool check_rtm_args_provided(const po::variables_map &vm) {
-  return vm.count("endpoint") > 0 || vm.count("appkey") > 0 || vm.count("channel") > 0;
+  return vm.count("endpoint") > 0 || vm.count("appkey") > 0
+         || vm.count("input-channel") > 0 || vm.count("output-channel") > 0;
 }
 
 bool check_file_input_args_provided(const po::variables_map &vm) {
@@ -119,7 +119,7 @@ bool check_file_output_args_provided(const po::variables_map &vm) {
   return vm.count("output-video-file") > 0;
 }
 
-bool validate_rtm_args(const po::variables_map &vm) {
+bool validate_rtm_args(const cli_options &opts, const po::variables_map &vm) {
   if (vm.count("endpoint") == 0) {
     std::cerr << "Missing --endpoint argument\n";
     return false;
@@ -128,8 +128,12 @@ bool validate_rtm_args(const po::variables_map &vm) {
     std::cerr << "Missing --appkey argument\n";
     return false;
   }
-  if (vm.count("channel") == 0 && vm.count("pool") == 0) {
-    std::cerr << "Missing --channel or --pool (when available) argument\n";
+  if (opts.enable_rtm_input && vm.count("input-channel") == 0 && vm.count("pool") == 0) {
+    std::cerr << "Missing --input-channel or --pool (when available) argument\n";
+    return false;
+  }
+  if (opts.enable_rtm_output && vm.count("output-channel") == 0) {
+    std::cerr << "Missing --output-channel argument\n";
     return false;
   }
   if (vm.count("port") == 0) {
@@ -153,7 +157,9 @@ po::options_description to_boost(const cli_options &opts) {
   po::options_description options;
 
   if (opts.enable_rtm_input) {
-    options.add(rtm_options());
+    auto rtm = rtm_options();
+    rtm.add_options()("input-channel", po::value<std::string>(), "input channel");
+    options.add(rtm);
   }
   if (opts.enable_file_input) {
     options.add(file_input_options(opts.enable_file_batch_mode));
@@ -171,7 +177,9 @@ po::options_description to_boost(const cli_options &opts) {
     options.add(generic_output_options());
   }
   if (opts.enable_rtm_output) {
-    options.add(rtm_options());
+    auto rtm = rtm_options();
+    rtm.add_options()("output-channel", po::value<std::string>(), "output channel");
+    options.add(rtm);
   }
   if (opts.enable_file_output) {
     options.add(file_output_options());
@@ -236,7 +244,7 @@ bool configuration::validate() const {
     }
   }
 
-  if (has_input_rtm_args && !validate_rtm_args(_vm)) {
+  if (has_input_rtm_args && !validate_rtm_args(_cli_options, _vm)) {
     return false;
   }
   if (has_input_file_args && !validate_input_file_args(_vm)) {
@@ -265,7 +273,7 @@ bool configuration::validate() const {
     return false;
   }
 
-  if (has_output_rtm_args && !validate_rtm_args(_vm)) {
+  if (has_output_rtm_args && !validate_rtm_args(_cli_options, _vm)) {
     return false;
   }
 
@@ -322,8 +330,15 @@ std::string configuration::rtm_channel() const {
   if (!check_rtm_args_provided(_vm)) {
     return "";
   }
+  if (_cli_options.enable_rtm_input) {
+    return _vm["input-channel"].as<std::string>();
+  }
+  if (_cli_options.enable_rtm_output) {
+    return _vm["output-channel"].as<std::string>();
+  }
 
-  return _vm["channel"].as<std::string>();
+  ABORT() << "unreachable code";
+  return "";
 }
 
 bool configuration::is_batch_mode() const {
@@ -334,11 +349,11 @@ bool configuration::is_batch_mode() const {
 streams::publisher<encoded_packet> configuration::encoded_publisher(
     boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
     const input_video_config &video_cfg) {
-  if (video_cfg.channel) {
+  if (video_cfg.input_channel) {
     streams::publisher<network_packet> source =
-        satori::video::rtm_source(client, video_cfg.channel.get());
+        satori::video::rtm_source(client, video_cfg.input_channel.get());
 
-    return std::move(source) >> report_video_metrics(video_cfg.channel.get())
+    return std::move(source) >> report_video_metrics(video_cfg.input_channel.get())
            >> decode_network_stream() >> streams::threaded_worker("decoder_worker")
            >> streams::flatten();
   }
@@ -442,8 +457,8 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
 }
 
 input_video_config::input_video_config(const po::variables_map &vm)
-    : channel(vm.count("channel") > 0 ? vm["channel"].as<std::string>()
-                                      : boost::optional<std::string>{}),
+    : input_channel(vm.count("input-channel") > 0 ? vm["input-channel"].as<std::string>()
+                                                  : boost::optional<std::string>{}),
       batch(vm.count("batch") > 0),
       resolution(vm.count("input-resolution") > 0
                      ? vm["input-resolution"].as<std::string>()
@@ -467,9 +482,9 @@ input_video_config::input_video_config(const po::variables_map &vm)
                                                 : boost::optional<long>{}) {}
 
 input_video_config::input_video_config(const nlohmann::json &config)
-    : channel(config.find("channel") != config.end()
-                  ? config["channel"].get<std::string>()
-                  : boost::optional<std::string>{}),
+    : input_channel(config.find("input-channel") != config.end()
+                        ? config["input-channel"].get<std::string>()
+                        : boost::optional<std::string>{}),
       batch(config.find("batch") != config.end()),
       resolution(config.find("resolution") != config.end()
                      ? config["resolution"].get<std::string>()

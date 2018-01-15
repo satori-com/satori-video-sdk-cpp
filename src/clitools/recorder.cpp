@@ -32,6 +32,7 @@ cli_streams::cli_options cli_configuration() {
   result.enable_camera_input = true;
   result.enable_url_input = true;
   result.enable_rtm_input = true;
+  result.enable_generic_input_options = true;
   result.enable_generic_output_options = true;
 
   return result;

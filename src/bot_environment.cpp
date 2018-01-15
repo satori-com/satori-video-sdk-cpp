@@ -253,8 +253,9 @@ void bot_environment::start_bot(const bot_configuration& config) {
     _analysis_file = std::make_unique<std::ofstream>(analysis_file.c_str());
     _analysis_sink = &streams::ostream_sink(*_analysis_file);
   } else if (_rtm_client) {
-    _analysis_sink = &rtm::sink(_rtm_client, _io_service,
-                                config.video_cfg.channel.get() + analysis_channel_suffix);
+    _analysis_sink =
+        &rtm::sink(_rtm_client, _io_service,
+                   config.video_cfg.input_channel.get() + analysis_channel_suffix);
   } else {
     _analysis_sink = &streams::ostream_sink(std::cout);
   }
@@ -266,7 +267,7 @@ void bot_environment::start_bot(const bot_configuration& config) {
     _debug_sink = &streams::ostream_sink(*_debug_file);
   } else if (_rtm_client) {
     _debug_sink = &rtm::sink(_rtm_client, _io_service,
-                             config.video_cfg.channel.get() + debug_channel_suffix);
+                             config.video_cfg.input_channel.get() + debug_channel_suffix);
   } else {
     _debug_sink = &streams::ostream_sink(std::cerr);
   }
