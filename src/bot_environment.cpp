@@ -157,7 +157,7 @@ bot_configuration::bot_configuration(const nlohmann::json& config)
                      : boost::optional<std::string>{}),
       video_cfg(config),
       bot_config(config.find("config") != config.end() ? config["config"]
-                                                       : nlohmann::json{nullptr}) {}
+                                                       : nlohmann::json(nullptr)) {}
 
 int bot_environment::main(int argc, char* argv[]) {
   init_tcmalloc();

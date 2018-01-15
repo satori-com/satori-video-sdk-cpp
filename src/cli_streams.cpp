@@ -482,8 +482,8 @@ input_video_config::input_video_config(const po::variables_map &vm)
                                                 : boost::optional<long>{}) {}
 
 input_video_config::input_video_config(const nlohmann::json &config)
-    : input_channel(config.find("input-channel") != config.end()
-                        ? config["input-channel"].get<std::string>()
+    : input_channel(config.find("channel") != config.end()
+                        ? config["channel"].get<std::string>()
                         : boost::optional<std::string>{}),
       batch(config.find("batch") != config.end()),
       resolution(config.find("resolution") != config.end()
