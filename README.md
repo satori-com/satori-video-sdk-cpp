@@ -14,7 +14,7 @@ The Video SDK runs on Mac OS X and Linux. It requires:
 - [Video bot examples](https://github.com/satori-com/satori-video-sdk-cpp-examples)
 ## Get the SDK
 
-![SatoriVideo/\[~0.15\]@satorivideo/master](https://img.shields.io/badge/package-SatoriVideo%2F%5B~0.10%5D%40satorivideo%2Fmaster-green.svg)
+![SatoriVideo/\[~0.15\]@satorivideo/master](https://img.shields.io/badge/package-SatoriVideo%2F%5B~0.15%5D%40satorivideo%2Fmaster-green.svg)
 
 - Use the [conan](https://conan.io/) c++ package management system to get the SDK.
 - See the [Prerequisites](docs/prerequisites.md) to learn how to configure the Satori Video SDK conan server.
