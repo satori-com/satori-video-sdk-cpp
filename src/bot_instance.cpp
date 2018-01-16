@@ -13,7 +13,8 @@ auto& processing_times_millis =
         .Name("frame_batch_processing_times_millis")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
-                                     60, 70, 80, 90, 100, 200, 300, 400, 500, 750});
+                                     60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900,
+                                     1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000});
 auto& frame_size =
     prometheus::BuildHistogram()
         .Name("frame_batch_size")
