@@ -29,7 +29,7 @@ std::chrono::system_clock::time_point json_to_time_point(const nlohmann::json &i
 
 nlohmann::json network_frame::to_json() const {
   nlohmann::json result = nlohmann::json::object();
-  result["d"] = base64_data;
+  result["b"] = base64_data;
   result["i"] = {id.i1, id.i2};
   result["t"] = time_point_to_value(t);
   result["dt"] = time_point_to_value(std::chrono::system_clock::now());
@@ -63,7 +63,7 @@ network_metadata encoded_metadata::to_network() const {
 
   nm.codec_name = codec_name;
   if (!codec_data.empty()) {
-    nm.base64_data = std::move(base64::encode(codec_data));
+    nm.base64_data = base64::encode(codec_data);
   }
   nm.additional_data = additional_data;
 
@@ -73,12 +73,15 @@ network_metadata encoded_metadata::to_network() const {
 std::vector<network_frame> encoded_frame::to_network() const {
   std::vector<network_frame> frames;
 
-  std::string encoded = std::move(base64::encode(data));
-  size_t chunks = std::ceil((double)encoded.length() / max_payload_size);
+  constexpr auto max_chunk_size =
+      static_cast<size_t>(max_payload_size / base64::overhead);
+
+  const auto chunks =
+      static_cast<size_t>(std::ceil((double)data.length() / max_chunk_size));
 
   for (size_t i = 0; i < chunks; i++) {
     network_frame frame;
-    frame.base64_data = encoded.substr(i * max_payload_size, max_payload_size);
+    frame.base64_data = base64::encode(data.substr(i * max_chunk_size, max_chunk_size));
     frame.id = id;
     frame.t = timestamp;
     frame.chunk = static_cast<uint32_t>(i + 1);
@@ -149,18 +152,31 @@ network_frame parse_network_frame(const nlohmann::json &item) {
     key_frame = k;
   }
 
-  CHECK(item.find("d") != item.end()) << "bad item: " << item;
-  auto &d = item["d"];
-  CHECK(d.is_string()) << "bad item: " << item;
+  // TODO: remove "d" field after full migration to base64 applied to chunks
+  std::string base64_data;
+  bool base64_applied_to_chunks = true;
+  if (item.find("b") != item.end()) {
+    auto &b = item["b"];
+    CHECK(b.is_string()) << "bad item: " << item;
+    base64_data = b;
+  } else if (item.find("d") != item.end()) {
+    auto &d = item["d"];
+    CHECK(d.is_string()) << "bad item: " << item;
+    base64_data = d;
+    base64_applied_to_chunks = false;
+  } else {
+    ABORT() << "bad item: " << item;
+  }
 
   network_frame frame;
-  frame.base64_data = d;
+  frame.base64_data = base64_data;
   frame.id = {i1, i2};
   frame.t = timestamp;
   frame.dt = departure_time;
   frame.chunk = chunk;
   frame.chunks = chunks;
   frame.key_frame = key_frame;
+  frame.base64_applied_to_chunks = base64_applied_to_chunks;
 
   return frame;
 }

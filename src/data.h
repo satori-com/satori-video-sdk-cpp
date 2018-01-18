@@ -51,6 +51,9 @@ struct network_frame {
   // time when frame came from source (for example, network, encoder or file)
   std::chrono::system_clock::time_point arrival_time;
 
+  // TODO: remove this field after everything is switched to base64 applied to chunks
+  bool base64_applied_to_chunks{true};
+
   nlohmann::json to_json() const;
 };
 

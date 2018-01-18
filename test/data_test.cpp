@@ -49,3 +49,20 @@ BOOST_AUTO_TEST_CASE(additional_data_test) {
 
   BOOST_CHECK_EQUAL(expected_j, j);
 }
+
+// TODO: remove after full migration to base64 applied to chunks
+BOOST_AUTO_TEST_CASE(parse_network_frame_d) {
+  nlohmann::json item;
+  item["i"] = {0, 0};
+  item["d"] = "dummy";
+  const sv::network_frame f = sv::parse_network_frame(item);
+  BOOST_CHECK(!f.base64_applied_to_chunks);
+}
+
+BOOST_AUTO_TEST_CASE(parse_network_frame_b) {
+  nlohmann::json item;
+  item["i"] = {0, 0};
+  item["b"] = "dummy";
+  const sv::network_frame f = sv::parse_network_frame(item);
+  BOOST_CHECK(f.base64_applied_to_chunks);
+}

@@ -46,17 +46,27 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         return streams::publishers::empty<encoded_packet>();
       }
 
-      _aggregated_data.append(nf.base64_data);
       if (nf.chunk == 1) {
         _id = nf.id;
         _timestamp = nf.t;
         _departure_time = nf.dt;
         _creation_time = nf.arrival_time;
+        _base64_applied_to_chunks = nf.base64_applied_to_chunks;
+      }
+
+      if (_base64_applied_to_chunks) {
+        _aggregated_data.append(base64::decode(nf.base64_data));
+      } else {
+        _aggregated_data.append(nf.base64_data);
       }
 
       if (nf.chunk == nf.chunks) {
         encoded_frame frame;
-        frame.data = base64::decode(_aggregated_data);
+        if (_base64_applied_to_chunks) {
+          frame.data = _aggregated_data;
+        } else {
+          frame.data = base64::decode(_aggregated_data);
+        }
         frame.id = _id;
         frame.timestamp = _timestamp;
         frame.creation_time = _creation_time;
@@ -81,6 +91,8 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     std::chrono::system_clock::time_point _departure_time;
     std::chrono::system_clock::time_point _creation_time;
     std::string _aggregated_data;
+    // TODO: remove after full migration to base64 applied to chunks
+    bool _base64_applied_to_chunks;
   };
 
   return [](streams::publisher<network_packet> &&src) {
