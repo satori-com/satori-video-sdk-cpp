@@ -240,7 +240,7 @@ streams::error_or<nlohmann::json> cbor_to_json(const std::string &data) {
   }
   LOG(ERROR) << "Parse error: " << error_message << " at position "
              << load_result.error.position << ", read " << load_result.read << " bytes"
-             << ", message: " << encode64(data);
+             << ", message: " << base64::encode(data);
 
   return std::system_category().default_error_condition(EBADMSG);
 }

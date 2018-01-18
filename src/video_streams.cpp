@@ -33,7 +33,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     streams::publisher<encoded_packet> operator()(const network_metadata &nm) {
       encoded_metadata em;
       em.codec_name = nm.codec_name;
-      em.codec_data = decode64(nm.base64_data);
+      em.codec_data = base64::decode(nm.base64_data);
       return streams::publishers::of({encoded_packet{em}});
     }
 
@@ -56,7 +56,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
 
       if (nf.chunk == nf.chunks) {
         encoded_frame frame;
-        frame.data = decode64(_aggregated_data);
+        frame.data = base64::decode(_aggregated_data);
         frame.id = _id;
         frame.timestamp = _timestamp;
         frame.creation_time = _creation_time;
@@ -97,7 +97,6 @@ streams::op<encoded_packet, encoded_packet> repeat_metadata() {
     return nullptr != boost::get<encoded_metadata>(&p);
   });
 }
-
 
 }  // namespace video
 }  // namespace satori

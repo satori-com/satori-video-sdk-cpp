@@ -63,7 +63,7 @@ network_metadata encoded_metadata::to_network() const {
 
   nm.codec_name = codec_name;
   if (!codec_data.empty()) {
-    nm.base64_data = std::move(satori::video::encode64(codec_data));
+    nm.base64_data = std::move(base64::encode(codec_data));
   }
   nm.additional_data = additional_data;
 
@@ -73,7 +73,7 @@ network_metadata encoded_metadata::to_network() const {
 std::vector<network_frame> encoded_frame::to_network() const {
   std::vector<network_frame> frames;
 
-  std::string encoded = std::move(satori::video::encode64(data));
+  std::string encoded = std::move(base64::encode(data));
   size_t chunks = std::ceil((double)encoded.length() / max_payload_size);
 
   for (size_t i = 0; i < chunks; i++) {

@@ -7,8 +7,9 @@
 
 namespace satori {
 namespace video {
+namespace base64 {
 
-std::string decode64(const std::string &val) {
+std::string decode(const std::string &val) {
   using namespace boost::archive::iterators;
   using It = transform_width<binary_from_base64<std::string::const_iterator>, 8, 6>;
   auto decoded = std::string(It(std::begin(val)), It(std::end(val)));
@@ -19,12 +20,13 @@ std::string decode64(const std::string &val) {
   return decoded.substr(0, decoded.size() - padding);
 }
 
-std::string encode64(const std::string &val) {
+std::string encode(const std::string &val) {
   using namespace boost::archive::iterators;
   using It = base64_from_binary<transform_width<std::string::const_iterator, 6, 8>>;
   auto tmp = std::string(It(std::begin(val)), It(std::end(val)));
   return tmp.append((3 - val.size() % 3) % 3, '=');
 }
 
+}  // namespace base64
 }  // namespace video
 }  // namespace satori

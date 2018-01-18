@@ -10,7 +10,7 @@
 #include "logging_impl.h"
 #include "video_streams.h"
 
-using namespace satori::video;
+namespace sv = satori::video;
 
 namespace {
 
@@ -23,7 +23,7 @@ struct test_definition {
   int expected_frames_count;
 };
 
-streams::publisher<encoded_packet> test_stream(const test_definition &td) {
+sv::streams::publisher<sv::encoded_packet> test_stream(const test_definition &td) {
   std::ifstream metadata_file(td.metadata_filename);
   if (!td.metadata_filename.empty() && !metadata_file) {
     BOOST_FAIL("File '" + td.metadata_filename + "' was not found");
@@ -32,22 +32,23 @@ streams::publisher<encoded_packet> test_stream(const test_definition &td) {
   std::string base64_metadata;
   metadata_file >> base64_metadata;
 
-  encoded_packet metadata(
-      encoded_metadata{td.codec_name, satori::video::decode64(base64_metadata)});
+  sv::encoded_packet metadata(
+      sv::encoded_metadata{td.codec_name, sv::base64::decode(base64_metadata)});
 
-  streams::publisher<encoded_packet> frames =
-      streams::read_lines(td.frames_filename) >> streams::map([](std::string &&line) {
-        static int next_id = 0;
-        int id = ++next_id;
+  sv::streams::publisher<sv::encoded_packet> frames =
+      sv::streams::read_lines(td.frames_filename)
+      >> sv::streams::map([](std::string &&line) {
+          static int next_id = 0;
+          int id = ++next_id;
 
-        encoded_frame f;
-        f.data = satori::video::decode64(line);
-        f.id = frame_id{id, id};
-        return encoded_packet{f};
-      });
+          sv::encoded_frame f;
+          f.data = sv::base64::decode(line);
+          f.id = sv::frame_id{id, id};
+          return sv::encoded_packet{f};
+        });
 
-  return streams::publishers::concat(streams::publishers::of({metadata}),
-                                     std::move(frames));
+  return sv::streams::publishers::concat(sv::streams::publishers::of({metadata}),
+                                         std::move(frames));
 }
 
 void run_decode_image_frames_test(const test_definition &td) {
@@ -58,8 +59,9 @@ void run_decode_image_frames_test(const test_definition &td) {
     BOOST_FAIL("File '" + td.frames_filename + "' was not found");
   }
 
-  streams::publisher<owned_image_packet> image_stream =
-      test_stream(td) >> decode_image_frames(-1, -1, image_pixel_format::RGB0, true);
+  sv::streams::publisher<sv::owned_image_packet> image_stream =
+      test_stream(td)
+      >> sv::decode_image_frames(-1, -1, sv::image_pixel_format::RGB0, true);
 
   int last_frame_width;
   int last_frame_height;
@@ -67,10 +69,12 @@ void run_decode_image_frames_test(const test_definition &td) {
 
   auto when_done =
       image_stream->process([&last_frame_width, &last_frame_height,
-                             &frames_count](owned_image_packet &&packet) mutable {
-        if (const owned_image_metadata *m = boost::get<owned_image_metadata>(&packet)) {
+                             &frames_count](sv::owned_image_packet &&packet) mutable {
+        if (const sv::owned_image_metadata *m =
+                boost::get<sv::owned_image_metadata>(&packet)) {
           // just count
-        } else if (const owned_image_frame *f = boost::get<owned_image_frame>(&packet)) {
+        } else if (const sv::owned_image_frame *f =
+                       boost::get<sv::owned_image_frame>(&packet)) {
           last_frame_width = f->width;
           last_frame_height = f->height;
         } else {
@@ -87,7 +91,7 @@ void run_decode_image_frames_test(const test_definition &td) {
   std::cout << "*** test for codec '" << td.codec_name << "' succeeded\n";
 }
 
-inline frame_id id(int64_t i1, int64_t i2) { return frame_id{i1, i2}; }
+inline sv::frame_id id(int64_t i1, int64_t i2) { return sv::frame_id{i1, i2}; }
 
 }  // namespace
 
@@ -148,12 +152,12 @@ BOOST_AUTO_TEST_CASE(id_test) {
 
   boost::asio::io_service io;
 
-  std::vector<frame_id> ids;
-  auto stream = file_source(io, "test_data/test.mp4", false, true)
-                >> decode_image_frames(-1, -1, image_pixel_format::RGB0, true);
+  std::vector<sv::frame_id> ids;
+  auto stream = sv::file_source(io, "test_data/test.mp4", false, true)
+                >> sv::decode_image_frames(-1, -1, sv::image_pixel_format::RGB0, true);
 
-  auto when_done = stream->process([&ids](owned_image_packet &&pkt) {
-    if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {
+  auto when_done = stream->process([&ids](sv::owned_image_packet &&pkt) {
+    if (const sv::owned_image_frame *f = boost::get<sv::owned_image_frame>(&pkt)) {
       ids.push_back(f->id);
     }
   });
@@ -169,6 +173,6 @@ BOOST_AUTO_TEST_CASE(id_test) {
 }
 
 int main(int argc, char *argv[]) {
-  init_logging(argc, argv);
+  sv::init_logging(argc, argv);
   return boost::unit_test::unit_test_main(init_unit_test, argc, argv);
 }
