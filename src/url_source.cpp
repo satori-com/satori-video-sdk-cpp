@@ -13,10 +13,14 @@ namespace satori {
 namespace video {
 
 namespace {
+
 auto &frames_total = prometheus::BuildCounter()
                          .Name("url_source_frames_total")
                          .Register(metrics_registry());
-}
+
+const std::string reader_thread_name = "url-read-loop";
+
+}  // namespace
 
 class url_source_impl {
  public:
@@ -25,7 +29,7 @@ class url_source_impl {
       : _url(url), _sink(sink) {
     avutils::init();
     std::thread([this, options]() {
-      threadutils::set_current_thread_name("read-loop");
+      threadutils::set_current_thread_name(reader_thread_name);
 
       _reader_thread_id = std::this_thread::get_id();
 
@@ -40,12 +44,16 @@ class url_source_impl {
         .detach();
   }
 
+  ~url_source_impl() { LOG(INFO) << "destroying url source"; }
+
   void stop() {
-    if (_reader_thread_id == std::this_thread::get_id()) {
-      delete this;
-    } else {
-      ABORT_S() << "should not happen";
+    if (_reader_thread_id != std::this_thread::get_id()) {
+      LOG(ERROR) << "calling url_source stop from thread "
+                 << threadutils::get_current_thread_name() << " but expected "
+                 << reader_thread_name;
     }
+    LOG(INFO) << "stopping url source";
+    _active = false;
   }
 
   std::error_condition start(const std::string &options) {
@@ -133,6 +141,8 @@ class url_source_impl {
         _sink.on_next(frame);
       }
     }
+
+    delete this;
   }
 
   std::string _url;
