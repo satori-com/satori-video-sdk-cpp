@@ -76,6 +76,7 @@ add_library(satorivideo
     src/streams/channel.h
     src/streams/deferred.h
     src/streams/error_or.h
+    src/streams/signal_breaker.h
     src/streams/stream_error.cpp
     src/streams/streams.cpp
     src/streams/streams_impl.h
@@ -85,6 +86,7 @@ add_library(satorivideo
     src/tcmalloc.h
     src/threadutils.cpp
     src/url_source.cpp
+    src/variant_utils.h
     src/version.cpp
     src/video_bot.cpp
     src/video_error.cpp
