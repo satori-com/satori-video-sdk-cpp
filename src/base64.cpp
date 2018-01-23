@@ -5,26 +5,38 @@
 #include <boost/archive/iterators/binary_from_base64.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
 
+#include "logging.h"
+
+namespace it = boost::archive::iterators;
+
 namespace satori {
 namespace video {
 namespace base64 {
 
-std::string decode(const std::string &val) {
-  using namespace boost::archive::iterators;
-  using It = transform_width<binary_from_base64<std::string::const_iterator>, 8, 6>;
-  auto decoded = std::string(It(std::begin(val)), It(std::end(val)));
-  auto padding = val.find('=');
+streams::error_or<std::string> decode(const std::string &val) {
+  using iterator_t =
+      it::transform_width<it::binary_from_base64<std::string::const_iterator>, 8, 6>;
+
+  std::string decoded;
+  try {
+    decoded = std::string{iterator_t{std::begin(val)}, iterator_t{std::end(val)}};
+  } catch (const std::exception &e) {
+    LOG(ERROR) << "input is not base64: " << e.what() << ", value: " << val;
+    return std::system_category().default_error_condition(EBADMSG);
+  }
+
+  const auto padding = val.find('=');
   if (padding == std::string::npos) {
     return decoded;
   }
-  return decoded.substr(0, decoded.size() - padding);
+  return decoded.substr(0, decoded.size() - (val.size() - padding));
 }
 
 std::string encode(const std::string &val) {
-  using namespace boost::archive::iterators;
-  using It = base64_from_binary<transform_width<std::string::const_iterator, 6, 8>>;
-  auto tmp = std::string(It(std::begin(val)), It(std::end(val)));
-  return tmp.append((3 - val.size() % 3) % 3, '=');
+  using iterator_t =
+      it::base64_from_binary<it::transform_width<std::string::const_iterator, 6, 8>>;
+  auto encoded = std::string{iterator_t{std::begin(val)}, iterator_t{std::end(val)}};
+  return encoded.append((3 - val.size() % 3) % 3, '=');
 }
 
 }  // namespace base64

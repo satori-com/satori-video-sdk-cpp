@@ -31,18 +31,23 @@ sv::streams::publisher<sv::encoded_packet> test_stream(const test_definition &td
 
   std::string base64_metadata;
   metadata_file >> base64_metadata;
+  const auto codec_data_or_error = sv::base64::decode(base64_metadata);
+  BOOST_CHECK(codec_data_or_error.ok());
 
   sv::encoded_packet metadata(
-      sv::encoded_metadata{td.codec_name, sv::base64::decode(base64_metadata)});
+      sv::encoded_metadata{td.codec_name, codec_data_or_error.get()});
 
   sv::streams::publisher<sv::encoded_packet> frames =
       sv::streams::read_lines(td.frames_filename)
       >> sv::streams::map([](std::string &&line) {
+          const auto line_data_or_error = sv::base64::decode(line);
+          BOOST_CHECK(line_data_or_error.ok());
+
           static int next_id = 0;
           int id = ++next_id;
 
           sv::encoded_frame f;
-          f.data = sv::base64::decode(line);
+          f.data = line_data_or_error.get();
           f.id = sv::frame_id{id, id};
           return sv::encoded_packet{f};
         });

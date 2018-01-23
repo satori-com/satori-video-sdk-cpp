@@ -33,7 +33,9 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     streams::publisher<encoded_packet> operator()(const network_metadata &nm) {
       encoded_metadata em;
       em.codec_name = nm.codec_name;
-      em.codec_data = base64::decode(nm.base64_data);
+      const auto data_or_error = base64::decode(nm.base64_data);
+      CHECK(data_or_error.ok()) << "bad base64 data: " << nm.base64_data;
+      em.codec_data = data_or_error.get();
       return streams::publishers::of({encoded_packet{em}});
     }
 
@@ -55,7 +57,9 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
       }
 
       if (_base64_applied_to_chunks) {
-        _aggregated_data.append(base64::decode(nf.base64_data));
+        const auto data_or_error = base64::decode(nf.base64_data);
+        CHECK(data_or_error.ok()) << "bad base64 data: " << nf.base64_data;
+        _aggregated_data.append(data_or_error.get());
       } else {
         _aggregated_data.append(nf.base64_data);
       }
@@ -65,7 +69,9 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         if (_base64_applied_to_chunks) {
           frame.data = _aggregated_data;
         } else {
-          frame.data = base64::decode(_aggregated_data);
+          const auto data_or_error = base64::decode(_aggregated_data);
+          CHECK(data_or_error.ok()) << "bad base64 data: " << _aggregated_data;
+          frame.data = data_or_error.get();
         }
         frame.id = _id;
         frame.timestamp = _timestamp;
