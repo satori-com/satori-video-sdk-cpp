@@ -3,6 +3,7 @@
 #include <boost/test/floating_point_comparison.hpp>
 #include <boost/test/included/unit_test.hpp>
 
+#include "base64.h"
 #include "cbor_json.h"
 
 namespace sv = satori::video;
@@ -51,14 +52,16 @@ BOOST_AUTO_TEST_CASE(positive_int_no_additional_data_test) {
 BOOST_AUTO_TEST_CASE(positive_int8_test) {
   {
     const uint8_t data[]{
-        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 24,
+        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */,
+        24,
     };
     const std::string expected{data, data + sizeof(data)};
     BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(24));
   }
   {
     const uint8_t data[]{
-        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 0b11111111,
+        0b00011000 /* Major type 0, value 24 = additional data as uint8_t */,
+        0b11111111,
     };
     const std::string expected{data, data + sizeof(data)};
     BOOST_CHECK_EQUAL(expected, sv::json_to_cbor((1LL << 8) - 1));
@@ -68,7 +71,8 @@ BOOST_AUTO_TEST_CASE(positive_int8_test) {
 BOOST_AUTO_TEST_CASE(positive_int16_test) {
   {
     const uint8_t data[]{
-        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b00000001,
+        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */,
+        0b00000001,
         0b00000000,
     };
     const std::string expected{data, data + sizeof(data)};
@@ -76,7 +80,8 @@ BOOST_AUTO_TEST_CASE(positive_int16_test) {
   }
   {
     const uint8_t data[]{
-        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b11111111,
+        0b00011001 /* Major type 0, value 25 = additional data as uint16_t */,
+        0b11111111,
         0b11111111,
     };
     const std::string expected{data, data + sizeof(data)};
@@ -145,14 +150,16 @@ BOOST_AUTO_TEST_CASE(negative_int_no_additional_data_test) {
 BOOST_AUTO_TEST_CASE(negative_int8_test) {
   {
     const uint8_t data[]{
-        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 24,
+        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */,
+        24,
     };
     const std::string expected{data, data + sizeof(data)};
     BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-25));
   }
   {
     const uint8_t data[]{
-        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 0b11111111,
+        0b00111000 /* Major type 1, value 24 = additional data as uint8_t */,
+        0b11111111,
     };
     const std::string expected{data, data + sizeof(data)};
     BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-(1LL << 8)));
@@ -162,7 +169,8 @@ BOOST_AUTO_TEST_CASE(negative_int8_test) {
 BOOST_AUTO_TEST_CASE(negative_int16_test) {
   {
     const uint8_t data[]{
-        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b00000001,
+        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */,
+        0b00000001,
         0b00000000,
     };
     const std::string expected{data, data + sizeof(data)};
@@ -170,7 +178,8 @@ BOOST_AUTO_TEST_CASE(negative_int16_test) {
   }
   {
     const uint8_t data[]{
-        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b11111111,
+        0b00111001 /* Major type 1, value 25 = additional data as uint16_t */,
+        0b11111111,
         0b11111111,
     };
     const std::string expected{data, data + sizeof(data)};
@@ -249,6 +258,22 @@ BOOST_AUTO_TEST_CASE(negative_float_test) {
   };  // -(1 + 2^−52)
   const std::string expected{data, data + sizeof(data)};
   BOOST_CHECK_EQUAL(expected, sv::json_to_cbor(-1 - std::pow(2, -52)));
+}
+
+BOOST_AUTO_TEST_CASE(bytestring_test) {
+  // TODO: base64 hardcoded fields "b" and "codecData"
+  const uint8_t data[]{
+      0b10100001 /* Major type 5, value 4 = map with 1 entry */,
+      0b01100001 /* string of size 1 */,
+      'b',
+      0b01000011 /* Major type 2, definite-length bytestring of size 3 */,
+      'a',
+      'b',
+      'c',
+  };
+  const std::string expected{data, data + sizeof(data)};
+  const std::string value = sv::base64::encode("abc");
+  BOOST_CHECK_EQUAL(expected, sv::json_to_cbor({{"b", value}}));
 }
 
 BOOST_AUTO_TEST_CASE(string_test) {

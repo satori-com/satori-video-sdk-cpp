@@ -78,7 +78,17 @@ cbor_item_t *json_to_cbor_item(const nlohmann::json &document) {
     cbor_item_t *message = cbor_new_definite_map(document.size());
     for (auto it = document.begin(); it != document.end(); ++it) {
       cbor_item_t *key = json_to_cbor_item(it.key());
-      cbor_item_t *value = json_to_cbor_item(it.value());
+      cbor_item_t *value{nullptr};
+      // TODO: remove when https://github.com/nlohmann/json/pull/862 is merged
+      if ((it.key() == "b" || it.key() == "codecData") && it.value().is_string()) {
+        const auto decoded = base64::decode(it.value());
+        CHECK(decoded.ok()) << "bad data: " << document;
+        value = cbor_build_bytestring(reinterpret_cast<cbor_data>(decoded.get().data()),
+                                      decoded.get().size());
+      } else {
+        value = json_to_cbor_item(it.value());
+      }
+      CHECK_NOTNULL(value);
       CHECK(cbor_map_add(message, {cbor_move(key), cbor_move(value)}));
     }
     return message;
@@ -109,7 +119,29 @@ nlohmann::json cbor_item_to_json(const cbor_item_t *item) {
     }
 
     case CBOR_TYPE_BYTESTRING: {
-      ABORT() << "CBOR byte strings are not supported";
+      if (cbor_bytestring_is_definite(item)) {
+        return base64::encode(
+            std::string{reinterpret_cast<char *>(cbor_bytestring_handle(item)),
+                        cbor_bytestring_length(item)});
+      }
+
+      if (cbor_bytestring_is_indefinite(item)) {
+        const size_t chunk_count = cbor_bytestring_chunk_count(item);
+        cbor_item_t **chunk_handle = cbor_bytestring_chunks_handle(item);
+
+        std::ostringstream result;
+        for (size_t i = 0; i < chunk_count; i++) {
+          cbor_item_t *chunk = chunk_handle[i];
+          CHECK(cbor_bytestring_is_definite(chunk));
+
+          result << std::string{reinterpret_cast<char *>(cbor_bytestring_handle(chunk)),
+                                cbor_bytestring_length(chunk)};
+        }
+
+        return base64::encode(result.str());
+      }
+
+      ABORT() << "Unreachable statement for bytestring";
       return nullptr;
     }
 

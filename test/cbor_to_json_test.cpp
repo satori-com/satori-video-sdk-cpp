@@ -2,6 +2,7 @@
 #include <boost/test/floating_point_comparison.hpp>
 #include <boost/test/included/unit_test.hpp>
 
+#include "base64.h"
 #include "cbor_json.h"
 
 namespace sv = satori::video;
@@ -68,7 +69,8 @@ BOOST_AUTO_TEST_CASE(positive_int_no_additional_data_test) {
 
 BOOST_AUTO_TEST_CASE(positive_int8_test) {
   const uint8_t data[]{
-      0b00011000 /* Major type 0, value 24 = additional data as uint8_t */, 24,
+      0b00011000 /* Major type 0, value 24 = additional data as uint8_t */,
+      24,
   };
   sv::streams::error_or<nlohmann::json> result =
       sv::cbor_to_json(std::string{data, data + sizeof(data)});
@@ -80,7 +82,8 @@ BOOST_AUTO_TEST_CASE(positive_int8_test) {
 
 BOOST_AUTO_TEST_CASE(positive_int16_test) {
   const uint8_t data[]{
-      0b00011001 /* Major type 0, value 25 = additional data as uint16_t */, 0b00000001,
+      0b00011001 /* Major type 0, value 25 = additional data as uint16_t */,
+      0b00000001,
       0b00000000,
   };
   sv::streams::error_or<nlohmann::json> result =
@@ -156,7 +159,8 @@ BOOST_AUTO_TEST_CASE(negative_int_no_additional_data_test) {
 
 BOOST_AUTO_TEST_CASE(negative_int8_test) {
   const uint8_t data[]{
-      0b00111000 /* Major type 1, value 24 = additional data as uint8_t */, 24,
+      0b00111000 /* Major type 1, value 24 = additional data as uint8_t */,
+      24,
   };
   sv::streams::error_or<nlohmann::json> result =
       sv::cbor_to_json(std::string{data, data + sizeof(data)});
@@ -169,7 +173,8 @@ BOOST_AUTO_TEST_CASE(negative_int8_test) {
 
 BOOST_AUTO_TEST_CASE(negative_int16_test) {
   const uint8_t data[]{
-      0b00111001 /* Major type 1, value 25 = additional data as uint16_t */, 0b00000001,
+      0b00111001 /* Major type 1, value 25 = additional data as uint16_t */,
+      0b00000001,
       0b00000000,
   };
   sv::streams::error_or<nlohmann::json> result =
@@ -221,7 +226,8 @@ BOOST_AUTO_TEST_CASE(negative_int64_test) {
 
 BOOST_AUTO_TEST_CASE(positive_float2_test) {
   const uint8_t data[]{
-      0b11111001 /* Major type 7, value 25 = half-precision float */, 0b00111100,
+      0b11111001 /* Major type 7, value 25 = half-precision float */,
+      0b00111100,
       0b00000001,
   };  // 1 + 2^−10
   sv::streams::error_or<nlohmann::json> result =
@@ -270,7 +276,8 @@ BOOST_AUTO_TEST_CASE(positive_float8_test) {
 
 BOOST_AUTO_TEST_CASE(negative_float2_test) {
   const uint8_t data[]{
-      0b11111001 /* Major type 7, value 25 = half-precision float */, 0b10111100,
+      0b11111001 /* Major type 7, value 25 = half-precision float */,
+      0b10111100,
       0b00000001,
   };  // -(1 + 2^−10)
   sv::streams::error_or<nlohmann::json> result =
@@ -315,6 +322,41 @@ BOOST_AUTO_TEST_CASE(negative_float8_test) {
   const nlohmann::json &j = result.get();
   BOOST_CHECK(j.is_number_float());
   BOOST_CHECK_CLOSE(-1 - std::pow(2, -52), j.get<double>(), 0.0000000000001);
+}
+
+BOOST_AUTO_TEST_CASE(definite_length_bytestring_test) {
+  const uint8_t data[]{
+      0b01000100 /* Major type 2, definite-length bytestring of size 4 */,
+      'a',
+      'b',
+      'c',
+      'd',
+  };
+  const auto result = sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_string());
+  const std::string expected = sv::base64::encode("abcd");
+  BOOST_CHECK_EQUAL(expected, j.get<std::string>());
+}
+
+BOOST_AUTO_TEST_CASE(indefinite_length_bytestring_test) {
+  const uint8_t data[]{
+      0b01011111 /* Major type 2, value 31 = indefinite-length bytestring */,
+      0b01000001 /* chunk of size 1 */,
+      'a',
+      0b01000010 /* chunk of size 2 */,
+      'b',
+      'c',
+      0b11111111 /* end of bytestring */,
+  };
+  sv::streams::error_or<nlohmann::json> result =
+      sv::cbor_to_json(std::string{data, data + sizeof(data)});
+  BOOST_CHECK(result.ok());
+  const nlohmann::json &j = result.get();
+  BOOST_CHECK(j.is_string());
+  const std::string expected = sv::base64::encode("abc");
+  BOOST_CHECK_EQUAL(expected, j.get<std::string>());
 }
 
 BOOST_AUTO_TEST_CASE(definite_length_string_test) {
