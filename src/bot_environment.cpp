@@ -215,6 +215,15 @@ int bot_environment::main(int argc, char* argv[]) {
     start();
   }
 
+  if (_rtm_client) {
+    _io_service.post([rtm_client = _rtm_client]() {
+      if (auto ec = rtm_client->stop()) {
+        LOG(ERROR) << "error stopping rtm client: " << ec.message();
+      } else {
+        LOG(INFO) << "rtm client was stopped";
+      }
+    });
+  }
   return 0;
 }
 
@@ -287,7 +296,7 @@ void bot_environment::start_bot(const bot_configuration& config) {
 
   _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
             >> streams::map([& multiframes_counter = _multiframes_counter](
-                   std::queue<owned_image_packet> && pkt) mutable {
+                                std::queue<owned_image_packet>&& pkt) mutable {
                 multiframes_counter++;
                 constexpr int period = 100;
                 if ((multiframes_counter % period) == 0) {
@@ -298,16 +307,7 @@ void bot_environment::start_bot(const bot_configuration& config) {
             >> streams::do_finally([this]() {
                 _finished = true;
 
-                _io_service.post([this]() {
-                  stop_metrics();
-                  if (_rtm_client) {
-                    if (auto ec = _rtm_client->stop()) {
-                      LOG(ERROR) << "error stopping rtm client: " << ec.message();
-                    } else {
-                      LOG(INFO) << "rtm client was stopped";
-                    }
-                  }
-                });
+                _io_service.post([this]() { stop_metrics(); });
               });
 
   auto bot_input_stream = streams::publishers::merge<bot_input>(
