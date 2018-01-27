@@ -38,7 +38,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
     if (!_initialized) {
       LOG(INFO) << "Initializing matroska sink for file " << _filename;
       std::shared_ptr<AVCodecContext> encoder_context =
-          avutils::encoder_context(_encoder_id);
+          avutils::encoder_context(avutils::codec_id(metadata.codec_name));
       if (encoder_context == nullptr) {
         throw std::runtime_error{"could not allocate encoder context for " + _filename};
       }
@@ -135,7 +135,6 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
   streams::subscription *_src;
   const std::string _filename;
   const mkv::format_options _format_options;
-  const AVCodecID _encoder_id{AV_CODEC_ID_VP9};
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
   bool _initialized{false};
   int _video_stream_index{-1};

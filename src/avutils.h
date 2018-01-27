@@ -90,6 +90,9 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
                                                 image_pixel_format pixel_format);
 
 boost::optional<image_size> parse_image_size(const std::string &str);
+
+AVCodecID codec_id(const std::string &codec_name);
+
 }  // namespace avutils
 }  // namespace video
 }  // namespace satori

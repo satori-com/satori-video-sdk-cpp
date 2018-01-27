@@ -486,6 +486,19 @@ int find_best_video_stream(AVFormatContext *context, AVCodec **decoder_out) {
   return ret;
 }
 
+AVCodecID codec_id(const std::string &codec_name) {
+  if (codec_name == "vp8") {
+    return AV_CODEC_ID_VP8;
+  }
+  if (codec_name == "vp9") {
+    return AV_CODEC_ID_VP9;
+  }
+  if (codec_name == "h264") {
+    return AV_CODEC_ID_H264;
+  }
+  ABORT() << "unsupported codec: " << codec_name;
+}
+
 }  // namespace avutils
 }  // namespace video
 }  // namespace satori

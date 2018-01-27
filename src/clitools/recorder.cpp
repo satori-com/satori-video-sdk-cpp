@@ -17,9 +17,6 @@
 using namespace satori::video;
 
 namespace {
-constexpr size_t image_buffer_size = 1024;
-constexpr size_t outgoing_encoded_frames_max_buffer_size = 1024;
-
 struct rtm_error_handler : rtm::error_callbacks {
   void on_error(std::error_condition ec) override { LOG(ERROR) << ec.message(); }
 };
