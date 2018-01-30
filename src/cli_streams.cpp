@@ -94,6 +94,10 @@ po::options_description file_output_options() {
       "Typically 50000 is enough for one hour of video. "
       "For Matroska, if not specified (e.g. set to zero), "
       "cues will be written at the end of the file.");
+  output_file_options.add_options()("segment-duration",
+                                    po::value<int>()->default_value(0),
+                                    "(seconds) Nearly fixed duration of output video "
+                                    "file segments. Zero value is ignored");
 
   return output_file_options;
 }
@@ -449,8 +453,9 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
   if (has_output_file_args) {
     mkv::format_options mkv_format_options;
     mkv_format_options.reserved_index_space = _vm["reserved-index-space"].as<int>();
+    const auto segment_duration = _vm["segment-duration"].as<int>();
     return satori::video::mkv_sink(_vm["output-video-file"].as<std::string>(),
-                                   mkv_format_options);
+                                   segment_duration, mkv_format_options);
   }
 
   ABORT() << "shouldn't happen";
