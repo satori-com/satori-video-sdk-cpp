@@ -1,20 +1,29 @@
-# Satori Video C++ SDK
+# Satori Video C++ SDK Overview
 
-The Satori Video SDK provides streaming video processing tools
-based on
-[Satori RTM](https://www.satori.com/docs/using-satori/overview).
+:warning: **PRIVATE: NOT FOR RELEASE***
 
-The Video SDK runs on Mac OS X and Linux. It requires:
-- C++14 compiler
-- Other tools. See [Prerequisites](docs/prerequisites.md)
-## Available documentation
-- [SDK overview](docs/using_sdk.md)
-- [Build instructions](docs/building_sdk.md)
-- [Tutorial](docs/tutorial.md)
-- [Video bot examples](https://github.com/satori-com/satori-video-sdk-cpp-examples)
-## Get the SDK
+:construction: Documentation is under construction :construction:
 
-![SatoriVideo/\[~0.15\]@satorivideo/master](https://img.shields.io/badge/package-SatoriVideo%2F%5B~0.15%5D%40satorivideo%2Fmaster-green.svg)
+The Satori Video SDK processes compressed streaming video. It provides a bot framework that decodes video into frames.
+The framework passes the frames to image processing code that you provide. In turn, your code analyzes or
+transforms the video data. A C++ API lets you publish image processing results, debug messages, and metrics from the
+bot. The API also lets you receive messages containing configuration information.
 
-- Use the [conan](https://conan.io/) c++ package management system to get the SDK.
-- See the [Prerequisites](docs/prerequisites.md) to learn how to configure the Satori Video SDK conan server.
+The SDK uses the [Satori](https://www.satori.com/docs/introduction/new-to-satori) publish/subscribe platform, which
+provides reliable, ultra-high-speed, fast throughput I/O. It accepts real-time streaming video and can
+publish image processing results to thousands of subscribers at once.
+
+The Video SDK works with macOS and Linux. See [Satori Video SDK for C++ Prerequisites](docs/prerequisites.md)
+for more information.
+
+Documents marked with a :construction: are not ready for review
+## Documentation
+| Document                                                                   | Contents                                |
+|----------------------------------------------------------------------------|-----------------------------------------|
+[Satori Video SDK for C++ Concepts](docs/concepts.md)                        | Overview of the SDK                     |
+[Satori Video SDK for C++ Prerequisites](docs/prerequisites.md)              | Prerequisites to use the SDK            |
+[Satori Video SDK for C++ Tasks](docs/tasks.md)                              | Common SDK procedures                   |
+[Satori Video SDK for C++ Reference](docs/reference.md)                      | SDK reference                           |
+[Satori Video SDK for C++: Build and Deploy a Video Bot](docs/build_bot.md)  | How to build a video bot                |
+[Satori Video SDK for C++: Message Formats](docs/message_formats.md)         | Message formats reference               |
+[Contributing to the Satori Video SDK for C++ project](docs/contributing.md) | How to contribute                       |

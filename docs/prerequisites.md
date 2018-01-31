@@ -1,13 +1,22 @@
-# Video bot prerequisites
+# Satori Video SDK for C++ Prerequisites
 
-## Prerequisites
-* Mac OS X or Linux
+[All Video SDK documentation](../README.md)
+
+The video SDK has these groups of prerequisites:
+
+* **Platform:** Hardware and OS requirements to build and run a video bot
+* **Tools:** Tools you need to install before you build a video bot
+* **Optional:** Tools and libraries you need to install to use optional systems.
+* **SDK dependencies:** Libraries that the SDK libraries depend on. The conan package manager downloads and
+installs these dependencies the first time you build a bot.
+
+## Platform prerequisites
+* macOS or Linux
 * C++14 compiler
 
-# Software
+## Tools prerequisites
 
-## Mac OS X:
-* Docker [Install Docker](https://docs.docker.com/engine/installation/)
+### macOS:
 * conan
 * cmake
 * autoconf
@@ -19,7 +28,7 @@
 * For gnu make, use `brew install --with-default-names` so that `brew`
 installs the tool as `make` rather than `gnu-make`.
 
-## Linux:
+### Linux:
 
 * build-essential
 * clang
@@ -37,12 +46,25 @@ installs the tool as `make` rather than `gnu-make`.
 * wget
 
 **Note:**
+
 * Use `sudo apt-get install -y`, except for conan
 * For conan, use `sudo pip install 'conan>=0.28.0'`
 
-## Conan
+### conan setup
 
 Specify the conan remote server:
+
 ```shell
 $ conan remote update video-conan 'http://video-conan.api.satori.com'
 ```
+
+### SDK dependencies
+Installed automatically by conan. Because the build process links them into the video bot, you
+can use them in your program:
+
+* libcbor: CBOR utilities (only the bot framework requires this library, but you can use it if you want)
+* loguru: Loguru logging system
+* opencv: OpenCV libraries
+* libprometheus-cpp: Prometheus metrics library
+* json
+
