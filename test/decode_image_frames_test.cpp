@@ -66,7 +66,7 @@ void run_decode_image_frames_test(const test_definition &td) {
 
   sv::streams::publisher<sv::owned_image_packet> image_stream =
       test_stream(td)
-      >> sv::decode_image_frames(-1, -1, sv::image_pixel_format::RGB0, true);
+      >> sv::decode_image_frames({-1, -1}, sv::image_pixel_format::RGB0, true);
 
   int last_frame_width;
   int last_frame_height;
@@ -159,7 +159,7 @@ BOOST_AUTO_TEST_CASE(id_test) {
 
   std::vector<sv::frame_id> ids;
   auto stream = sv::file_source(io, "test_data/test.mp4", false, true)
-                >> sv::decode_image_frames(-1, -1, sv::image_pixel_format::RGB0, true);
+                >> sv::decode_image_frames({-1, -1}, sv::image_pixel_format::RGB0, true);
 
   auto when_done = stream->process([&ids](sv::owned_image_packet &&pkt) {
     if (const sv::owned_image_frame *f = boost::get<sv::owned_image_frame>(&pkt)) {

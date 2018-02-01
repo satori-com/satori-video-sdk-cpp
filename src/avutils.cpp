@@ -433,15 +433,15 @@ owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
   return image;
 }
 
-std::shared_ptr<allocated_image> allocate_image(int width, int height,
+std::shared_ptr<allocated_image> allocate_image(const image_size &size,
                                                 image_pixel_format pixel_format) {
   uint8_t *data[max_image_planes];
   int linesize[max_image_planes];
 
-  int bytes =
-      av_image_alloc(data, linesize, width, height, to_av_pixel_format(pixel_format), 1);
+  int bytes = av_image_alloc(data, linesize, size.width, size.height,
+                             to_av_pixel_format(pixel_format), 1);
   if (bytes <= 0) {
-    LOG(ERROR) << "av_image_alloc failed for " << width << "x" << height
+    LOG(ERROR) << "av_image_alloc failed for " << size
                << " format= " << (int)pixel_format;
     return nullptr;
   }
@@ -455,7 +455,7 @@ std::shared_ptr<allocated_image> allocate_image(int width, int height,
   });
 }
 
-boost::optional<image_size> parse_image_size(const std::string &str) {
+streams::error_or<image_size> parse_image_size(const std::string &str) {
   if (str == "original") {
     return image_size{original_image_width, original_image_height};
   }
@@ -465,7 +465,7 @@ boost::optional<image_size> parse_image_size(const std::string &str) {
   int ret = av_parse_video_size(&width, &height, str.c_str());
   if (ret < 0) {
     LOG(ERROR) << "couldn't parse image size from " << str << ", " << error_msg(ret);
-    return {};
+    return std::system_category().default_error_condition(EBADMSG);
   }
 
   return image_size{(int16_t)width, (int16_t)height};

@@ -193,8 +193,71 @@ po::options_description to_boost(const cli_options &opts) {
 }
 }  // namespace
 
-constexpr size_t network_buffer_size = 1024;
-constexpr size_t encoded_buffer_size = 10;
+streams::publisher<encoded_packet> encoded_publisher(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const input_video_config &video_cfg) {
+  if (video_cfg.input_channel) {
+    return rtm_source(client, video_cfg.input_channel.get())
+           >> report_video_metrics(video_cfg.input_channel.get())
+           >> decode_network_stream() >> streams::threaded_worker("decoder_worker")
+           >> streams::flatten();
+  }
+
+  if (video_cfg.input_video_file || video_cfg.input_replay_file) {
+    streams::publisher<encoded_packet> source;
+    if (video_cfg.input_video_file) {
+      source = file_source(io, video_cfg.input_video_file.get(), video_cfg.loop,
+                           video_cfg.batch);
+    } else {
+      auto replay_file = video_cfg.input_replay_file.get();
+      source = network_replay_source(io, replay_file, video_cfg.batch)
+               >> report_video_metrics(replay_file) >> decode_network_stream();
+    }
+
+    if (video_cfg.batch) {
+      return source;
+    }
+
+    return std::move(source) >> streams::threaded_worker("input.encoded_buffer")
+           >> streams::flatten();
+  }
+
+  if (video_cfg.input_camera) {
+    const uint8_t fps = 25;                // FIXME: hardcoded value
+    const uint8_t vp9_lag_in_frames = 25;  // FIXME: hardcoded value
+
+    return camera_source(io, video_cfg.resolution, fps) >> encode_vp9(vp9_lag_in_frames);
+  }
+
+  if (video_cfg.input_url) {
+    return url_source(video_cfg.input_url.get());
+  }
+
+  ABORT() << "should not happen";
+}
+
+streams::publisher<owned_image_packet> decoded_publisher(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const input_video_config &video_cfg, image_pixel_format pixel_format) {
+  const auto resolution = avutils::parse_image_size(video_cfg.resolution);
+  CHECK(resolution.ok()) << "bad resolution: " << video_cfg.resolution;
+
+  streams::publisher<owned_image_packet> source =
+      encoded_publisher(io, client, video_cfg)
+      >> decode_image_frames(resolution.get(), pixel_format, video_cfg.keep_proportions);
+
+  if (video_cfg.time_limit) {
+    source =
+        std::move(source) >> streams::asio::timer_breaker<owned_image_packet>(
+                                 io, std::chrono::seconds(video_cfg.time_limit.get()));
+  }
+
+  if (video_cfg.frames_limit) {
+    source = std::move(source) >> streams::take(video_cfg.frames_limit.get());
+  }
+
+  return source;
+}
 
 configuration::configuration(int argc, char *argv[], cli_options options,
                              const po::options_description &custom_options)
@@ -283,7 +346,7 @@ bool configuration::validate() const {
 
   if (_cli_options.enable_generic_input_options) {
     std::string resolution = _vm["input-resolution"].as<std::string>();
-    if (!avutils::parse_image_size(resolution)) {
+    if (!avutils::parse_image_size(resolution).ok()) {
       std::cerr << "Unable to parse input resolution: " << resolution << "\n";
       return false;
     }
@@ -291,7 +354,7 @@ bool configuration::validate() const {
 
   if (_cli_options.enable_generic_output_options) {
     std::string resolution = _vm["output-resolution"].as<std::string>();
-    if (!avutils::parse_image_size(resolution)) {
+    if (!avutils::parse_image_size(resolution).ok()) {
       std::cerr << "Unable to parse output resolution: " << resolution << "\n";
       return false;
     }
@@ -351,95 +414,22 @@ bool configuration::is_batch_mode() const {
 }
 
 streams::publisher<encoded_packet> configuration::encoded_publisher(
-    boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
-    const input_video_config &video_cfg) {
-  if (video_cfg.input_channel) {
-    streams::publisher<network_packet> source =
-        satori::video::rtm_source(client, video_cfg.input_channel.get());
-
-    return std::move(source) >> report_video_metrics(video_cfg.input_channel.get())
-           >> decode_network_stream() >> streams::threaded_worker("decoder_worker")
-           >> streams::flatten();
-  }
-
-  if (video_cfg.input_video_file || video_cfg.input_replay_file) {
-    streams::publisher<encoded_packet> source;
-    if (video_cfg.input_video_file) {
-      source = satori::video::file_source(io_service, video_cfg.input_video_file.get(),
-                                          video_cfg.loop, video_cfg.batch);
-    } else {
-      auto replay_file = video_cfg.input_replay_file.get();
-      source =
-          satori::video::network_replay_source(io_service, replay_file, video_cfg.batch)
-          >> report_video_metrics(replay_file) >> decode_network_stream();
-    }
-
-    if (video_cfg.batch) {
-      return std::move(source);
-    }
-
-    return std::move(source) >> streams::threaded_worker("input.encoded_buffer")
-           >> streams::flatten();
-  }
-
-  if (video_cfg.input_camera) {
-    const uint8_t fps = 25;                // FIXME: hardcoded value
-    const uint8_t vp9_lag_in_frames = 25;  // FIXME: hardcoded value
-
-    return satori::video::camera_source(io_service, video_cfg.resolution.get(), fps)
-           >> encode_vp9(vp9_lag_in_frames);
-  }
-
-  if (video_cfg.input_url) {
-    return satori::video::url_source(video_cfg.input_url.get());
-  }
-
-  ABORT() << "should not happen";
-}
-
-streams::publisher<encoded_packet> configuration::encoded_publisher(
-    boost::asio::io_service &io_service,
-    const std::shared_ptr<rtm::client> &client) const {
-  return configuration::encoded_publisher(io_service, client, input_video_config{_vm});
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client) const {
+  return cli_streams::encoded_publisher(io, client, input_video_config{_vm});
 }
 
 streams::publisher<owned_image_packet> configuration::decoded_publisher(
-    boost::asio::io_service &io_service, image_pixel_format pixel_format,
-    const input_video_config &video_cfg, streams::publisher<encoded_packet> &&publisher) {
-  boost::optional<image_size> resolution =
-      avutils::parse_image_size(video_cfg.resolution ? video_cfg.resolution.get() : "");
-
-  streams::publisher<owned_image_packet> source =
-      std::move(publisher) >> decode_image_frames(resolution->width, resolution->height,
-                                                  pixel_format,
-                                                  video_cfg.keep_proportions);
-
-  if (video_cfg.time_limit) {
-    source = std::move(source)
-             >> streams::asio::timer_breaker<owned_image_packet>(
-                    io_service, std::chrono::seconds(video_cfg.time_limit.get()));
-  }
-
-  if (video_cfg.frames_limit) {
-    source = std::move(source) >> streams::take(video_cfg.frames_limit.get());
-  }
-
-  return source;
-}
-
-streams::publisher<owned_image_packet> configuration::decoded_publisher(
-    boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     image_pixel_format pixel_format) const {
   CHECK(_cli_options.enable_generic_input_options
         || _cli_options.enable_generic_output_options);
 
-  return configuration::decoded_publisher(io_service, pixel_format,
-                                          input_video_config{_vm},
-                                          encoded_publisher(io_service, client));
+  return cli_streams::decoded_publisher(io, client, input_video_config{_vm},
+                                        pixel_format);
 }
 
 streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
-    const std::shared_ptr<rtm::client> &client, boost::asio::io_service &io_service,
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const std::string &channel) const {
   const bool has_output_rtm_args =
       _cli_options.enable_rtm_output && check_rtm_args_provided(_vm);
@@ -447,15 +437,15 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
       _cli_options.enable_file_output && check_file_output_args_provided(_vm);
 
   if (has_output_rtm_args) {
-    return satori::video::rtm_sink(client, io_service, channel);
+    return rtm_sink(client, io, channel);
   }
 
   if (has_output_file_args) {
     mkv::format_options mkv_format_options;
     mkv_format_options.reserved_index_space = _vm["reserved-index-space"].as<int>();
     const auto segment_duration = _vm["segment-duration"].as<int>();
-    return satori::video::mkv_sink(_vm["output-video-file"].as<std::string>(),
-                                   segment_duration, mkv_format_options);
+    return mkv_sink(_vm["output-video-file"].as<std::string>(), segment_duration,
+                    mkv_format_options);
   }
 
   ABORT() << "shouldn't happen";
@@ -469,7 +459,7 @@ input_video_config::input_video_config(const po::variables_map &vm)
                      ? vm["input-resolution"].as<std::string>()
                      : (vm.count("output-resolution") > 0
                             ? vm["output-resolution"].as<std::string>()
-                            : boost::optional<std::string>{})),
+                            : "original")),
       keep_proportions(vm["keep-proportions"].as<bool>()),
       input_video_file(vm.count("input-video-file") > 0
                            ? vm["input-video-file"].as<std::string>()
@@ -481,10 +471,10 @@ input_video_config::input_video_config(const po::variables_map &vm)
                                           : boost::optional<std::string>{}),
       input_camera(vm.count("input-camera") > 0),
       loop(vm.count("loop") > 0),
-      time_limit(vm.count("time-limit") > 0 ? vm["time-limit"].as<long>()
-                                            : boost::optional<long>{}),
-      frames_limit(vm.count("frames-limit") > 0 ? vm["frames-limit"].as<long>()
-                                                : boost::optional<long>{}) {}
+      time_limit(vm.count("time-limit") > 0 ? vm["time-limit"].as<int>()
+                                            : boost::optional<int>{}),
+      frames_limit(vm.count("frames-limit") > 0 ? vm["frames-limit"].as<int>()
+                                                : boost::optional<int>{}) {}
 
 input_video_config::input_video_config(const nlohmann::json &config)
     : input_channel(config.find("channel") != config.end()
@@ -493,7 +483,7 @@ input_video_config::input_video_config(const nlohmann::json &config)
       batch(config.find("batch") != config.end()),
       resolution(config.find("resolution") != config.end()
                      ? config["resolution"].get<std::string>()
-                     : boost::optional<std::string>{}),
+                     : "original"),
       keep_proportions(config.find("keep_proportions") != config.end()),
       input_video_file(config.find("input_video_file") != config.end()
                            ? config["input_video_file"].get<std::string>()

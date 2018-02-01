@@ -137,3 +137,5 @@ std::ostream &operator<<(std::ostream &out,
 
 std::ostream &operator<<(std::ostream &out,
                          const satori::video::encoded_metadata &metadata);
+
+std::ostream &operator<<(std::ostream &out, const satori::video::image_size &size);

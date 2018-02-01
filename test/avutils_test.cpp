@@ -123,16 +123,18 @@ BOOST_AUTO_TEST_CASE(copy_image_to_av_frame) {
 }
 
 BOOST_AUTO_TEST_CASE(parse_image_size) {
-  boost::optional<image_size> s = avutils::parse_image_size("asdf");
-  BOOST_TEST(!s);
+  streams::error_or<image_size> s = avutils::parse_image_size("asdf");
+  BOOST_TEST(!s.ok());
 
   s = avutils::parse_image_size("137x245");
-  BOOST_CHECK_EQUAL(137, s->width);
-  BOOST_CHECK_EQUAL(245, s->height);
+  BOOST_TEST(s.ok());
+  BOOST_CHECK_EQUAL(137, s.get().width);
+  BOOST_CHECK_EQUAL(245, s.get().height);
 
   s = avutils::parse_image_size("original");
-  BOOST_CHECK_EQUAL(original_image_width, s->width);
-  BOOST_CHECK_EQUAL(original_image_height, s->height);
+  BOOST_TEST(s.ok());
+  BOOST_CHECK_EQUAL(original_image_width, s.get().width);
+  BOOST_CHECK_EQUAL(original_image_height, s.get().height);
 }
 
 BOOST_AUTO_TEST_CASE(av_frame_to_image) {

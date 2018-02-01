@@ -240,10 +240,8 @@ void bot_environment::start_bot(const bot_configuration& config) {
           .set_config(config.bot_config);
 
   _bot_instance = builder.build();
-  auto single_frame_source = cli_streams::configuration::decoded_publisher(
-      _io_service, _bot_descriptor.pixel_format, config.video_cfg,
-      cli_streams::configuration::encoded_publisher(_io_service, _rtm_client,
-                                                    config.video_cfg));
+  auto single_frame_source = cli_streams::decoded_publisher(
+      _io_service, _rtm_client, config.video_cfg, _bot_descriptor.pixel_format);
   if (!batch) {
     _source =
         std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
@@ -296,7 +294,7 @@ void bot_environment::start_bot(const bot_configuration& config) {
 
   _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
             >> streams::map([& multiframes_counter = _multiframes_counter](
-                                std::queue<owned_image_packet>&& pkt) mutable {
+                   std::queue<owned_image_packet> && pkt) mutable {
                 multiframes_counter++;
                 constexpr int period = 100;
                 if ((multiframes_counter % period) == 0) {

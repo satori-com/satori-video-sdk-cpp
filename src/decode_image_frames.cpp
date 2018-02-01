@@ -47,11 +47,10 @@ auto &decoder_errors =
 
 class image_decoder_op {
  public:
-  image_decoder_op(image_pixel_format pixel_format, int bounding_width,
-                   int bounding_height, bool keep_proportions)
-      : _pixel_format(pixel_format),
-        _bounding_width(bounding_width),
-        _bounding_height(bounding_height),
+  image_decoder_op(const image_size &bounding_size, image_pixel_format pixel_format,
+                   bool keep_proportions)
+      : _bounding_size{bounding_size},
+        _pixel_format(pixel_format),
         _keep_proportions(keep_proportions) {}
 
   template <typename T>
@@ -71,9 +70,8 @@ class image_decoder_op {
 
     instance(image_decoder_op &&op, streams::subscriber<owned_image_packet> &sink)
         : streams::impl::drain_source_impl<owned_image_packet>(sink),
+          _bounding_size{op._bounding_size},
           _pixel_format(op._pixel_format),
-          _bounding_width(op._bounding_width),
-          _bounding_height(op._bounding_height),
           _keep_proportions(op._keep_proportions) {}
 
     ~instance() override {
@@ -250,8 +248,8 @@ class image_decoder_op {
       owned_image_frame frame;
       frame.id = id;
       frame.pixel_format = _pixel_format;
-      frame.width = static_cast<uint16_t>(_image_width);
-      frame.height = static_cast<uint16_t>(_image_height);
+      frame.width = static_cast<uint16_t>(_image_size.width);
+      frame.height = static_cast<uint16_t>(_image_size.height);
       frame.timestamp =
           std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
 
@@ -262,7 +260,7 @@ class image_decoder_op {
         frame.plane_strides[i] = plane_stride;
         if (plane_stride > 0) {
           frame.plane_data[i].assign(plane_data,
-                                     plane_data + (plane_stride * _image_height));
+                                     plane_data + (plane_stride * _image_size.height));
         }
       }
 
@@ -271,35 +269,37 @@ class image_decoder_op {
     }
 
     bool init_image() {
-      _image_width =
-          _bounding_width != original_image_width ? _bounding_width : _frame->width;
-      _image_height =
-          _bounding_height != original_image_height ? _bounding_height : _frame->height;
+      _image_size.width = _bounding_size.width != original_image_width
+                              ? _bounding_size.width
+                              : _frame->width;
+      _image_size.height = _bounding_size.height != original_image_height
+                               ? _bounding_size.height
+                               : _frame->height;
 
       if (_keep_proportions) {
         double frame_ratio = (double)_frame->width / (double)_frame->height;
-        double requested_ratio = (double)_image_width / (double)_image_height;
+        double requested_ratio = (double)_image_size.width / (double)_image_size.height;
 
         if (std::fabs(frame_ratio - requested_ratio) > epsilon) {
           if (frame_ratio > requested_ratio) {
-            _image_height = (int)((double)_image_width / frame_ratio);
+            _image_size.height = (int16_t)((double)_image_size.width / frame_ratio);
           } else {
-            _image_width = (int)((double)_image_height * frame_ratio);
+            _image_size.width = (int16_t)((double)_image_size.height * frame_ratio);
           }
         }
       }
 
-      LOG(INFO) << "decoder resolution is " << _image_width << "x" << _image_height;
+      LOG(INFO) << "decoder resolution is " << _image_size;
 
-      _image = avutils::allocate_image(_image_width, _image_height, _pixel_format);
+      _image = avutils::allocate_image(_image_size, _pixel_format);
       if (!_image) {
         LOG(ERROR) << "allocate_image failed";
         return false;
       }
 
       _sws_context = avutils::sws_context(
-          _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image_width,
-          _image_height, avutils::to_av_pixel_format(_pixel_format));
+          _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image_size.width,
+          _image_size.height, avutils::to_av_pixel_format(_pixel_format));
 
       if (!_sws_context) {
         LOG(ERROR) << "sws_context failed";
@@ -309,13 +309,11 @@ class image_decoder_op {
       return true;
     }
 
+    const image_size _bounding_size;
     const image_pixel_format _pixel_format;
-    const int _bounding_width;
-    const int _bounding_height;
     const bool _keep_proportions;
     streams::subscription *_source{nullptr};
-    int _image_width{0};
-    int _image_height{0};
+    image_size _image_size{0, 0};
     uint64_t _current_metadata_frames_counter{0};
     encoded_metadata _metadata;
     std::shared_ptr<AVCodecContext> _context;
@@ -326,23 +324,22 @@ class image_decoder_op {
   };
 
  private:
+  const image_size _bounding_size;
   const image_pixel_format _pixel_format;
-  const int _bounding_width;
-  const int _bounding_height;
   const bool _keep_proportions;
 };
 
 }  // namespace
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
-    int bounding_width, int bounding_height, image_pixel_format pixel_format,
+    const image_size &bounding_size, image_pixel_format pixel_format,
     bool keep_proportions) {
   avutils::init();
 
-  return [bounding_width, bounding_height, pixel_format,
+  return [bounding_size, pixel_format,
           keep_proportions](streams::publisher<encoded_packet> &&src) {
-    return std::move(src) >> image_decoder_op(pixel_format, bounding_width,
-                                              bounding_height, keep_proportions);
+    return std::move(src)
+           >> image_decoder_op(bounding_size, pixel_format, keep_proportions);
   };
 }
 

@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
 
   LOG(INFO) << "Starting recording...";
 
-  source->subscribe(config.encoded_subscriber(rtm_client, io_service, rtm_channel));
+  source->subscribe(config.encoded_subscriber(io_service, rtm_client, rtm_channel));
 
   io_service.run();
 

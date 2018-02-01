@@ -34,7 +34,7 @@ streams::publisher<network_packet> rtm_source(
 streams::op<network_packet, encoded_packet> decode_network_stream();
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
-    int bounding_width, int bounding_height, image_pixel_format pixel_format,
+    const image_size &bounding_size, image_pixel_format pixel_format,
     bool keep_proportions);
 
 streams::subscriber<encoded_packet> &rtm_sink(

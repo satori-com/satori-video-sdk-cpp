@@ -14,6 +14,7 @@ extern "C" {
 
 #include "data.h"
 #include "satori_video.h"
+#include "streams/error_or.h"
 
 namespace satori {
 namespace video {
@@ -86,10 +87,10 @@ struct allocated_image {
   int linesize[max_image_planes];
 };
 
-std::shared_ptr<allocated_image> allocate_image(int width, int height,
+std::shared_ptr<allocated_image> allocate_image(const image_size &size,
                                                 image_pixel_format pixel_format);
 
-boost::optional<image_size> parse_image_size(const std::string &str);
+streams::error_or<image_size> parse_image_size(const std::string &str);
 
 AVCodecID codec_id(const std::string &codec_name);
 

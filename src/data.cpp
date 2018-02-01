@@ -196,3 +196,8 @@ std::ostream &operator<<(std::ostream &out,
   out << metadata.to_network();
   return out;
 }
+
+std::ostream &operator<<(std::ostream &out, const satori::video::image_size &size) {
+  out << size.width << "x" << size.height;
+  return out;
+}

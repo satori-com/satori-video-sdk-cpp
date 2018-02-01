@@ -34,7 +34,7 @@ struct input_video_config {
   explicit input_video_config(const nlohmann::json &config);
 
   const bool batch;
-  const boost::optional<std::string> resolution;
+  const std::string resolution;
   const bool keep_proportions;
   const boost::optional<std::string> input_video_file;
   const boost::optional<std::string> input_replay_file;
@@ -42,9 +42,17 @@ struct input_video_config {
   const boost::optional<std::string> input_channel;
   const bool input_camera;
   const bool loop;
-  const boost::optional<long> time_limit;
-  const boost::optional<long> frames_limit;
+  const boost::optional<int> time_limit;
+  const boost::optional<int> frames_limit;
 };
+
+streams::publisher<encoded_packet> encoded_publisher(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const input_video_config &video_cfg);
+
+streams::publisher<owned_image_packet> decoded_publisher(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const input_video_config &video_cfg, image_pixel_format pixel_format);
 
 struct configuration {
  public:
@@ -64,25 +72,15 @@ struct configuration {
 
   bool is_batch_mode() const;
 
-  static streams::publisher<encoded_packet> encoded_publisher(
-      boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
-      const input_video_config &video_cfg);
-
   streams::publisher<encoded_packet> encoded_publisher(
-      boost::asio::io_service &io_service,
-      const std::shared_ptr<rtm::client> &client) const;
-
-  static streams::publisher<owned_image_packet> decoded_publisher(
-      boost::asio::io_service &io_service, image_pixel_format pixel_format,
-      const input_video_config &video_cfg,
-      streams::publisher<encoded_packet> &&publisher);
+      boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client) const;
 
   streams::publisher<owned_image_packet> decoded_publisher(
-      boost::asio::io_service &io_service, const std::shared_ptr<rtm::client> &client,
+      boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
       image_pixel_format pixel_format) const;
 
   streams::subscriber<encoded_packet> &encoded_subscriber(
-      const std::shared_ptr<rtm::client> &client, boost::asio::io_service &io_service,
+      boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
       const std::string &channel) const;
 
   metrics_config metrics() const { return metrics_config{_vm}; }

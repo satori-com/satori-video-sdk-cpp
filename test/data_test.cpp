@@ -34,6 +34,20 @@ BOOST_AUTO_TEST_CASE(encoded_metadata_to_string) {
                     result);
 }
 
+BOOST_AUTO_TEST_CASE(image_size_to_string) {
+  sv::image_size size{5, 6};
+
+  std::stringstream ss;
+
+  ss << size;
+
+  std::string result;
+
+  ss >> result;
+
+  BOOST_CHECK_EQUAL("5x6", result);
+}
+
 BOOST_AUTO_TEST_CASE(additional_data_test) {
   sv::encoded_metadata em;
   em.codec_name = "dummy-codec";
