@@ -111,11 +111,11 @@ class mkv_file_writer {
 class mkv_sink_impl : public streams::subscriber<encoded_packet>,
                       boost::static_visitor<void> {
  public:
-  mkv_sink_impl(const std::string &filename, const uint16_t segment_duration,
-                const mkv::format_options &format_options)
-      : _is_segmented{segment_duration > 0},
-        _segment_duration{std::chrono::seconds{segment_duration}},
-        _format_options{format_options} {
+  mkv_sink_impl(
+      const std::string &filename,
+      const boost::optional<std::chrono::system_clock::duration> &segment_duration,
+      const mkv::format_options &format_options)
+      : _segment_duration{segment_duration}, _format_options{format_options} {
     const auto dot_pos = filename.rfind('.');
     if (dot_pos != std::string::npos) {
       _basename = filename.substr(0, dot_pos);
@@ -137,7 +137,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
       return;
     }
 
-    if (!_is_segmented) {
+    if (!_segment_duration.is_initialized()) {
       if (!_file_writer) {
         LOG(INFO) << "starting non-segmented file " << filename(nullptr, nullptr);
         _file_writer = std::make_unique<mkv_file_writer>(filename(nullptr, nullptr),
@@ -149,7 +149,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
     }
 
     if (f.key_frame) {
-      if (_file_writer && f.timestamp >= _segment_start_ts + _segment_duration) {
+      if (_file_writer && f.timestamp >= _segment_start_ts + _segment_duration.get()) {
         _file_writer.reset();
         const std::string old_name = filename(&_segment_start_ts, nullptr);
         const std::string new_name = filename(&_segment_start_ts, &_last_frame_ts);
@@ -212,8 +212,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
   std::string _basename;
   std::string _extension;
-  const bool _is_segmented;
-  const std::chrono::system_clock::duration _segment_duration;
+  const boost::optional<std::chrono::system_clock::duration> _segment_duration;
   const mkv::format_options _format_options;
   bool _initialized{false};
   encoded_metadata _metadata;
@@ -225,9 +224,10 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
 }  // namespace
 
-streams::subscriber<encoded_packet> &mkv_sink(const std::string &filename,
-                                              const uint16_t segment_duration,
-                                              const mkv::format_options &format_options) {
+streams::subscriber<encoded_packet> &mkv_sink(
+    const std::string &filename,
+    const boost::optional<std::chrono::system_clock::duration> &segment_duration,
+    const mkv::format_options &format_options) {
   return *(new mkv_sink_impl(filename, segment_duration, format_options));
 }
 

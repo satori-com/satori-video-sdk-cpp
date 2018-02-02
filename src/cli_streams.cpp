@@ -50,10 +50,10 @@ po::options_description camera_input_options() {
 
 po::options_description generic_input_options() {
   po::options_description options("Generic input options");
-  options.add_options()("time-limit", po::value<long>(),
+  options.add_options()("time-limit", po::value<int>(),
                         "(seconds) if specified, bot will exit after given time elapsed");
   options.add_options()(
-      "frames-limit", po::value<long>(),
+      "frames-limit", po::value<int>(),
       "(number) if specified, bot will exit after processing given number of frames");
   options.add_options()("input-resolution",
                         po::value<std::string>()->default_value("320x240"),
@@ -94,10 +94,9 @@ po::options_description file_output_options() {
       "Typically 50000 is enough for one hour of video. "
       "For Matroska, if not specified (e.g. set to zero), "
       "cues will be written at the end of the file.");
-  output_file_options.add_options()("segment-duration",
-                                    po::value<int>()->default_value(0),
+  output_file_options.add_options()("segment-duration", po::value<int>(),
                                     "(seconds) Nearly fixed duration of output video "
-                                    "file segments. Zero value is ignored");
+                                    "file segments");
 
   return output_file_options;
 }
@@ -441,9 +440,14 @@ streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
   }
 
   if (has_output_file_args) {
+    boost::optional<std::chrono::system_clock::duration> segment_duration;
+    if (_vm.count("segment-duration") > 0) {
+      segment_duration = std::chrono::seconds{_vm["segment-duration"].as<int>()};
+    }
+
     mkv::format_options mkv_format_options;
     mkv_format_options.reserved_index_space = _vm["reserved-index-space"].as<int>();
-    const auto segment_duration = _vm["segment-duration"].as<int>();
+
     return mkv_sink(_vm["output-video-file"].as<std::string>(), segment_duration,
                     mkv_format_options);
   }
