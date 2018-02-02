@@ -1,7 +1,9 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/optional.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <thread>
@@ -46,6 +48,16 @@ struct input_video_config {
   const boost::optional<int> frames_limit;
 };
 
+struct output_video_config {
+  explicit output_video_config(const po::variables_map &vm);
+  explicit output_video_config(const nlohmann::json &config);
+
+  const boost::optional<std::string> channel;
+  const boost::optional<std::string> video_file;
+  const boost::optional<std::chrono::system_clock::duration> segment_duration;
+  const boost::optional<int> reserved_index_space;
+};
+
 streams::publisher<encoded_packet> encoded_publisher(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const input_video_config &video_cfg);
@@ -53,6 +65,10 @@ streams::publisher<encoded_packet> encoded_publisher(
 streams::publisher<owned_image_packet> decoded_publisher(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const input_video_config &video_cfg, image_pixel_format pixel_format);
+
+streams::subscriber<encoded_packet> &encoded_subscriber(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const output_video_config &config);
 
 struct configuration {
  public:
@@ -68,8 +84,6 @@ struct configuration {
       boost::asio::ssl::context &ssl_context,
       rtm::error_callbacks &rtm_error_callbacks) const;
 
-  std::string rtm_channel() const;
-
   bool is_batch_mode() const;
 
   streams::publisher<encoded_packet> encoded_publisher(
@@ -80,8 +94,7 @@ struct configuration {
       image_pixel_format pixel_format) const;
 
   streams::subscriber<encoded_packet> &encoded_subscriber(
-      boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
-      const std::string &channel) const;
+      boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client) const;
 
   metrics_config metrics() const { return metrics_config{_vm}; }
 

@@ -191,7 +191,6 @@ int main(int argc, char *argv[]) {
   init_logging(argc, argv);
   player_configuration config{argc, argv};
 
-
   sdl_window window;
   sdl_renderer renderer{window};
 
@@ -208,8 +207,6 @@ int main(int argc, char *argv[]) {
       ABORT() << "error starting rtm client: " << ec.message();
     }
   }
-
-  std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<sdl_surface> source =
       config.decoded_publisher(io_service, rtm_client, image_pixel_format::BGR)

@@ -63,7 +63,6 @@ int main(int argc, char* argv[]) {
 
   std::shared_ptr<rtm::client> rtm_client = config.rtm_client(
       io_service, std::this_thread::get_id(), ssl_context, error_handler);
-  std::string rtm_channel = config.rtm_channel();
 
   streams::publisher<satori::video::encoded_packet> source =
       config.decoded_publisher(io_service, rtm_client, image_pixel_format::RGB0)
@@ -90,7 +89,7 @@ int main(int argc, char* argv[]) {
 
   LOG(INFO) << "Starting recording...";
 
-  source->subscribe(config.encoded_subscriber(io_service, rtm_client, rtm_channel));
+  source->subscribe(config.encoded_subscriber(io_service, rtm_client));
 
   io_service.run();
 

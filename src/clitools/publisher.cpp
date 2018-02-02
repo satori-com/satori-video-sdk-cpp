@@ -64,8 +64,6 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<rtm::client> rtm_client = config.rtm_client(
       io_service, std::this_thread::get_id(), ssl_context, error_handler);
 
-  std::string rtm_channel = config.rtm_channel();
-
   if (auto ec = rtm_client->start()) {
     ABORT() << "error starting rtm client: " << ec.message();
   }
@@ -85,7 +83,7 @@ int main(int argc, char* argv[]) {
              });
            });
 
-  source->subscribe(config.encoded_subscriber(io_service, rtm_client, rtm_channel));
+  source->subscribe(config.encoded_subscriber(io_service, rtm_client));
 
   io_service.run();
 }

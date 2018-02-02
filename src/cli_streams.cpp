@@ -258,6 +258,24 @@ streams::publisher<owned_image_packet> decoded_publisher(
   return source;
 }
 
+streams::subscriber<encoded_packet> &encoded_subscriber(
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
+    const output_video_config &config) {
+  if (config.channel.is_initialized()) {
+    return rtm_sink(client, io, config.channel.get());
+  }
+
+  if (config.video_file.is_initialized()) {
+    CHECK(config.reserved_index_space.is_initialized());
+
+    mkv::format_options mkv_format_options;
+    mkv_format_options.reserved_index_space = config.reserved_index_space.get();
+    return mkv_sink(config.video_file.get(), config.segment_duration, mkv_format_options);
+  }
+
+  ABORT() << "shouldn't happen";
+}
+
 configuration::configuration(int argc, char *argv[], cli_options options,
                              const po::options_description &custom_options)
     : _cli_options(options) {
@@ -389,24 +407,6 @@ std::shared_ptr<rtm::client> configuration::rtm_client(
           rtm_error_callbacks));
 }
 
-std::string configuration::rtm_channel() const {
-  if (!_cli_options.enable_rtm_input && !_cli_options.enable_rtm_output) {
-    return "";
-  }
-  if (!check_rtm_args_provided(_vm)) {
-    return "";
-  }
-  if (_cli_options.enable_rtm_input) {
-    return _vm["input-channel"].as<std::string>();
-  }
-  if (_cli_options.enable_rtm_output) {
-    return _vm["output-channel"].as<std::string>();
-  }
-
-  ABORT() << "unreachable code";
-  return "";
-}
-
 bool configuration::is_batch_mode() const {
   return _cli_options.enable_file_input && _cli_options.enable_file_batch_mode
          && _vm.count("batch") > 0;
@@ -428,31 +428,8 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
 }
 
 streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
-    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
-    const std::string &channel) const {
-  const bool has_output_rtm_args =
-      _cli_options.enable_rtm_output && check_rtm_args_provided(_vm);
-  const bool has_output_file_args =
-      _cli_options.enable_file_output && check_file_output_args_provided(_vm);
-
-  if (has_output_rtm_args) {
-    return rtm_sink(client, io, channel);
-  }
-
-  if (has_output_file_args) {
-    boost::optional<std::chrono::system_clock::duration> segment_duration;
-    if (_vm.count("segment-duration") > 0) {
-      segment_duration = std::chrono::seconds{_vm["segment-duration"].as<int>()};
-    }
-
-    mkv::format_options mkv_format_options;
-    mkv_format_options.reserved_index_space = _vm["reserved-index-space"].as<int>();
-
-    return mkv_sink(_vm["output-video-file"].as<std::string>(), segment_duration,
-                    mkv_format_options);
-  }
-
-  ABORT() << "shouldn't happen";
+    boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client) const {
+  return cli_streams::encoded_subscriber(io, client, output_video_config{_vm});
 }
 
 input_video_config::input_video_config(const po::variables_map &vm)
@@ -507,6 +484,36 @@ input_video_config::input_video_config(const nlohmann::json &config)
                        ? config["frames_limit"].get<long>()
                        : boost::optional<long>{}) {}
 
+output_video_config::output_video_config(const po::variables_map &vm)
+    : channel{vm.count("output-channel") > 0 ? vm["output-channel"].as<std::string>()
+                                             : boost::optional<std::string>{}},
+      video_file{vm.count("output-video-file") > 0
+                     ? vm["output-video-file"].as<std::string>()
+                     : boost::optional<std::string>{}},
+      segment_duration{
+          vm.count("segment-duration") > 0
+              ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
+                    vm["segment-duration"].as<int>()}}
+              : boost::optional<std::chrono::system_clock::duration>{}},
+      reserved_index_space{vm.count("reserved-index-space") > 0
+                               ? vm["reserved-index-space"].as<int>()
+                               : boost::optional<int>{}} {}
+
+output_video_config::output_video_config(const nlohmann::json &config)
+    : channel{config.find("output-channel") != config.end()
+                  ? config["output-channel"].get<std::string>()
+                  : boost::optional<std::string>{}},
+      video_file{config.find("output-video-file") != config.end()
+                     ? config["output-video-file"].get<std::string>()
+                     : boost::optional<std::string>{}},
+      segment_duration{
+          config.find("segment-duration") != config.end()
+              ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
+                    config["segment-duration"].get<int>()}}
+              : boost::optional<std::chrono::system_clock::duration>{}},
+      reserved_index_space{config.find("reserved-index-space") != config.end()
+                               ? config["reserved-index-space"].get<int>()
+                               : boost::optional<int>{}} {}
 }  // namespace cli_streams
 }  // namespace video
 }  // namespace satori
