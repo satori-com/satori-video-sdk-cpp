@@ -53,30 +53,21 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         _timestamp = nf.t;
         _departure_time = nf.dt;
         _creation_time = nf.arrival_time;
-        _base64_applied_to_chunks = nf.base64_applied_to_chunks;
       }
 
-      if (_base64_applied_to_chunks) {
-        const auto data_or_error = base64::decode(nf.base64_data);
-        CHECK(data_or_error.ok()) << "bad base64 data: " << nf.base64_data;
-        _aggregated_data.append(data_or_error.get());
-      } else {
-        _aggregated_data.append(nf.base64_data);
-      }
+      const auto data_or_error = base64::decode(nf.base64_data);
+      CHECK(data_or_error.ok()) << "bad base64 data: " << nf.base64_data;
+      _aggregated_data.append(data_or_error.get());
 
       if (nf.chunk == nf.chunks) {
         encoded_frame frame;
-        if (_base64_applied_to_chunks) {
-          frame.data = _aggregated_data;
-        } else {
-          const auto data_or_error = base64::decode(_aggregated_data);
-          CHECK(data_or_error.ok()) << "bad base64 data: " << _aggregated_data;
-          frame.data = data_or_error.get();
-        }
+        frame.data = _aggregated_data;
         frame.id = _id;
         frame.timestamp = _timestamp;
         frame.creation_time = _creation_time;
+
         reset();
+
         frame_chunks.Observe(nf.chunks);
         return streams::publishers::of({encoded_packet{frame}});
       }
@@ -97,8 +88,6 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     std::chrono::system_clock::time_point _departure_time;
     std::chrono::system_clock::time_point _creation_time;
     std::string _aggregated_data;
-    // TODO: remove after full migration to base64 applied to chunks
-    bool _base64_applied_to_chunks;
   };
 
   return [](streams::publisher<network_packet> &&src) {

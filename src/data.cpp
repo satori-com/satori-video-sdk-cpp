@@ -152,31 +152,18 @@ network_frame parse_network_frame(const nlohmann::json &item) {
     key_frame = k;
   }
 
-  // TODO: remove "d" field after full migration to base64 applied to chunks
-  std::string base64_data;
-  bool base64_applied_to_chunks = true;
-  if (item.find("b") != item.end()) {
-    auto &b = item["b"];
-    CHECK(b.is_string()) << "bad item: " << item;
-    base64_data = b;
-  } else if (item.find("d") != item.end()) {
-    auto &d = item["d"];
-    CHECK(d.is_string()) << "bad item: " << item;
-    base64_data = d;
-    base64_applied_to_chunks = false;
-  } else {
-    ABORT() << "bad item: " << item;
-  }
+  CHECK(item.find("b") != item.end()) << "bad item: " << item;
+  auto &data = item["b"];
+  CHECK(data.is_string()) << "bad item: " << item;
 
   network_frame frame;
-  frame.base64_data = base64_data;
+  frame.base64_data = data;
   frame.id = {i1, i2};
   frame.t = timestamp;
   frame.dt = departure_time;
   frame.chunk = chunk;
   frame.chunks = chunks;
   frame.key_frame = key_frame;
-  frame.base64_applied_to_chunks = base64_applied_to_chunks;
 
   return frame;
 }
