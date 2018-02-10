@@ -37,11 +37,12 @@ class threaded_worker_op {
       }
 
       ~source() override {
-        LOG(5) << this << " " << _name << " ~source";
+        LOG(INFO) << this << " " << _name << " ~source";
         CHECK(std::this_thread::get_id() == _worker_thread->get_id());
-        CHECK(!_active);
+        CHECK(!_thread_should_be_active);
 
         if (_src) {
+          LOG(INFO) << this << " " << _name << " cancelling upstream";
           _src->cancel();
           _src = nullptr;
         }
@@ -56,7 +57,7 @@ class threaded_worker_op {
 
       void on_next(T &&t) override {
         std::lock_guard<std::mutex> guard(_mutex);
-        CHECK(_active);
+        CHECK_NOTNULL(_src) << this << " " << _name;
         _buffer.emplace(std::move(t));
         _on_send.notify_one();
       }
@@ -64,20 +65,20 @@ class threaded_worker_op {
       void on_error(std::error_condition ec) override {
         std::lock_guard<std::mutex> guard(_mutex);
         LOG(5) << this << " " << _name << " on_error: " << ec.message();
-        CHECK(_active);
+        CHECK_NOTNULL(_src) << this << " " << _name;
         _src = nullptr;
         _ec = ec;
-        _active = false;
+        _thread_should_be_active = false;
         _on_send.notify_one();
       }
 
       void on_complete() override {
         std::lock_guard<std::mutex> guard(_mutex);
         LOG(5) << this << " " << _name << " on_complete";
-        CHECK(_active);
+        CHECK_NOTNULL(_src) << this << " " << _name;
         _src = nullptr;
         _complete = true;
-        _active = false;
+        _thread_should_be_active = false;
         _on_send.notify_one();
       }
 
@@ -86,16 +87,16 @@ class threaded_worker_op {
         LOG(INFO) << this << " " << _name << " started worker thread";
         drain_source_impl<element_t>::deliver_on_subscribe();
 
-        while (_active) {
+        while (_thread_should_be_active) {
           {
             std::unique_lock<std::mutex> lock(_mutex);
             _worker_thread_ready = true;
-            while (_active && _buffer.empty()) {
+            while (_thread_should_be_active && _buffer.empty()) {
               LOG(5) << this << " " << _name << " waiting for _on_send";
               _on_send.wait(lock);
             }
 
-            if (_buffer.empty() || !(_active || _complete || _ec)) {
+            if (_buffer.empty() || !(_thread_should_be_active || _complete || _ec)) {
               break;
             }
           }
@@ -103,8 +104,18 @@ class threaded_worker_op {
           drain_source_impl<element_t>::drain();
         }
 
-        LOG(2) << this << " " << _name << " finished worker thread loop: "
-               << (_complete ? "complete" : _ec.message());
+        std::string finish_reason;
+        if (_cancelled) {
+          finish_reason = "cancelled";
+        } else if (_complete) {
+          finish_reason = "complete";
+        } else if (_ec) {
+          finish_reason = _ec.message();
+        } else {
+          ABORT() << "unreachable code";
+        }
+        LOG(INFO) << this << " " << _name
+                  << " finished worker thread loop: " << finish_reason;
 
         _worker_thread_ready = true;
 
@@ -116,17 +127,19 @@ class threaded_worker_op {
           }
         }
 
+        LOG(INFO) << this << " " << _name << " destroying thread_worker";
         delete this;
       }
 
       void die() override {
-        LOG(2) << this << " " << _name << " die";
-        LOG(INFO) << "invoking die() from " << threadutils::get_current_thread_name()
-                  << ", this worker thread " << _name;
-        _active = false;
+        LOG(INFO) << this << " " << _name << " die() from "
+                  << threadutils::get_current_thread_name();
+        _thread_should_be_active = false;
       }
 
       void cancel() override {
+        LOG(INFO) << this << " " << _name << " cancel() from "
+                  << threadutils::get_current_thread_name();
         _cancelled = true;
         drain_source_impl<element_t>::cancel();
       }
@@ -160,14 +173,14 @@ class threaded_worker_op {
       std::mutex _mutex;
       std::condition_variable _on_send;
 
-      std::atomic_bool _active{true};
-      bool _complete{false};
+      std::atomic_bool _complete{false};
       bool _cancelled{false};
       std::error_condition _ec;
 
       std::queue<T> _buffer;
       std::unique_ptr<std::thread> _worker_thread;
-      subscription *_src;
+      std::atomic_bool _thread_should_be_active{true};
+      subscription *_src{nullptr};
     };
 
    public:

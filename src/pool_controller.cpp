@@ -30,12 +30,6 @@ pool_job_controller::pool_job_controller(boost::asio::io_service &io,
       _client(rtm_client),
       _streams(streams) {}
 
-pool_job_controller::~pool_job_controller() {
-  if (_hb_timer) {
-    _client->unsubscribe(_pool_sub);
-  }
-}
-
 void pool_job_controller::start() {
   LOG(INFO) << "joining pool " << _pool << " job_type=" << _job_type
             << " node_id=" << node_id;
@@ -45,7 +39,13 @@ void pool_job_controller::start() {
 }
 
 void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
-  CHECK(!ec) << "boost error: [" << ec << "] " << ec.message();
+  if (ec.value() != 0) {
+    if (ec == boost::asio::error::operation_aborted) {
+      LOG(INFO) << "heartbeat timer was cancelled";
+      return;
+    }
+    ABORT() << "boost error: [" << ec << "] " << ec.message();
+  }
 
   _hb_timer->expires_from_now(default_hb_period);
   _hb_timer->async_wait([this](const boost::system::error_code &e) { on_heartbeat(e); });
@@ -66,15 +66,24 @@ void pool_job_controller::on_heartbeat(const boost::system::error_code &ec) {
 }
 
 void pool_job_controller::shutdown() {
-  nlohmann::json shutdown_note = nlohmann::json::object();
-  shutdown_note["from"] = node_id;
-  shutdown_note["job_type"] = _job_type;
-  shutdown_note["reason"] = "shutdown";
-  shutdown_note["stopped_jobs"] = _streams.list_jobs();
+  _io.post([this]() {
+    nlohmann::json shutdown_note = nlohmann::json::object();
+    shutdown_note["from"] = node_id;
+    shutdown_note["job_type"] = _job_type;
+    shutdown_note["reason"] = "shutdown";
+    shutdown_note["stopped_jobs"] = _streams.list_jobs();
 
-  _io.post([
-    client = _client, pool = _pool, shutdown_note = std::move(shutdown_note)
-  ]() mutable { client->publish(pool, std::move(shutdown_note)); });
+    LOG(INFO) << "sending shutdown note " << shutdown_note;
+    _client->publish(_pool, std::move(shutdown_note));
+
+    if (_hb_timer) {
+      LOG(INFO) << "canceling heartbeat timer";
+      _hb_timer->cancel();
+    }
+
+    LOG(INFO) << "unsubscribing from pool";
+    _client->unsubscribe(_pool_sub);
+  });
 }
 
 void pool_job_controller::on_data(const rtm::subscription & /*subscription*/,

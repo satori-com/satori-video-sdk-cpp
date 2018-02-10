@@ -178,9 +178,10 @@ int bot_environment::main(int argc, char* argv[]) {
     }
   }
   _metrics_config = config.metrics();
+  _pool_mode = config.pool().is_initialized();
 
   auto start = [config, this]() {
-    if (!config.pool()) {
+    if (!_pool_mode) {
       start_bot(config.bot_config());
     } else {
       std::string pool = config.pool().get();
@@ -191,10 +192,14 @@ int bot_environment::main(int argc, char* argv[]) {
 
       // Kubernetes sends SIGTERM, and then SIGKILL after 30 seconds
       // https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
-      signal::register_handler({SIGINT, SIGTERM, SIGQUIT}, [job_controller](int signal) {
-        LOG(INFO) << "Got signal #" << signal;
-        job_controller->shutdown();
-      });
+      signal::register_handler(
+          {SIGINT, SIGTERM, SIGQUIT}, [this, job_controller](int signal) {
+            LOG(INFO) << "Got signal #" << signal << ", shutting down job controller";
+            job_controller->shutdown();
+            delete job_controller;
+
+            _finished = true;
+          });
 
       job_controller->start();
     }
@@ -215,8 +220,10 @@ int bot_environment::main(int argc, char* argv[]) {
     start();
   }
 
+  // TODO: should be in signal::register_handler
   if (_rtm_client) {
     _io_service.post([rtm_client = _rtm_client]() {
+      LOG(INFO) << "stopping rtm client";
       if (auto ec = rtm_client->stop()) {
         LOG(ERROR) << "error stopping rtm client: " << ec.message();
       } else {
@@ -224,6 +231,7 @@ int bot_environment::main(int argc, char* argv[]) {
       }
     });
   }
+
   return 0;
 }
 
@@ -305,7 +313,21 @@ void bot_environment::start_bot(const bot_configuration& config) {
             >> streams::do_finally([this]() {
                 _finished = true;
 
-                _io_service.post([this]() { stop_metrics(); });
+                _io_service.post([this]() {
+                  LOG(INFO) << "stopping bot metrics";
+                  stop_metrics();
+                });
+
+                if (!_pool_mode && _rtm_client) {
+                  _io_service.post([rtm_client = _rtm_client]() {
+                    LOG(INFO) << "stopping rtm client";
+                    if (auto ec = rtm_client->stop()) {
+                      LOG(ERROR) << "error stopping rtm client: " << ec.message();
+                    } else {
+                      LOG(INFO) << "rtm client was stopped";
+                    }
+                  });
+                }
               });
 
   auto bot_input_stream = streams::publishers::merge<bot_input>(

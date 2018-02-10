@@ -381,6 +381,7 @@ streams::op<T, T> interval(boost::asio::io_service &io,
   };
 }
 
+// TODO: doesn't react well on Ctrl+C
 template <typename T>
 streams::op<T, T> timer_breaker(boost::asio::io_service &io,
                                 std::chrono::milliseconds time) {

@@ -21,8 +21,6 @@ class pool_job_controller : rtm::subscription_callbacks {
                       const std::string &job_type, size_t max_streams_capacity,
                       std::shared_ptr<rtm::client> &rtm_client, job_controller &streams);
 
-  ~pool_job_controller() override;
-
   void start();
   void shutdown();
 

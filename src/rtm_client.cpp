@@ -435,7 +435,8 @@ class secure_client : public client, public boost::static_visitor<> {
       LOG(1) << "RTM client is pending stop";
       return;
     }
-    CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
+    CHECK_EQ(_client_state, client_state::RUNNING)
+        << "RTM client is not running, channel " << channel << ", message " << message;
 
     nlohmann::json document =
         R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}, "id":"<not_set>"})"_json;
@@ -457,14 +458,16 @@ class secure_client : public client, public boost::static_visitor<> {
 
     const auto before_publish = std::chrono::system_clock::now();
     _publish_times.emplace(request_id, before_publish);
-    write(std::move(buffer), [before_publish](boost::system::error_code ec) {
+    write(std::move(buffer), [ before_publish, document = std::move(document) ](
+                                 boost::system::error_code ec) {
       const auto after_publish = std::chrono::system_clock::now();
       rtm_publish_time_microseconds.Observe(
           std::chrono::duration_cast<std::chrono::microseconds>(after_publish
                                                                 - before_publish)
               .count());
       if (ec.value() != 0) {
-        LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message();
+        LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message()
+                   << ", message " << document;
         rtm_client_error.Add({{"type", "publish"}}).Increment();
       }
     });
@@ -494,9 +497,11 @@ class secure_client : public client, public boost::static_visitor<> {
 
     rtm_bytes_written.Increment(buffer.size());
     LOG(1) << "requested subscribe: " << document;
-    write(std::move(buffer), [](boost::system::error_code ec) {
+    write(std::move(buffer), [document =
+                                  std::move(document)](boost::system::error_code ec) {
       if (ec.value() != 0) {
-        LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message();
+        LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message()
+                   << ", message " << document;
         rtm_client_error.Add({{"type", "subscribe"}}).Increment();
       }
     });
@@ -532,9 +537,11 @@ class secure_client : public client, public boost::static_visitor<> {
       sub.status = subscription_status::PENDING_UNSUBSCRIBE;
       LOG(1) << "requested unsubscribe: " << document;
 
-      write(std::move(buffer), [](boost::system::error_code ec) {
+      write(std::move(buffer), [document =
+                                    std::move(document)](boost::system::error_code ec) {
         if (ec.value() != 0) {
-          LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message();
+          LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message()
+                     << ", message " << document;
           rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
         }
       });
@@ -839,6 +846,7 @@ class secure_client : public client, public boost::static_visitor<> {
     LOG(4) << "drain requests " << _requests.size();
     rtm_pending_requests.Set(_requests.size());
     if (_requests.empty() || _request_in_flight) {
+      LOG(4) << "drain requests early return";
       return;
     }
 

@@ -186,7 +186,11 @@ class metrics {
     _update_process_metrics_timer->expires_from_now(process_metrics_update_period);
     _update_process_metrics_timer->async_wait([this](const boost::system::error_code ec) {
       if (ec.value() != 0) {
-        LOG(ERROR) << "timer error: " << ec << " " << ec.message();
+        if (ec == boost::asio::error::operation_aborted) {
+          LOG(INFO) << "update_process_metrics_timer was cancelled";
+        } else {
+          LOG(ERROR) << "timer error: " << ec << " " << ec.message();
+        }
         delete _update_process_metrics_timer;
         return;
       }

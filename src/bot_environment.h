@@ -68,6 +68,7 @@ class bot_environment : public job_controller,
   multiframe_bot_descriptor _bot_descriptor;
   std::unique_ptr<bot_instance> _bot_instance;
   std::shared_ptr<rtm::client> _rtm_client;
+  bool _pool_mode{false};
 
   streams::observer<nlohmann::json>* _analysis_sink;
   streams::observer<nlohmann::json>* _debug_sink;
