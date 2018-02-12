@@ -101,6 +101,19 @@ po::options_description file_output_options() {
   return output_file_options;
 }
 
+po::options_description pool_mode_options() {
+  po::options_description pool_mode_options("Pool mode options");
+  pool_mode_options.add_options()(
+      "pool", po::value<std::string>(),
+      "Start program in pool mode, "
+      "in this case program advertises its capacity "
+      "on RTM channel and waits for job assignments from pool manager");
+  pool_mode_options.add_options()("pool-job-type", po::value<std::string>(),
+                                  "Pool job type supported by program");
+
+  return pool_mode_options;
+}
+
 bool check_rtm_args_provided(const po::variables_map &vm) {
   return vm.count("endpoint") > 0 || vm.count("appkey") > 0
          || vm.count("input-channel") > 0 || vm.count("output-channel") > 0;
@@ -120,6 +133,10 @@ bool check_url_input_args_provided(const po::variables_map &vm) {
 
 bool check_file_output_args_provided(const po::variables_map &vm) {
   return vm.count("output-video-file") > 0;
+}
+
+bool check_pool_mode_args_provided(const po::variables_map &vm) {
+  return vm.count("pool") > 0;
 }
 
 bool validate_rtm_args(const cli_options &opts, const po::variables_map &vm) {
@@ -187,6 +204,9 @@ po::options_description to_boost(const cli_options &opts) {
   if (opts.enable_file_output) {
     options.add(file_output_options());
   }
+  if (opts.enable_pool_mode) {
+    options.add(pool_mode_options());
+  }
 
   return options;
 }
@@ -198,7 +218,8 @@ streams::publisher<encoded_packet> encoded_publisher(
   if (video_cfg.input_channel) {
     return rtm_source(client, video_cfg.input_channel.get())
            >> report_video_metrics(video_cfg.input_channel.get())
-           >> decode_network_stream() >> streams::threaded_worker("decoder_worker")
+           >> decode_network_stream()
+           >> streams::threaded_worker("decoder_" + video_cfg.input_channel.get())
            >> streams::flatten();
   }
 
@@ -345,10 +366,16 @@ bool configuration::validate() const {
     return false;
   }
 
-  if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
-    if (!has_output_rtm_args && !has_output_file_args) {
-      std::cerr << "Video output should be specified\n";
-      return false;
+  // TODO: use it more in this validation function
+  const bool has_pool_mode_args =
+      _cli_options.enable_pool_mode && check_pool_mode_args_provided(_vm);
+
+  if (!has_pool_mode_args) {
+    if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
+      if (!has_output_rtm_args && !has_output_file_args) {
+        std::cerr << "Video output should be specified\n";
+        return false;
+      }
     }
   }
 
@@ -513,7 +540,7 @@ output_video_config::output_video_config(const nlohmann::json &config)
               : boost::optional<std::chrono::system_clock::duration>{}},
       reserved_index_space{config.find("reserved-index-space") != config.end()
                                ? config["reserved-index-space"].get<int>()
-                               : boost::optional<int>{}} {}
+                               : 0} {}
 }  // namespace cli_streams
 }  // namespace video
 }  // namespace satori

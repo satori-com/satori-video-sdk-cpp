@@ -523,6 +523,7 @@ class secure_client : public client, public boost::static_visitor<> {
     for (auto &it : _subscriptions) {
       const std::string &sub_id = it.first;
       subscription_impl &sub = it.second;
+      // TODO: using object addresses is not reliable
       if (&sub.sub != &sub_to_delete) {
         continue;
       }

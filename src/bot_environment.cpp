@@ -47,17 +47,9 @@ po::options_description bot_custom_options() {
       "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
 
-  po::options_description bot_as_a_service_options("Bot as a service options");
-  bot_as_a_service_options.add_options()(
-      "pool", po::value<std::string>(),
-      "Start bot as a service for a given pool, "
-      "in this case bot advertises its capacity "
-      "on RTM channel and listens for VMGR assignations");
-
   return bot_configuration_options.add(bot_execution_options)
       .add(metrics_options())
-      .add(generic)
-      .add(bot_as_a_service_options);
+      .add(generic);
 }
 
 cli_streams::cli_options bot_cli_cfg() {
@@ -68,6 +60,7 @@ cli_streams::cli_options bot_cli_cfg() {
   cli_cfg.enable_generic_input_options = true;
   cli_cfg.enable_url_input = true;
   cli_cfg.enable_file_batch_mode = true;
+  cli_cfg.enable_pool_mode = true;
   return cli_cfg;
 }
 
@@ -185,6 +178,7 @@ int bot_environment::main(int argc, char* argv[]) {
       start_bot(config.bot_config());
     } else {
       std::string pool = config.pool().get();
+      // TODO: could use pool-job-type cli option
       std::string job_type = config.id();
 
       auto job_controller =

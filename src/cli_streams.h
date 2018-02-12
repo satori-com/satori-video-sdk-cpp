@@ -29,6 +29,7 @@ struct cli_options {
   bool enable_file_output{false};
   bool enable_file_batch_mode{false};
   bool enable_url_input{false};
+  bool enable_pool_mode{false};
 };
 
 struct input_video_config {
