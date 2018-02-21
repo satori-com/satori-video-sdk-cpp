@@ -84,7 +84,7 @@ class sdl_surface {
  public:
   explicit sdl_surface(const owned_image_frame &frame) {
     _ptr = SDL_CreateRGBSurfaceFrom((void *)frame.plane_data[0].data(), frame.width,
-                                    frame.height, 24, frame.width * 3, 0x00ff0000,
+                                    frame.height, 24, frame.plane_strides[0], 0x00ff0000,
                                     0x0000ff00, 0x000000ff, 0x00000000);
 
     CHECK_NOTNULL(_ptr) << "Unable to create surface! SDL Error: " << SDL_GetError();
