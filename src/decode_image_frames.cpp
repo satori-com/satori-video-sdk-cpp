@@ -243,29 +243,12 @@ class image_decoder_op {
       sws_scale(_sws_context.get(), _frame->data, _frame->linesize, 0, _frame->height,
                 _image->data, _image->linesize);
 
-      frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
-
-      owned_image_frame frame;
-      frame.id = id;
-      frame.pixel_format = _pixel_format;
-      frame.width = static_cast<uint16_t>(_image_size.width);
-      frame.height = static_cast<uint16_t>(_image_size.height);
-      frame.timestamp =
-          std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
-
-      // TODO: use avutils::copy_av_frame_to_image() maybe?
-      for (uint8_t i = 0; i < max_image_planes; i++) {
-        const auto plane_stride = static_cast<uint32_t>(_image->linesize[i]);
-        const uint8_t *plane_data = _image->data[i];
-        frame.plane_strides[i] = plane_stride;
-        if (plane_stride > 0) {
-          frame.plane_data[i].assign(plane_data,
-                                     plane_data + (plane_stride * _image_size.height));
-        }
-      }
+      owned_image_frame frame = avutils::to_image_frame(_frame);
+      // TODO: not sure it is good to use such ids
+      frame.id = {_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
 
       frames_received.Increment();
-      deliver_on_next(owned_image_packet{frame});
+      deliver_on_next(owned_image_packet{std::move(frame)});
     }
 
     bool init_image() {

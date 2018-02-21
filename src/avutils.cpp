@@ -1,3 +1,6 @@
+#include "avutils.h"
+
+#include <chrono>
 #include <sstream>
 #include <stdexcept>
 
@@ -8,9 +11,8 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
-#include <satorivideo/base.h>
-#include "avutils.h"
 #include "logging.h"
+#include "satorivideo/base.h"
 
 namespace satori {
 namespace video {
@@ -420,6 +422,8 @@ owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
   image.width = static_cast<uint16_t>(frame->width);
   image.height = static_cast<uint16_t>(frame->height);
   image.pixel_format = to_image_pixel_format(static_cast<AVPixelFormat>(frame->format));
+  image.timestamp =
+      std::chrono::system_clock::time_point{std::chrono::milliseconds(frame->pts)};
 
   for (uint8_t i = 0; i < max_image_planes; i++) {
     const auto plane_stride = static_cast<uint32_t>(frame->linesize[i]);
