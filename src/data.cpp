@@ -174,7 +174,7 @@ network_frame parse_network_frame(const nlohmann::json &item) {
 std::ostream &operator<<(std::ostream &out,
                          const satori::video::network_metadata &metadata) {
   out << "(codec_name=" << metadata.codec_name << ",base64_data=" << metadata.base64_data
-      << ")";
+      << ",additional_data=" << metadata.additional_data << ")";
   return out;
 }
 
