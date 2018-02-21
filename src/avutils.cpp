@@ -6,6 +6,7 @@
 
 extern "C" {
 #include <libavdevice/avdevice.h>
+#include <libavfilter/avfilter.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/parseutils.h>
 #include <libavutil/pixdesc.h>
@@ -72,6 +73,18 @@ void dump_bsfs() {
   }
 }
 
+void dump_filters() {
+  std::ostringstream filters_buffer;
+  const AVFilter *f{nullptr};
+  while ((f = avfilter_next(f)) != nullptr) {
+    if (filters_buffer.tellp() > 0) {
+      filters_buffer << ", ";
+    }
+    filters_buffer << f->name;
+  }
+  LOG(1) << "available filters: " << filters_buffer.str();
+}
+
 }  // namespace
 
 void init() {
@@ -115,6 +128,7 @@ void init() {
 
     avdevice_register_all();
     avcodec_register_all();
+    avfilter_register_all();
     av_register_all();
     avformat_network_init();
     initialized = true;
@@ -123,6 +137,7 @@ void init() {
     dump_iformats();
     dump_oformats();
     dump_bsfs();
+    dump_filters();
   }
 }
 
