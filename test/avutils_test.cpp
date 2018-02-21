@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(av_frame_to_image) {
   av_frame->data[0][0] = 0xab;
   av_frame->data[0][data_size - 1] = 0xcd;
 
-  owned_image_frame frame = avutils::to_image_frame(av_frame);
+  owned_image_frame frame = avutils::to_image_frame(*av_frame);
 
   BOOST_CHECK_EQUAL(width, frame.width);
   BOOST_CHECK_EQUAL(height, frame.height);

@@ -1,3 +1,6 @@
+#include "avutils.h"
+
+#include <chrono>
 #include <sstream>
 #include <stdexcept>
 
@@ -8,9 +11,8 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
-#include <satorivideo/base.h>
-#include "avutils.h"
 #include "logging.h"
+#include "satorivideo/base.h"
 
 namespace satori {
 namespace video {
@@ -414,19 +416,21 @@ void copy_image_to_av_frame(const owned_image_frame &image,
   }
 }
 
-owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame) {
+owned_image_frame to_image_frame(const AVFrame &frame) {
   owned_image_frame image;
 
-  image.width = static_cast<uint16_t>(frame->width);
-  image.height = static_cast<uint16_t>(frame->height);
-  image.pixel_format = to_image_pixel_format(static_cast<AVPixelFormat>(frame->format));
+  image.width = static_cast<uint16_t>(frame.width);
+  image.height = static_cast<uint16_t>(frame.height);
+  image.pixel_format = to_image_pixel_format(static_cast<AVPixelFormat>(frame.format));
+  image.timestamp =
+      std::chrono::system_clock::time_point{std::chrono::milliseconds(frame.pts)};
 
   for (uint8_t i = 0; i < max_image_planes; i++) {
-    const auto plane_stride = static_cast<uint32_t>(frame->linesize[i]);
+    const auto plane_stride = static_cast<uint32_t>(frame.linesize[i]);
     image.plane_strides[i] = plane_stride;
     if (plane_stride > 0) {
-      const uint8_t *plane_data = frame->data[i];
-      image.plane_data[i].assign(plane_data, plane_data + (plane_stride * frame->height));
+      const uint8_t *plane_data = frame.data[i];
+      image.plane_data[i].assign(plane_data, plane_data + (plane_stride * frame.height));
     }
   }
 

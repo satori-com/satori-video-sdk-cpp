@@ -78,7 +78,7 @@ class camera_source_impl {
 
     avutils::sws_scale(_sws_context, _decoded_av_frame, _converted_av_frame);
 
-    owned_image_frame frame = avutils::to_image_frame(_converted_av_frame);
+    owned_image_frame frame = avutils::to_image_frame(*_converted_av_frame);
     frame.id = {_last_pos, _av_packet.pos};
     auto ts = 1000 * _av_packet.pts * _stream->time_base.num / _stream->time_base.den;
     frame.timestamp = _start + std::chrono::milliseconds(ts);

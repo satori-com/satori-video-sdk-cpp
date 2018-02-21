@@ -80,7 +80,7 @@ void copy_image_to_av_frame(const owned_image_frame &image,
                             const std::shared_ptr<AVFrame> &frame);
 
 // Converts AVFrame to image frame
-owned_image_frame to_image_frame(const std::shared_ptr<const AVFrame> &frame);
+owned_image_frame to_image_frame(const AVFrame &frame);
 
 struct allocated_image {
   uint8_t *data[max_image_planes];
