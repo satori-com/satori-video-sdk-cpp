@@ -264,7 +264,7 @@ streams::publisher<owned_image_packet> decoded_publisher(
 
   streams::publisher<owned_image_packet> source =
       encoded_publisher(io, client, video_cfg)
-      >> decode_image_frames(resolution.get(), pixel_format, video_cfg.keep_proportions);
+      >> decode_image_frames(resolution.get(), pixel_format, video_cfg.keep_aspect_ratio);
 
   if (video_cfg.time_limit) {
     source =
@@ -468,7 +468,7 @@ input_video_config::input_video_config(const po::variables_map &vm)
                      : (vm.count("output-resolution") > 0
                             ? vm["output-resolution"].as<std::string>()
                             : "original")),
-      keep_proportions(vm["keep-proportions"].as<bool>()),
+      keep_aspect_ratio(vm["keep-proportions"].as<bool>()),
       input_video_file(vm.count("input-video-file") > 0
                            ? vm["input-video-file"].as<std::string>()
                            : boost::optional<std::string>{}),
@@ -492,7 +492,7 @@ input_video_config::input_video_config(const nlohmann::json &config)
       resolution(config.find("resolution") != config.end()
                      ? config["resolution"].get<std::string>()
                      : "original"),
-      keep_proportions(config.find("keep_proportions") != config.end()),
+      keep_aspect_ratio(config.find("keep_proportions") != config.end()),
       input_video_file(config.find("input_video_file") != config.end()
                            ? config["input_video_file"].get<std::string>()
                            : boost::optional<std::string>{}),

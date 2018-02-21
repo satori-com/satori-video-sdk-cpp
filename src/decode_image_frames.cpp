@@ -48,10 +48,10 @@ auto &decoder_errors =
 class image_decoder_op {
  public:
   image_decoder_op(const image_size &bounding_size, image_pixel_format pixel_format,
-                   bool keep_proportions)
+                   bool keep_aspect_ratio)
       : _bounding_size{bounding_size},
-        _pixel_format(pixel_format),
-        _keep_proportions(keep_proportions) {}
+        _pixel_format{pixel_format},
+        _keep_aspect_ratio{keep_aspect_ratio} {}
 
   template <typename T>
   class instance : public streams::subscriber<encoded_packet>,
@@ -71,8 +71,8 @@ class image_decoder_op {
     instance(image_decoder_op &&op, streams::subscriber<owned_image_packet> &sink)
         : streams::impl::drain_source_impl<owned_image_packet>(sink),
           _bounding_size{op._bounding_size},
-          _pixel_format(op._pixel_format),
-          _keep_proportions(op._keep_proportions) {}
+          _pixel_format{op._pixel_format},
+          _keep_aspect_ratio{op._keep_aspect_ratio} {}
 
     ~instance() override {
       if (_source) {
@@ -119,7 +119,7 @@ class image_decoder_op {
 
    public:
     void operator()(const encoded_metadata &m) {
-      LOG(INFO) << this << "received stream metadata " << m;
+      LOG(INFO) << this << " received stream metadata " << m;
       if (m.codec_data == _metadata.codec_data && m.codec_name == _metadata.codec_name) {
         LOG(INFO) << "Ignoring same metadata";
         return;
@@ -276,7 +276,7 @@ class image_decoder_op {
                                ? _bounding_size.height
                                : _frame->height;
 
-      if (_keep_proportions) {
+      if (_keep_aspect_ratio) {
         double frame_ratio = (double)_frame->width / (double)_frame->height;
         double requested_ratio = (double)_image_size.width / (double)_image_size.height;
 
@@ -311,7 +311,7 @@ class image_decoder_op {
 
     const image_size _bounding_size;
     const image_pixel_format _pixel_format;
-    const bool _keep_proportions;
+    const bool _keep_aspect_ratio;
     streams::subscription *_source{nullptr};
     image_size _image_size{0, 0};
     uint64_t _current_metadata_frames_counter{0};
@@ -326,20 +326,20 @@ class image_decoder_op {
  private:
   const image_size _bounding_size;
   const image_pixel_format _pixel_format;
-  const bool _keep_proportions;
+  const bool _keep_aspect_ratio;
 };
 
 }  // namespace
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     const image_size &bounding_size, image_pixel_format pixel_format,
-    bool keep_proportions) {
+    bool keep_aspect_ratio) {
   avutils::init();
 
   return [bounding_size, pixel_format,
-          keep_proportions](streams::publisher<encoded_packet> &&src) {
+          keep_aspect_ratio](streams::publisher<encoded_packet> &&src) {
     return std::move(src)
-           >> image_decoder_op(bounding_size, pixel_format, keep_proportions);
+           >> image_decoder_op(bounding_size, pixel_format, keep_aspect_ratio);
   };
 }
 

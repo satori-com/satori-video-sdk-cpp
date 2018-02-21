@@ -36,7 +36,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream();
 
 streams::op<encoded_packet, owned_image_packet> decode_image_frames(
     const image_size &bounding_size, image_pixel_format pixel_format,
-    bool keep_proportions);
+    bool keep_aspect_ratio);
 
 streams::subscriber<encoded_packet> &rtm_sink(
     const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,

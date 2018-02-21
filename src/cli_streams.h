@@ -38,7 +38,7 @@ struct input_video_config {
 
   const bool batch;
   const std::string resolution;
-  const bool keep_proportions;
+  const bool keep_aspect_ratio;
   const boost::optional<std::string> input_video_file;
   const boost::optional<std::string> input_replay_file;
   const boost::optional<std::string> input_url;
