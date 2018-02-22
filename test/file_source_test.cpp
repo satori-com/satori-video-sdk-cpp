@@ -55,5 +55,24 @@ BOOST_AUTO_TEST_CASE(test_repeat_metadata) {
   BOOST_TEST(metadata_count == 7);
 }
 
+BOOST_AUTO_TEST_CASE(rotated_video) {
+  boost::asio::io_service io;
+
+  auto stream = file_source(io, "test_data/test_rotated.mp4", false, true)
+                >> decode_image_frames({320, 240}, image_pixel_format::BGR, true);
+
+  size_t id_counter{0};
+  auto when_done = stream->process([&id_counter](owned_image_packet &&pkt) {
+    if (const owned_image_frame *f = boost::get<owned_image_frame>(&pkt)) {
+      BOOST_CHECK_EQUAL(180, f->width);
+      BOOST_CHECK_EQUAL(240, f->height);
+      id_counter++;
+    }
+  });
+  BOOST_TEST(when_done.ok());
+
+  BOOST_CHECK_EQUAL(6, id_counter);
+}
+
 }  // namespace video
 }  // namespace satori

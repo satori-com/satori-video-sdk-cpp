@@ -1,16 +1,17 @@
+#include "video_streams.h"
 
+#include <sstream>
+
+#include "av_filter.h"
 #include "avutils.h"
 #include "metrics.h"
 #include "stopwatch.h"
 #include "video_error.h"
-#include "video_streams.h"
 
 namespace satori {
 namespace video {
 
 namespace {
-
-constexpr double epsilon = .000001;
 
 auto &frames_received = prometheus::BuildCounter()
                             .Name("decoder_frames_received_total")
@@ -130,7 +131,8 @@ class image_decoder_op {
       _context = avutils::decoder_context(m.codec_name, m.codec_data);
       _packet = avutils::av_packet();
       _frame = avutils::av_frame();
-      if (!_context || !_packet || !_frame) {
+      _filtered_frame = avutils::av_frame();
+      if (!_context || !_packet || !_frame || !_filtered_frame) {
         deliver_on_error(video_error::STREAM_INITIALIZATION_ERROR);
         return;
       }
@@ -233,94 +235,72 @@ class image_decoder_op {
     }
 
     void deliver_frame() {
-      if (!_image) {
-        if (!init_image()) {
-          deliver_on_error(video_error::STREAM_INITIALIZATION_ERROR);
-          return;
-        }
+      if (!_filter) {
+        init_filter();
       }
 
-      sws_scale(_sws_context.get(), _frame->data, _frame->linesize, 0, _frame->height,
-                _image->data, _image->linesize);
-
-      frame_id id{_frame->pkt_pos, _frame->pkt_pos + _frame->pkt_duration};
-
-      owned_image_frame frame;
-      frame.id = id;
-      frame.pixel_format = _pixel_format;
-      frame.width = static_cast<uint16_t>(_image_size.width);
-      frame.height = static_cast<uint16_t>(_image_size.height);
-      frame.timestamp =
-          std::chrono::system_clock::time_point{std::chrono::milliseconds(_frame->pts)};
-
-      // TODO: use avutils::copy_av_frame_to_image() maybe?
-      for (uint8_t i = 0; i < max_image_planes; i++) {
-        const auto plane_stride = static_cast<uint32_t>(_image->linesize[i]);
-        const uint8_t *plane_data = _image->data[i];
-        frame.plane_strides[i] = plane_stride;
-        if (plane_stride > 0) {
-          frame.plane_data[i].assign(plane_data,
-                                     plane_data + (plane_stride * _image_size.height));
-        }
-      }
-
+      _filter->feed(*_frame);
       frames_received.Increment();
-      deliver_on_next(owned_image_packet{frame});
+
+      while (_filter->try_retrieve(*_filtered_frame)) {
+        owned_image_frame frame = avutils::to_image_frame(*_filtered_frame);
+        frame.id = {_filtered_frame->pkt_pos,
+                    _filtered_frame->pkt_pos + _filtered_frame->pkt_duration};
+
+        av_frame_unref(_filtered_frame.get());
+        deliver_on_next(owned_image_packet{std::move(frame)});
+      }
     }
 
-    bool init_image() {
-      _image_size.width = _bounding_size.width != original_image_width
-                              ? _bounding_size.width
-                              : _frame->width;
-      _image_size.height = _bounding_size.height != original_image_height
-                               ? _bounding_size.height
-                               : _frame->height;
+    void init_filter() {
+      std::ostringstream filter_buffer;
 
-      if (_keep_aspect_ratio) {
-        double frame_ratio = (double)_frame->width / (double)_frame->height;
-        double requested_ratio = (double)_image_size.width / (double)_image_size.height;
+      const auto &additional = _metadata.additional_data;
+      if (additional.is_object()
+          && additional.find("display_rotation") != additional.end()) {
+        const double display_rotation = additional["display_rotation"];
+        LOG(INFO) << "display rotation angle " << display_rotation;
 
-        if (std::fabs(frame_ratio - requested_ratio) > epsilon) {
-          if (frame_ratio > requested_ratio) {
-            _image_size.height = (int16_t)((double)_image_size.width / frame_ratio);
-          } else {
-            _image_size.width = (int16_t)((double)_image_size.height * frame_ratio);
-          }
+        if (std::abs(display_rotation - 90) < 1.0) {
+          filter_buffer << "transpose=clock";
+        } else if (std::abs(display_rotation - 180) < 1.0) {
+          filter_buffer << "hflip,vflip";
+        } else if (std::abs(display_rotation - 270) < 1.0) {
+          filter_buffer << "transpose=cclock";
+        } else if (std::abs(display_rotation) > 1.0) {
+          // TODO: floating point formatting?
+          filter_buffer << "rotate=" << display_rotation << "*PI/180";
         }
       }
 
-      LOG(INFO) << "decoder resolution is " << _image_size;
-
-      _image = avutils::allocate_image(_image_size, _pixel_format);
-      if (!_image) {
-        LOG(ERROR) << "allocate_image failed";
-        return false;
+      if (filter_buffer.tellp() > 0) {
+        filter_buffer << ",";
+      }
+      filter_buffer << "scale=";
+      filter_buffer << "w=" << _bounding_size.width << ":h=" << _bounding_size.height;
+      if (_keep_aspect_ratio) {
+        filter_buffer << ":force_original_aspect_ratio=decrease";
       }
 
-      _sws_context = avutils::sws_context(
-          _frame->width, _frame->height, (AVPixelFormat)_frame->format, _image_size.width,
-          _image_size.height, avutils::to_av_pixel_format(_pixel_format));
+      CHECK_GT(filter_buffer.tellp(), 0);
+      const std::string filter_string = filter_buffer.str();
+      LOG(INFO) << "got a filter: " << filter_string;
 
-      if (!_sws_context) {
-        LOG(ERROR) << "sws_context failed";
-        return false;
-      }
-
-      return true;
+      _filter = std::make_unique<av_filter>(filter_string, *_frame, _context->time_base,
+                                            _pixel_format);
     }
 
     const image_size _bounding_size;
     const image_pixel_format _pixel_format;
     const bool _keep_aspect_ratio;
     streams::subscription *_source{nullptr};
-    image_size _image_size{0, 0};
     uint64_t _current_metadata_frames_counter{0};
     encoded_metadata _metadata;
     std::shared_ptr<AVCodecContext> _context;
     std::shared_ptr<AVPacket> _packet;
     std::shared_ptr<AVFrame> _frame;
-    std::shared_ptr<avutils::allocated_image> _image;
-    std::shared_ptr<SwsContext> _sws_context;
+    std::shared_ptr<AVFrame> _filtered_frame;
+    std::unique_ptr<av_filter> _filter;
   };
 
  private:

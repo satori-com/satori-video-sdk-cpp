@@ -61,8 +61,8 @@ network_metadata parse_network_metadata(const nlohmann::json &item);
 network_frame parse_network_frame(const nlohmann::json &item);
 
 // Used to tell not to downscale original video stream
-constexpr int16_t original_image_width = -1;
-constexpr int16_t original_image_height = -1;
+constexpr int16_t original_image_width = -1;   // TODO: move to avutils.h
+constexpr int16_t original_image_height = -1;  // TODO: move to avutils.h
 
 // image size
 struct image_size {

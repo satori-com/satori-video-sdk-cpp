@@ -5,6 +5,7 @@
 #include <thread>
 
 extern "C" {
+#include <libavutil/display.h>
 #include <libavutil/error.h>
 }
 
@@ -123,13 +124,39 @@ class file_source_impl {
   }
 
   void send_metadata(streams::observer<encoded_packet> &observer) {
-    observer.on_next(encoded_metadata{
-        _dec->name,
-        {_dec_ctx->extradata, _dec_ctx->extradata + _dec_ctx->extradata_size}});
+    encoded_metadata metadata;
+    metadata.codec_name = _dec->name;
+    metadata.codec_data.assign(_dec_ctx->extradata,
+                               _dec_ctx->extradata + _dec_ctx->extradata_size);
+    auto display_rotation = get_display_rotation();
+    if (display_rotation.is_initialized()) {
+      metadata.additional_data = nlohmann::json::object();
+      metadata.additional_data["display_rotation"] = display_rotation.get();
+    }
+    observer.on_next(std::move(metadata));
     _metadata_sent = true;
   }
 
  private:
+  // based on FFmpeg's get_rotation() function
+  boost::optional<double> get_display_rotation() const {
+    uint8_t *display_matrix =
+        av_stream_get_side_data(_stream, AV_PKT_DATA_DISPLAYMATRIX, nullptr);
+    if (display_matrix == nullptr) {
+      return {};
+    }
+
+    // Returns angle in [-180.0; 180.0] range
+    double theta =
+        -av_display_rotation_get(reinterpret_cast<const int32_t *>(display_matrix));
+
+    // Converting angle to [0.0; 360.0] range
+    theta -= 360 * std::floor(theta / 360 + 0.9 / 360);
+
+    CHECK_LE(std::abs(theta - 90 * std::round(theta / 90)), 2);
+    return theta;
+  }
+
   const std::string _filename;
   const bool _loop{false};
 

@@ -42,6 +42,7 @@ add_library(satorivideo
     include/satorivideo/base.h
     include/satorivideo/video_bot.h
     include/satorivideo/multiframe/bot.h
+    src/av_filter.cpp
     src/avutils.cpp
     src/base64.cpp
     src/bot_environment.cpp
@@ -395,3 +396,4 @@ add_video_test(bot_instance_test test/bot_instance_test.cpp)
 add_video_test(cbor_to_json_test test/cbor_to_json_test.cpp)
 add_video_test(json_to_cbor_test test/json_to_cbor_test.cpp)
 add_video_test(ostream_sink_test test/ostream_sink_test.cpp)
+add_video_test(av_filter_test test/av_filter_test.cpp)
