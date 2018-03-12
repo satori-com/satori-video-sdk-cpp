@@ -46,6 +46,10 @@ po::options_description bot_custom_options() {
   bot_execution_options.add_options()(
       "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
+  bot_execution_options.add_options()(
+      "output-video-file", po::value<std::string>(),
+      "saves annotated video into a file instead of sending results to a channel");
+
 
   return bot_configuration_options.add(bot_execution_options)
       .add(metrics_options())
