@@ -54,11 +54,11 @@ add_library(satorivideo
     src/cli_streams.cpp
     src/data.cpp
     src/decode_image_frames.cpp
+    src/file_sink.h
     src/file_source.cpp
     src/logging.h
     src/logging_impl.h
     src/metrics.cpp
-    src/mkv_options.h
     src/mkv_sink.cpp
     src/ostream_sink.cpp
     src/pool_controller.h

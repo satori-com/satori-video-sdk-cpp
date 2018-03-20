@@ -5,8 +5,8 @@
 
 #include "avutils.h"
 #include "data.h"
+#include "file_sink.h"
 #include "logging.h"
-#include "mkv_options.h"
 #include "streams/streams.h"
 
 // TODO: #1 convert to general video_file_sink to support mp4 and mkv at least
@@ -19,9 +19,16 @@ namespace {
 
 namespace fs = boost::filesystem;
 
+fs::path get_temp_dir() {
+  boost::system::error_code ec;
+  auto result = fs::temp_directory_path(ec);
+  CHECK_EQ(ec.value(), 0) << "failed to get temporary directory name: " << ec.message();
+  return result;
+}
+
 class mkv_file_writer {
  public:
-  mkv_file_writer(const std::string &filename, const mkv::format_options &format_options,
+  mkv_file_writer(const std::string &filename, const file_sink::mkv_options &mkv_options,
                   const encoded_metadata &metadata)
       : _filename{filename} {
     avutils::init();
@@ -59,7 +66,7 @@ class mkv_file_writer {
     LOG(INFO) << "Writing header section into file " << filename;
     AVDictionary *options_dict{nullptr};
     av_dict_set(&options_dict, "reserve_index_space",
-                std::to_string(format_options.reserved_index_space).c_str(), 0);
+                std::to_string(mkv_options.reserved_index_space).c_str(), 0);
     ret = avformat_write_header(_format_context.get(), &options_dict);
     CHECK_GE(ret, 0) << "failed to write header: " << avutils::error_msg(ret);
     av_dict_free(&options_dict);
@@ -130,17 +137,9 @@ class mkv_file_writer {
 class mkv_sink_impl : public streams::subscriber<encoded_packet>,
                       boost::static_visitor<void> {
  public:
-  mkv_sink_impl(
-      const std::string &filename,
-      const boost::optional<std::chrono::system_clock::duration> &segment_duration,
-      const mkv::format_options &format_options)
-      : _path{filename},
-        _segment_duration{segment_duration},
-        _format_options{format_options} {
-    boost::system::error_code ec;
-    _temp_dir = fs::temp_directory_path(ec);
-    CHECK_EQ(ec.value(), 0) << "failed to get temporary directory name: " << ec.message();
-  }
+  mkv_sink_impl(const file_sink::options &options,
+                const file_sink::mkv_options &mkv_options)
+      : _options{options}, _mkv_options{mkv_options}, _temp_dir{get_temp_dir()} {}
 
   ~mkv_sink_impl() override {
     if (_file_writer) {
@@ -160,11 +159,11 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
       return;
     }
 
-    if (!_segment_duration.is_initialized()) {
+    if (!_options.segment_duration.is_initialized()) {
       if (!_file_writer) {
-        LOG(INFO) << "starting non-segmented file " << _path;
-        _file_writer =
-            std::make_unique<mkv_file_writer>(_path.string(), _format_options, _metadata);
+        LOG(INFO) << "starting non-segmented file " << _options.path;
+        _file_writer = std::make_unique<mkv_file_writer>(_options.path.string(),
+                                                         _mkv_options, _metadata);
       }
 
       _file_writer->write_frame(f);
@@ -173,15 +172,14 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
     if (f.key_frame) {
       if (_file_writer
-          && f.timestamp >= _file_writer->start_ts() + _segment_duration.get()) {
+          && f.timestamp >= _file_writer->start_ts() + _options.segment_duration.get()) {
         release_last_segment();
       }
 
       if (!_file_writer) {
         const auto name = temp_filename();
         LOG(INFO) << "starting new segment " << name;
-        _file_writer =
-            std::make_unique<mkv_file_writer>(name, _format_options, _metadata);
+        _file_writer = std::make_unique<mkv_file_writer>(name, _mkv_options, _metadata);
       }
     }
 
@@ -212,13 +210,13 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
   std::string filename(const std::chrono::system_clock::time_point &start,
                        const std::chrono::system_clock::time_point &end) const {
-    fs::path result{_path.stem()};
+    fs::path result{_options.path.stem()};
     result += "-";
     result += std::to_string(start.time_since_epoch().count());
     result += "-";
     result += std::to_string(end.time_since_epoch().count());
-    result += _path.extension();
-    return (_path.parent_path() / result).string();
+    result += _options.path.extension();
+    return (_options.path.parent_path() / result).string();
   }
 
   void on_next(encoded_packet &&packet) override {
@@ -238,10 +236,9 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
     _src->request(1);
   }
 
+  const file_sink::options _options;
+  const file_sink::mkv_options _mkv_options;
   fs::path _temp_dir;
-  const fs::path _path;
-  const boost::optional<std::chrono::system_clock::duration> _segment_duration;
-  const mkv::format_options _format_options;
   bool _initialized{false};
   encoded_metadata _metadata;
   std::unique_ptr<mkv_file_writer> _file_writer{nullptr};
@@ -250,11 +247,9 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
 }  // namespace
 
-streams::subscriber<encoded_packet> &mkv_sink(
-    const std::string &filename,
-    const boost::optional<std::chrono::system_clock::duration> &segment_duration,
-    const mkv::format_options &format_options) {
-  return *(new mkv_sink_impl(filename, segment_duration, format_options));
+streams::subscriber<encoded_packet> &mkv_sink(const file_sink::options &options,
+                                              const file_sink::mkv_options &mkv_options) {
+  return *(new mkv_sink_impl(options, mkv_options));
 }
 
 }  // namespace video

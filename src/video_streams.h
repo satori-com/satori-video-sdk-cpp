@@ -6,7 +6,7 @@
 #include <memory>
 
 #include "data.h"
-#include "mkv_options.h"
+#include "file_sink.h"
 #include "rtm_client.h"
 #include "streams/streams.h"
 
@@ -42,10 +42,8 @@ streams::subscriber<encoded_packet> &rtm_sink(
     const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
     const std::string &rtm_channel);
 
-streams::subscriber<encoded_packet> &mkv_sink(
-    const std::string &filename,
-    const boost::optional<std::chrono::system_clock::duration> &segment_duration,
-    const mkv::format_options &format_options);
+streams::subscriber<encoded_packet> &mkv_sink(const file_sink::options &options,
+                                              const file_sink::mkv_options &mkv_options);
 
 streams::op<owned_image_packet, encoded_packet> encode_as_mjpeg();
 

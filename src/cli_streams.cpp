@@ -2,7 +2,7 @@
 
 #include "avutils.h"
 #include "cli_streams.h"
-#include "mkv_options.h"
+#include "file_sink.h"
 #include "streams/asio_streams.h"
 #include "streams/threaded_worker.h"
 #include "video_metrics.h"
@@ -289,9 +289,14 @@ streams::subscriber<encoded_packet> &encoded_subscriber(
   if (config.video_file.is_initialized()) {
     CHECK(config.reserved_index_space.is_initialized());
 
-    mkv::format_options mkv_format_options;
-    mkv_format_options.reserved_index_space = config.reserved_index_space.get();
-    return mkv_sink(config.video_file.get(), config.segment_duration, mkv_format_options);
+    file_sink::options options;
+    options.path = config.video_file.get();
+    options.segment_duration = config.segment_duration;
+
+    file_sink::mkv_options mkv_options;
+    mkv_options.reserved_index_space = config.reserved_index_space.get();
+
+    return mkv_sink(options, mkv_options);
   }
 
   ABORT() << "shouldn't happen";
