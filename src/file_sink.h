@@ -8,6 +8,7 @@ namespace satori {
 namespace video {
 namespace file_sink {
 
+// TODO: add --segment-frames parameter
 struct options {
   bool pool_mode{false};
   boost::optional<std::chrono::system_clock::duration> segment_duration;

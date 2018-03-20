@@ -12,7 +12,6 @@
 // TODO: #1 convert to general video_file_sink to support mp4 and mkv at least
 // TODO: #2 use AVMEDIA_TYPE_DATA or subtitles for annotations
 // TODO: #3 maybe use a separate thread for file_writer
-// TODO: #4 add --segment-frames parameter
 namespace satori {
 namespace video {
 namespace {
