@@ -10,6 +10,7 @@ namespace file_sink {
 
 // TODO: add --segment-frames parameter
 struct options {
+  // TODO: add input channel and resolution
   bool pool_mode{false};
   boost::optional<std::chrono::system_clock::duration> segment_duration;
   boost::filesystem::path path;
