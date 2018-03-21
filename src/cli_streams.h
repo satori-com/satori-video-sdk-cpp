@@ -54,7 +54,7 @@ struct output_video_config {
   explicit output_video_config(const nlohmann::json &config);
 
   const boost::optional<std::string> channel;
-  const boost::optional<std::string> video_file;
+  const boost::optional<std::string> output_path;
   const boost::optional<std::chrono::system_clock::duration> segment_duration;
   const boost::optional<int> reserved_index_space;
 };
@@ -69,7 +69,8 @@ streams::publisher<owned_image_packet> decoded_publisher(
 
 streams::subscriber<encoded_packet> &encoded_subscriber(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
-    const output_video_config &config);
+    bool pool_mode, const input_video_config &input_config,
+    const output_video_config &output_config);
 
 struct configuration {
  public:

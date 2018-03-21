@@ -16,8 +16,7 @@ struct options {
   bool pool_mode{false};
   boost::optional<std::chrono::system_clock::duration> segment_duration;
   boost::filesystem::path path;
-  std::string channel;
-  image_size resolution;
+  std::string input_channel;
 };
 
 // TODO: consider supporting json input

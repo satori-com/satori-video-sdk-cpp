@@ -32,6 +32,12 @@ std::string temp_filename() {
   return (temp_dir / temp_file_name).string();
 }
 
+std::string escape_slashes(const std::string &s) {
+  std::string result{s};
+  result.replace(result.begin(), result.end(), "/", "{slash}");
+  return result;
+}
+
 class mkv_file_writer {
  public:
   mkv_file_writer(const file_sink::mkv_options &mkv_options,
@@ -115,10 +121,13 @@ class mkv_file_writer {
     return _last_ts;
   }
 
+  image_size resolution() const { return _resolution; }
+
  private:
   std::shared_ptr<AVCodecContext> reconstruct_encoder(const encoded_metadata &metadata,
                                                       const std::string &filename) {
     CHECK(metadata.image_size);
+    _resolution = *metadata.image_size;
 
     auto encoder = avutils::encoder_context(avutils::codec_id(metadata.codec_name));
     CHECK(encoder) << "could not allocate encoder context for " << filename;
@@ -133,6 +142,7 @@ class mkv_file_writer {
   }
 
   const std::string _filename;
+  image_size _resolution;
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
   int _video_stream_index{-1};
   bool _started_processing{false};
@@ -149,7 +159,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
   ~mkv_sink_impl() override {
     if (_file_writer) {
-      release_last_segment();
+      release_writer();
     }
   }
 
@@ -168,7 +178,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
     if (f.key_frame) {
       if (_options.segment_duration && _file_writer
           && f.timestamp >= _file_writer->start_ts() + _options.segment_duration.get()) {
-        release_last_segment();
+        release_writer();
       }
 
       if (!_file_writer) {
@@ -182,10 +192,10 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
   }
 
  private:
-  void release_last_segment() {
+  void release_writer() {
     const std::string old_name = _file_writer->filename();
-    const std::string new_name =
-        filename(_file_writer->start_ts(), _file_writer->last_ts());
+    const std::string new_name = filename(
+        _file_writer->start_ts(), _file_writer->last_ts(), _file_writer->resolution());
     _file_writer.reset();
     LOG(INFO) << "Renaming " << old_name << " to " << new_name;
     const int ret = std::rename(old_name.c_str(), new_name.c_str());
@@ -195,14 +205,35 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
   }
 
   std::string filename(const std::chrono::system_clock::time_point &start,
-                       const std::chrono::system_clock::time_point &end) const {
-    fs::path result{_options.path.stem()};
-    result += "-";
-    result += std::to_string(start.time_since_epoch().count());
-    result += "-";
-    result += std::to_string(end.time_since_epoch().count());
-    result += _options.path.extension();
-    return (_options.path.parent_path() / result).string();
+                       const std::chrono::system_clock::time_point &end,
+                       const image_size &resolution) const {
+    if (_options.pool_mode) {
+      fs::path result;
+      result += escape_slashes(_options.input_channel);
+      result += "-";
+      result +=
+          std::to_string(resolution.width) + "x" + std::to_string(resolution.height);
+
+      result += "-";
+      result += std::to_string(start.time_since_epoch().count());
+      result += "-";
+      result += std::to_string(end.time_since_epoch().count());
+
+      result += ".mkv";
+      return (_options.path / result).string();
+    } else {
+      fs::path result{_options.path.stem()};
+
+      if (_options.segment_duration) {
+        result += "-";
+        result += std::to_string(start.time_since_epoch().count());
+        result += "-";
+        result += std::to_string(end.time_since_epoch().count());
+      }
+
+      result += _options.path.extension();
+      return (_options.path.parent_path() / result).string();
+    }
   }
 
   void on_next(encoded_packet &&packet) override {

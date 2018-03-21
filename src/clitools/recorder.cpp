@@ -83,6 +83,7 @@ class video_stream : private streams::subscriber<encoded_packet> {
                const nlohmann::json &job, stream_done_callback_t &&done_callback)
       : _io{io},
         _client{client},
+        _pool_mode{true},
         _input_config{job},
         _output_config{job},
         _job{job},
@@ -96,6 +97,7 @@ class video_stream : private streams::subscriber<encoded_packet> {
                stream_done_callback_t &&done_callback)
       : _io{io},
         _client{client},
+        _pool_mode{false},
         _input_config{input_config},
         _output_config{output_config},
         _done_callback{done_callback} {
@@ -139,7 +141,8 @@ class video_stream : private streams::subscriber<encoded_packet> {
                      >> encode_vp9(25) >> streams::threaded_worker("vp9_" + channel)
                      >> streams::flatten();
 
-    _sink = cli_streams::encoded_subscriber(_io, _client, _output_config);
+    _sink = cli_streams::encoded_subscriber(_io, _client, _pool_mode, _input_config,
+                                            _output_config);
 
     publisher->subscribe(*this);
   }
@@ -177,6 +180,7 @@ class video_stream : private streams::subscriber<encoded_packet> {
  private:
   asio::io_service &_io;
   const std::shared_ptr<rtm::client> _client;
+  const bool _pool_mode;
   const cli_streams::input_video_config _input_config;
   const cli_streams::output_video_config _output_config;
   const nlohmann::json _job{nullptr};

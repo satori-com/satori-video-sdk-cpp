@@ -281,20 +281,26 @@ streams::publisher<owned_image_packet> decoded_publisher(
 
 streams::subscriber<encoded_packet> &encoded_subscriber(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
-    const output_video_config &config) {
-  if (config.channel.is_initialized()) {
-    return rtm_sink(client, io, config.channel.get());
+    bool pool_mode, const input_video_config &input_config,
+    const output_video_config &output_config) {
+  if (output_config.channel.is_initialized()) {
+    return rtm_sink(client, io, *output_config.channel);
   }
 
-  if (config.video_file.is_initialized()) {
-    CHECK(config.reserved_index_space.is_initialized());
+  if (output_config.output_path) {
+    CHECK(output_config.reserved_index_space);
 
     file_sink::options options;
-    options.path = config.video_file.get();
-    options.segment_duration = config.segment_duration;
+    options.pool_mode = pool_mode;
+    options.path = *output_config.output_path;
+    options.segment_duration = output_config.segment_duration;
+    if (pool_mode) {
+      CHECK(input_config.input_channel);
+      options.input_channel = *input_config.input_channel;
+    }
 
     file_sink::mkv_options mkv_options;
-    mkv_options.reserved_index_space = config.reserved_index_space.get();
+    mkv_options.reserved_index_space = *output_config.reserved_index_space;
 
     return mkv_sink(options, mkv_options);
   }
@@ -461,7 +467,9 @@ streams::publisher<owned_image_packet> configuration::decoded_publisher(
 
 streams::subscriber<encoded_packet> &configuration::encoded_subscriber(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client) const {
-  return cli_streams::encoded_subscriber(io, client, output_video_config{_vm});
+  const bool pool_mode = _vm.count("pool") > 0;
+  return cli_streams::encoded_subscriber(io, client, pool_mode, input_video_config{_vm},
+                                         output_video_config{_vm});
 }
 
 input_video_config::input_video_config(const po::variables_map &vm)
@@ -516,12 +524,13 @@ input_video_config::input_video_config(const nlohmann::json &config)
                        ? config["frames_limit"].get<long>()
                        : boost::optional<long>{}) {}
 
+// TODO: rename options output-video-file to output-path
 output_video_config::output_video_config(const po::variables_map &vm)
     : channel{vm.count("output-channel") > 0 ? vm["output-channel"].as<std::string>()
                                              : boost::optional<std::string>{}},
-      video_file{vm.count("output-video-file") > 0
-                     ? vm["output-video-file"].as<std::string>()
-                     : boost::optional<std::string>{}},
+      output_path{vm.count("output-video-file") > 0
+                      ? vm["output-video-file"].as<std::string>()
+                      : boost::optional<std::string>{}},
       segment_duration{
           vm.count("segment-duration") > 0
               ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
@@ -531,13 +540,14 @@ output_video_config::output_video_config(const po::variables_map &vm)
                                ? vm["reserved-index-space"].as<int>()
                                : boost::optional<int>{}} {}
 
+// TODO: rename options output-video-file to output-path
 output_video_config::output_video_config(const nlohmann::json &config)
     : channel{config.find("output-channel") != config.end()
                   ? config["output-channel"].get<std::string>()
                   : boost::optional<std::string>{}},
-      video_file{config.find("output-video-file") != config.end()
-                     ? config["output-video-file"].get<std::string>()
-                     : boost::optional<std::string>{}},
+      output_path{config.find("output-video-file") != config.end()
+                      ? config["output-video-file"].get<std::string>()
+                      : boost::optional<std::string>{}},
       segment_duration{
           config.find("segment-duration") != config.end()
               ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
