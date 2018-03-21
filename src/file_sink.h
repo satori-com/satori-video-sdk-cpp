@@ -4,6 +4,8 @@
 #include <boost/optional.hpp>
 #include <chrono>
 
+#include "data.h"
+
 namespace satori {
 namespace video {
 namespace file_sink {
@@ -14,6 +16,8 @@ struct options {
   bool pool_mode{false};
   boost::optional<std::chrono::system_clock::duration> segment_duration;
   boost::filesystem::path path;
+  std::string channel;
+  image_size resolution;
 };
 
 // TODO: consider supporting json input
