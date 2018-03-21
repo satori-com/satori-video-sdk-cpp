@@ -200,7 +200,6 @@ class recorder_job_controller : public job_controller {
    * Expecting jobs of the following format
    * {
    *   "channel": <string>,
-   *   "output-video-file": <string>,
    *   "segment-duration": <number> [OPTIONAL],
    *   "resolution": <string> [OPTIONAL],
    *   "reserved-index-space": <number> [OPTIONAL]
@@ -209,9 +208,11 @@ class recorder_job_controller : public job_controller {
   void add_job(const nlohmann::json &job) override {
     LOG(INFO) << "got a job: " << job;
     CHECK(job.is_object()) << "job is not an object: " << job;
-    // TODO: add uploading functionality
 
-    _streams.emplace_back(_io, _client, job, [](std::error_condition) {});
+    nlohmann::json job_copy{job};
+    job_copy["output-video-file"] = *_config.as_output_config().output_path;
+
+    _streams.emplace_back(_io, _client, job_copy, [](std::error_condition) {});
   }
 
   void remove_job(const nlohmann::json &job) override {

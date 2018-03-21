@@ -253,7 +253,7 @@ streams::publisher<encoded_packet> encoded_publisher(
     return url_source(video_cfg.input_url.get());
   }
 
-  ABORT() << "should not happen";
+  ABORT() << "error in encoded_publisher()";
 }
 
 streams::publisher<owned_image_packet> decoded_publisher(
@@ -377,16 +377,10 @@ bool configuration::validate() const {
     return false;
   }
 
-  // TODO: use it more in this validation function
-  const bool has_pool_mode_args =
-      _cli_options.enable_pool_mode && check_pool_mode_args_provided(_vm);
-
-  if (!has_pool_mode_args) {
-    if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
-      if (!has_output_rtm_args && !has_output_file_args) {
-        std::cerr << "Video output should be specified\n";
-        return false;
-      }
+  if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
+    if (!has_output_rtm_args && !has_output_file_args) {
+      std::cerr << "Video output should be specified\n";
+      return false;
     }
   }
 
