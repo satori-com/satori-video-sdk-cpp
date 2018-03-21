@@ -165,25 +165,14 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
       return;
     }
 
-    if (!_options.segment_duration.is_initialized()) {
-      if (!_file_writer) {
-        _file_writer = std::make_unique<mkv_file_writer>(_mkv_options, _metadata);
-        LOG(INFO) << "started non-segmented file " << _file_writer->filename();
-      }
-
-      _file_writer->write_frame(f);
-      return;
-    }
-
     if (f.key_frame) {
-      if (_file_writer
+      if (_options.segment_duration && _file_writer
           && f.timestamp >= _file_writer->start_ts() + _options.segment_duration.get()) {
         release_last_segment();
       }
 
       if (!_file_writer) {
         _file_writer = std::make_unique<mkv_file_writer>(_mkv_options, _metadata);
-        LOG(INFO) << "started new segment " << _file_writer->filename();
       }
     }
 
