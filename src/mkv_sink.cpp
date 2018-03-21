@@ -18,23 +18,30 @@ namespace {
 
 namespace fs = boost::filesystem;
 
-fs::path get_temp_dir() {
+std::string temp_filename() {
+  static fs::path temp_dir;
+  if (temp_dir.empty()) {
+    boost::system::error_code ec;
+    temp_dir = fs::temp_directory_path(ec);
+    CHECK_EQ(ec.value(), 0) << "failed to get temporary directory name: " << ec.message();
+  }
+
   boost::system::error_code ec;
-  auto result = fs::temp_directory_path(ec);
-  CHECK_EQ(ec.value(), 0) << "failed to get temporary directory name: " << ec.message();
-  return result;
+  const auto temp_file_name = fs::unique_path("%%%%-%%%%-%%%%-%%%%.mkv", ec);
+  CHECK_EQ(ec.value(), 0) << "failed to get temporary file name: " << ec.message();
+  return (temp_dir / temp_file_name).string();
 }
 
 class mkv_file_writer {
  public:
-  mkv_file_writer(const std::string &filename, const file_sink::mkv_options &mkv_options,
+  mkv_file_writer(const file_sink::mkv_options &mkv_options,
                   const encoded_metadata &metadata)
-      : _filename{filename} {
+      : _filename{temp_filename()} {
     avutils::init();
 
-    LOG(INFO) << "Creating format context for file " << filename;
+    LOG(INFO) << "Creating format context for file " << _filename;
     _format_context = avutils::output_format_context(
-        "matroska", filename, [filename](AVFormatContext *ctx) {
+        "matroska", _filename, [filename = _filename](AVFormatContext * ctx) {
           if (ctx->pb != nullptr) {
             LOG(INFO) << "Writing trailer section into file " << filename;
             av_write_trailer(ctx);
@@ -42,27 +49,27 @@ class mkv_file_writer {
             avio_closep(&ctx->pb);
           }
         });
-    CHECK(_format_context) << "could not allocate format context for " << filename;
+    CHECK(_format_context) << "could not allocate format context for " << _filename;
 
-    LOG(INFO) << "Initializing matroska sink for file " << filename;
-    auto encoder = reconstruct_encoder(metadata, filename);
+    LOG(INFO) << "Initializing matroska sink for file " << _filename;
+    auto encoder = reconstruct_encoder(metadata, _filename);
 
-    LOG(INFO) << "Creating video stream for file " << filename;
+    LOG(INFO) << "Creating video stream for file " << _filename;
     AVStream *video_stream = avformat_new_stream(_format_context.get(), nullptr);
     CHECK_NOTNULL(video_stream) << "failed to create an output video stream";
     video_stream->id = _format_context->nb_streams - 1;
     video_stream->time_base = encoder->time_base;
     _video_stream_index = video_stream->index;
 
-    LOG(INFO) << "Copying encoder parameters into video stream for file " << filename;
+    LOG(INFO) << "Copying encoder parameters into video stream for file " << _filename;
     int ret = avcodec_parameters_from_context(video_stream->codecpar, encoder.get());
     CHECK_GE(ret, 0) << "failed to copy codec parameters: " << avutils::error_msg(ret);
 
-    LOG(INFO) << "Opening file " << filename;
-    ret = avio_open(&_format_context->pb, filename.c_str(), AVIO_FLAG_WRITE);
+    LOG(INFO) << "Opening file " << _filename;
+    ret = avio_open(&_format_context->pb, _filename.c_str(), AVIO_FLAG_WRITE);
     CHECK_GE(ret, 0) << "failed to open file: " << avutils::error_msg(ret);
 
-    LOG(INFO) << "Writing header section into file " << filename;
+    LOG(INFO) << "Writing header section into file " << _filename;
     AVDictionary *options_dict{nullptr};
     av_dict_set(&options_dict, "reserve_index_space",
                 std::to_string(mkv_options.reserved_index_space).c_str(), 0);
@@ -138,7 +145,7 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
  public:
   mkv_sink_impl(const file_sink::options &options,
                 const file_sink::mkv_options &mkv_options)
-      : _options{options}, _mkv_options{mkv_options}, _temp_dir{get_temp_dir()} {}
+      : _options{options}, _mkv_options{mkv_options} {}
 
   ~mkv_sink_impl() override {
     if (_file_writer) {
@@ -160,9 +167,8 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
     if (!_options.segment_duration.is_initialized()) {
       if (!_file_writer) {
-        LOG(INFO) << "starting non-segmented file " << _options.path;
-        _file_writer = std::make_unique<mkv_file_writer>(_options.path.string(),
-                                                         _mkv_options, _metadata);
+        _file_writer = std::make_unique<mkv_file_writer>(_mkv_options, _metadata);
+        LOG(INFO) << "started non-segmented file " << _file_writer->filename();
       }
 
       _file_writer->write_frame(f);
@@ -176,9 +182,8 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
       }
 
       if (!_file_writer) {
-        const auto name = temp_filename();
-        LOG(INFO) << "starting new segment " << name;
-        _file_writer = std::make_unique<mkv_file_writer>(name, _mkv_options, _metadata);
+        _file_writer = std::make_unique<mkv_file_writer>(_mkv_options, _metadata);
+        LOG(INFO) << "started new segment " << _file_writer->filename();
       }
     }
 
@@ -198,13 +203,6 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
     CHECK_EQ(ret, 0) << "Failed to rename " << old_name << " to " << new_name << ": "
                      << strerror(ret);
     LOG(INFO) << "Successfully renamed " << old_name << " to " << new_name;
-  }
-
-  std::string temp_filename() const {
-    boost::system::error_code ec;
-    const auto tmp_name = fs::unique_path("%%%%-%%%%-%%%%-%%%%.mkv", ec);
-    CHECK_EQ(ec.value(), 0) << "failed to get temporary file name: " << ec.message();
-    return (_temp_dir / tmp_name).string();
   }
 
   std::string filename(const std::chrono::system_clock::time_point &start,
@@ -237,7 +235,6 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
   const file_sink::options _options;
   const file_sink::mkv_options _mkv_options;
-  fs::path _temp_dir;
   bool _initialized{false};
   encoded_metadata _metadata;
   std::unique_ptr<mkv_file_writer> _file_writer{nullptr};
