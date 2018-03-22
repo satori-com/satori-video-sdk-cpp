@@ -4,9 +4,9 @@
 #include <boost/program_options.hpp>
 #include <json.hpp>
 #include <list>
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "cli_streams.h"
 #include "data.h"
@@ -81,26 +81,14 @@ using stream_done_callback_t = std::function<void(std::error_condition)>;
 class video_stream : private streams::subscriber<encoded_packet> {
  public:
   video_stream(asio::io_service &io, std::shared_ptr<rtm::client> &client,
+               cli_streams::input_video_config &&input_config,
+               cli_streams::output_video_config &&output_config,
                const nlohmann::json &job, stream_done_callback_t &&done_callback)
       : _io{io},
         _client{client},
-        _pool_mode{true},
-        _input_config{job},
-        _output_config{job},
-        _job{job},
-        _done_callback{done_callback} {
-    connect();
-  }
-
-  video_stream(asio::io_service &io, std::shared_ptr<rtm::client> &client,
-               const cli_streams::input_video_config &input_config,
-               const cli_streams::output_video_config &output_config,
-               stream_done_callback_t &&done_callback)
-      : _io{io},
-        _client{client},
-        _pool_mode{false},
         _input_config{input_config},
         _output_config{output_config},
+        _job{job},
         _done_callback{done_callback} {
     connect();
   }
@@ -142,7 +130,7 @@ class video_stream : private streams::subscriber<encoded_packet> {
                      >> encode_vp9(25) >> streams::threaded_worker("vp9_" + channel)
                      >> streams::flatten();
 
-    _sink = cli_streams::encoded_subscriber(_io, _client, _pool_mode, _input_config,
+    _sink = cli_streams::encoded_subscriber(_io, _client, _job != nullptr, _input_config,
                                             _output_config);
 
     publisher->subscribe(*this);
@@ -181,7 +169,6 @@ class video_stream : private streams::subscriber<encoded_packet> {
  private:
   asio::io_service &_io;
   const std::shared_ptr<rtm::client> _client;
-  const bool _pool_mode;
   const cli_streams::input_video_config _input_config;
   const cli_streams::output_video_config _output_config;
   const nlohmann::json _job{nullptr};
@@ -210,14 +197,11 @@ class recorder_job_controller : public job_controller {
     LOG(INFO) << "got a job: " << job;
     CHECK(job.is_object()) << "job is not an object: " << job;
 
-    nlohmann::json job_copy{job};
-    job_copy["output-video-file"] = *_config.as_output_config().output_path;
-
     CHECK(job.find("id") != job.end());
     const std::string id = job["id"];
     const auto result = _streams.emplace(
         std::piecewise_construct, std::forward_as_tuple(id),
-        std::forward_as_tuple(_io, _client, job_copy, [](std::error_condition) {}));
+        std::forward_as_tuple(_io, _client, job, [](std::error_condition) {}));
     if (!result.second) {
       LOG(ERROR) << "failed to add a new job: " << job;
     }
@@ -241,7 +225,7 @@ class recorder_job_controller : public job_controller {
   const recorder_configuration &_config;
   asio::io_service &_io;
   std::shared_ptr<rtm::client> _client;
-  std::map<std::string, video_stream> _streams;
+  std::unordered_map<std::string, video_stream> _streams;
 };
 
 void request_rtm_client_stop(asio::io_service &io, std::shared_ptr<rtm::client> &client) {
@@ -259,16 +243,20 @@ void request_rtm_client_stop(asio::io_service &io, std::shared_ptr<rtm::client> 
 
 void run_standalone(asio::io_service &io, std::shared_ptr<rtm::client> &client,
                     const recorder_configuration &config) {
-  video_stream recorded_stream{
-      io, client, config.as_input_config(), config.as_output_config(),
-      [&io, &client](std::error_condition stream_error) {
-        if (stream_error.value() != 0) {
-          LOG(ERROR) << "stream completed with failure: " << stream_error.message();
-        } else {
-          LOG(INFO) << "stream completed successfully";
-        }
-        request_rtm_client_stop(io, client);
-      }};
+  video_stream recorded_stream{io,
+                               client,
+                               config.as_input_config(),
+                               config.as_output_config(),
+                               nullptr,
+                               [&io, &client](std::error_condition stream_error) {
+                                 if (stream_error.value() != 0) {
+                                   LOG(ERROR) << "stream completed with failure: "
+                                              << stream_error.message();
+                                 } else {
+                                   LOG(INFO) << "stream completed successfully";
+                                 }
+                                 request_rtm_client_stop(io, client);
+                               }};
 
   signal::register_handler({SIGINT, SIGTERM, SIGQUIT},
                            [&recorded_stream, &io, &client](int /*signal*/) {

@@ -305,7 +305,7 @@ streams::subscriber<encoded_packet> &encoded_subscriber(
     return mkv_sink(options, mkv_options);
   }
 
-  ABORT() << "shouldn't happen";
+  ABORT() << "unreachable code in encoded_subscriber()";
 }
 
 configuration::configuration(int argc, char *argv[], cli_options options,
