@@ -95,7 +95,7 @@ void pool_job_controller::on_data(const rtm::subscription & /*subscription*/,
 
   if (msg.find("start_job") != msg.end()) {
     start_job(msg["start_job"]);
-  } else if (msg.find("stob_job") != msg.end()) {
+  } else if (msg.find("stop_job") != msg.end()) {
     stop_job(msg["stop_job"]);
   } else {
     LOG(ERROR) << "unknown command: " << msg;
