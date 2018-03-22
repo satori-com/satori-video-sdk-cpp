@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 #include <json.hpp>
 #include <list>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -212,18 +213,25 @@ class recorder_job_controller : public job_controller {
     nlohmann::json job_copy{job};
     job_copy["output-video-file"] = *_config.as_output_config().output_path;
 
-    _streams.emplace_back(_io, _client, job_copy, [](std::error_condition) {});
+    CHECK(job.find("id") != job.end());
+    const std::string id = job["id"];
+    const auto result = _streams.emplace(
+        std::piecewise_construct, std::forward_as_tuple(id),
+        std::forward_as_tuple(_io, _client, job_copy, [](std::error_condition) {}));
+    if (!result.second) {
+      LOG(ERROR) << "failed to add a new job: " << job;
+    }
   }
 
   void remove_job(const nlohmann::json &job) override {
-    ABORT() << "job removal is not supported: " << job;
+    LOG(WARNING) << "ignoring remove job: " << job;
   }
 
   nlohmann::json list_jobs() const override {
     nlohmann::json result = nlohmann::json::array();
 
-    for (const auto &s : _streams) {
-      result.emplace_back(s.job());
+    for (const auto &it : _streams) {
+      result.emplace_back(it.second.job());
     }
 
     return result;
@@ -233,7 +241,7 @@ class recorder_job_controller : public job_controller {
   const recorder_configuration &_config;
   asio::io_service &_io;
   std::shared_ptr<rtm::client> _client;
-  std::list<video_stream> _streams;
+  std::map<std::string, video_stream> _streams;
 };
 
 void request_rtm_client_stop(asio::io_service &io, std::shared_ptr<rtm::client> &client) {
