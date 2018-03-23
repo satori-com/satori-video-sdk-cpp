@@ -145,10 +145,10 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
                       boost::static_visitor<void> {
  public:
   mkv_sink_impl(
-      const std::string &filename,
+      const fs::path &path,
       const boost::optional<std::chrono::system_clock::duration> &segment_duration,
       const mkv::format_options &format_options)
-      : _path{filename},
+      : _path{path},
         _segment_duration{segment_duration},
         _format_options{format_options} {}
 
@@ -242,10 +242,10 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 }  // namespace
 
 streams::subscriber<encoded_packet> &mkv_sink(
-    const std::string &filename,
+    const fs::path &path,
     const boost::optional<std::chrono::system_clock::duration> &segment_duration,
     const mkv::format_options &format_options) {
-  return *(new mkv_sink_impl(filename, segment_duration, format_options));
+  return *(new mkv_sink_impl(path, segment_duration, format_options));
 }
 
 }  // namespace video

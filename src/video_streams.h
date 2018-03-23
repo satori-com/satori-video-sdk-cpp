@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
 #include <functional>
 #include <memory>
@@ -43,7 +44,7 @@ streams::subscriber<encoded_packet> &rtm_sink(
     const std::string &rtm_channel);
 
 streams::subscriber<encoded_packet> &mkv_sink(
-    const std::string &filename,
+    const boost::filesystem::path &path,
     const boost::optional<std::chrono::system_clock::duration> &segment_duration,
     const mkv::format_options &format_options);
 

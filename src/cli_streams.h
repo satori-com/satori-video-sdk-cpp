@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
 #include <boost/program_options.hpp>
 #include <chrono>
@@ -53,8 +54,8 @@ struct output_video_config {
   explicit output_video_config(const po::variables_map &vm);
   explicit output_video_config(const nlohmann::json &config);
 
-  const boost::optional<std::string> channel;
-  const boost::optional<std::string> video_file;
+  const boost::optional<std::string> output_channel;
+  const boost::optional<boost::filesystem::path> output_path;
   const boost::optional<std::chrono::system_clock::duration> segment_duration;
   const boost::optional<int> reserved_index_space;
 };

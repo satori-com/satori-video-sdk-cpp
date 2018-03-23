@@ -282,16 +282,16 @@ streams::publisher<owned_image_packet> decoded_publisher(
 streams::subscriber<encoded_packet> &encoded_subscriber(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const output_video_config &config) {
-  if (config.channel.is_initialized()) {
-    return rtm_sink(client, io, config.channel.get());
+  if (config.output_channel) {
+    return rtm_sink(client, io, *config.output_channel);
   }
 
-  if (config.video_file.is_initialized()) {
-    CHECK(config.reserved_index_space.is_initialized());
+  if (config.output_path) {
+    CHECK(config.reserved_index_space);
 
     mkv::format_options mkv_format_options;
-    mkv_format_options.reserved_index_space = config.reserved_index_space.get();
-    return mkv_sink(config.video_file.get(), config.segment_duration, mkv_format_options);
+    mkv_format_options.reserved_index_space = *config.reserved_index_space;
+    return mkv_sink(*config.output_path, config.segment_duration, mkv_format_options);
   }
 
   ABORT() << "shouldn't happen";
@@ -512,11 +512,12 @@ input_video_config::input_video_config(const nlohmann::json &config)
                        : boost::optional<long>{}) {}
 
 output_video_config::output_video_config(const po::variables_map &vm)
-    : channel{vm.count("output-channel") > 0 ? vm["output-channel"].as<std::string>()
-                                             : boost::optional<std::string>{}},
-      video_file{vm.count("output-video-file") > 0
-                     ? vm["output-video-file"].as<std::string>()
-                     : boost::optional<std::string>{}},
+    : output_channel{vm.count("output-channel") > 0
+                         ? vm["output-channel"].as<std::string>()
+                         : boost::optional<std::string>{}},
+      output_path{vm.count("output-video-file") > 0
+                      ? vm["output-video-file"].as<std::string>()
+                      : boost::optional<std::string>{}},
       segment_duration{
           vm.count("segment-duration") > 0
               ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
@@ -527,12 +528,12 @@ output_video_config::output_video_config(const po::variables_map &vm)
                                : boost::optional<int>{}} {}
 
 output_video_config::output_video_config(const nlohmann::json &config)
-    : channel{config.find("output-channel") != config.end()
-                  ? config["output-channel"].get<std::string>()
-                  : boost::optional<std::string>{}},
-      video_file{config.find("output-video-file") != config.end()
-                     ? config["output-video-file"].get<std::string>()
-                     : boost::optional<std::string>{}},
+    : output_channel{config.find("output-channel") != config.end()
+                         ? config["output-channel"].get<std::string>()
+                         : boost::optional<std::string>{}},
+      output_path{config.find("output-video-file") != config.end()
+                      ? config["output-video-file"].get<std::string>()
+                      : boost::optional<std::string>{}},
       segment_duration{
           config.find("segment-duration") != config.end()
               ? boost::optional<std::chrono::system_clock::duration>{std::chrono::seconds{
