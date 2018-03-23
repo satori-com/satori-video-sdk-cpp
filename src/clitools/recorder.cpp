@@ -1,5 +1,6 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
 #include <boost/program_options.hpp>
 #include <json.hpp>
@@ -19,6 +20,7 @@
 #include "vp9_encoder.h"
 
 namespace asio = boost::asio;
+namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace satori {
@@ -50,6 +52,20 @@ po::options_description cli_options() {
       "log verbosity level (INFO, WARNING, ERROR, FATAL, OFF, 1-9)");
 
   return cli_generic;
+}
+
+std::string escape_slashes(const std::string &s) {
+  const std::string f{"/"};
+  const std::string r{"{slash}"};
+
+  std::string result{s};
+  std::string::size_type i{0};
+  while ((i = result.find(f, i)) != std::string::npos) {
+    result.replace(i, f.size(), r);
+    i += r.size();
+  }
+
+  return result;
 }
 
 struct recorder_configuration : cli_streams::configuration {
@@ -186,7 +202,6 @@ class recorder_job_controller : public job_controller {
    * Expecting jobs of the following format
    * {
    *   "channel": <string>,
-   *   "output-video-file": <string>,
    *   "segment-duration": <number> [OPTIONAL],
    *   "resolution": <string> [OPTIONAL],
    *   "reserved-index-space": <number> [OPTIONAL]
@@ -195,11 +210,21 @@ class recorder_job_controller : public job_controller {
   void add_job(const nlohmann::json &job) override {
     LOG(INFO) << "got a job: " << job;
     CHECK(job.is_object()) << "job is not an object: " << job;
-    // TODO: add uploading functionality
 
-    _streams.emplace_back(_io, _client, cli_streams::input_video_config{job},
-                          cli_streams::output_video_config{job}, job,
-                          [](std::error_condition) {});
+    cli_streams::input_video_config input_config{job};
+    CHECK(input_config.input_channel);
+
+    LOG(INFO) << "channel name: " << escape_slashes(*input_config.input_channel);
+    // TODO: ugly hack to make output path to be channel name
+    const fs::path output_path = *_config.as_output_config().output_path
+                                 / (escape_slashes(*input_config.input_channel) + ".mkv");
+    LOG(INFO) << "output path: " << output_path;
+    nlohmann::json job_copy{job};
+    job_copy["output-video-file"] = output_path.string();
+    cli_streams::output_video_config output_config{job_copy};
+
+    _streams.emplace_back(_io, _client, std::move(input_config), std::move(output_config),
+                          job, [](std::error_condition) {});
   }
 
   void remove_job(const nlohmann::json &job) override {

@@ -366,16 +366,10 @@ bool configuration::validate() const {
     return false;
   }
 
-  // TODO: use it more in this validation function
-  const bool has_pool_mode_args =
-      _cli_options.enable_pool_mode && check_pool_mode_args_provided(_vm);
-
-  if (!has_pool_mode_args) {
-    if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
-      if (!has_output_rtm_args && !has_output_file_args) {
-        std::cerr << "Video output should be specified\n";
-        return false;
-      }
+  if (_cli_options.enable_rtm_output || _cli_options.enable_file_output) {
+    if (!has_output_rtm_args && !has_output_file_args) {
+      std::cerr << "Video output should be specified\n";
+      return false;
     }
   }
 
