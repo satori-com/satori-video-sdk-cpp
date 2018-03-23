@@ -80,24 +80,14 @@ using stream_done_callback_t = std::function<void(std::error_condition)>;
 class video_stream : private streams::subscriber<encoded_packet> {
  public:
   video_stream(asio::io_service &io, std::shared_ptr<rtm::client> &client,
+               cli_streams::input_video_config &&input_config,
+               cli_streams::output_video_config &&output_config,
                const nlohmann::json &job, stream_done_callback_t &&done_callback)
       : _io{io},
         _client{client},
-        _input_config{job},
-        _output_config{job},
+        _input_config{std::move(input_config)},
+        _output_config{std::move(output_config)},
         _job{job},
-        _done_callback{done_callback} {
-    connect();
-  }
-
-  video_stream(asio::io_service &io, std::shared_ptr<rtm::client> &client,
-               const cli_streams::input_video_config &input_config,
-               const cli_streams::output_video_config &output_config,
-               stream_done_callback_t &&done_callback)
-      : _io{io},
-        _client{client},
-        _input_config{input_config},
-        _output_config{output_config},
         _done_callback{done_callback} {
     connect();
   }
@@ -207,7 +197,9 @@ class recorder_job_controller : public job_controller {
     CHECK(job.is_object()) << "job is not an object: " << job;
     // TODO: add uploading functionality
 
-    _streams.emplace_back(_io, _client, job, [](std::error_condition) {});
+    _streams.emplace_back(_io, _client, cli_streams::input_video_config{job},
+                          cli_streams::output_video_config{job}, job,
+                          [](std::error_condition) {});
   }
 
   void remove_job(const nlohmann::json &job) override {
@@ -246,16 +238,20 @@ void request_rtm_client_stop(asio::io_service &io, std::shared_ptr<rtm::client> 
 
 void run_standalone(asio::io_service &io, std::shared_ptr<rtm::client> &client,
                     const recorder_configuration &config) {
-  video_stream recorded_stream{
-      io, client, config.as_input_config(), config.as_output_config(),
-      [&io, &client](std::error_condition stream_error) {
-        if (stream_error.value() != 0) {
-          LOG(ERROR) << "stream completed with failure: " << stream_error.message();
-        } else {
-          LOG(INFO) << "stream completed successfully";
-        }
-        request_rtm_client_stop(io, client);
-      }};
+  video_stream recorded_stream{io,
+                               client,
+                               config.as_input_config(),
+                               config.as_output_config(),
+                               nullptr,
+                               [&io, &client](std::error_condition stream_error) {
+                                 if (stream_error.value() != 0) {
+                                   LOG(ERROR) << "stream completed with failure: "
+                                              << stream_error.message();
+                                 } else {
+                                   LOG(INFO) << "stream completed successfully";
+                                 }
+                                 request_rtm_client_stop(io, client);
+                               }};
 
   signal::register_handler({SIGINT, SIGTERM, SIGQUIT},
                            [&recorded_stream, &io, &client](int /*signal*/) {
