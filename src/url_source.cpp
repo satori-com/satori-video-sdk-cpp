@@ -1,13 +1,16 @@
-#include <thread>
-#include "avutils.h"
-#include "metrics.h"
-#include "threadutils.h"
-#include "video_error.h"
 #include "video_streams.h"
+
+#include <gsl/gsl>
+#include <thread>
 
 extern "C" {
 #include <libavformat/avformat.h>
 }
+
+#include "avutils.h"
+#include "metrics.h"
+#include "threadutils.h"
+#include "video_error.h"
 
 namespace satori {
 namespace video {
@@ -18,6 +21,18 @@ auto &frames_total = prometheus::BuildCounter()
                          .Name("url_source_frames_total")
                          .Register(metrics_registry());
 
+auto &created_total = prometheus::BuildCounter()
+                          .Name("url_source_created_total")
+                          .Register(metrics_registry());
+
+auto &destroyed_total = prometheus::BuildCounter()
+                            .Name("url_source_destroyed_total")
+                            .Register(metrics_registry());
+
+auto &complete_total = prometheus::BuildCounter()
+                           .Name("url_source_complete_total")
+                           .Register(metrics_registry());
+
 const std::string reader_thread_name = "url-read-loop";
 
 }  // namespace
@@ -26,15 +41,23 @@ class url_source_impl {
  public:
   url_source_impl(const std::string &url, const std::string &options,
                   streams::observer<encoded_packet> &sink)
-      : _url(url), _sink(sink) {
+      : _url{url}, _sink{sink} {
     avutils::init();
+    created_total.Add({{"url", _url}}).Increment();
     std::thread([this, options]() {
       threadutils::set_current_thread_name(reader_thread_name);
 
       _reader_thread_id = std::this_thread::get_id();
 
-      std::error_condition ec = start(options);
+      auto self_destroyer = gsl::finally([this]() {
+        LOG(INFO) << "delete self: " << _url;
+        delete this;
+      });
+
+      const std::error_condition ec = start(options);
       if (ec) {
+        LOG(ERROR) << "unable to start url source " << _url
+                   << ", error: " << ec.message();
         _sink.on_error(ec);
         return;
       }
@@ -44,7 +67,10 @@ class url_source_impl {
         .detach();
   }
 
-  ~url_source_impl() { LOG(INFO) << "destroying url source"; }
+  ~url_source_impl() {
+    LOG(INFO) << "destroying url source: " << _url;
+    destroyed_total.Add({{"url", _url}}).Increment();
+  }
 
   void stop() {
     if (_reader_thread_id != std::this_thread::get_id()) {
@@ -109,6 +135,8 @@ class url_source_impl {
     while (_active) {
       int ret = av_read_frame(_input_context.get(), &_pkt);
       if (ret == AVERROR_EOF) {
+        LOG(INFO) << "url source is complete: " << _url;
+        complete_total.Add({{"url", _url}}).Increment();
         _sink.on_complete();
         return;
       }
@@ -141,11 +169,9 @@ class url_source_impl {
         _sink.on_next(frame);
       }
     }
-
-    delete this;
   }
 
-  std::string _url;
+  const std::string _url;
   streams::observer<encoded_packet> &_sink;
   std::shared_ptr<AVFormatContext> _input_context;
   AVCodec *_decoder{nullptr};
@@ -155,7 +181,7 @@ class url_source_impl {
   std::atomic<bool> _active{true};
   int _stream_idx{-1};
   int64_t _packets{0};
-  AVRational _time_base;
+  AVRational _time_base{0, 0};
   std::chrono::system_clock _clock;
   std::chrono::system_clock::time_point _start_time;
 };
