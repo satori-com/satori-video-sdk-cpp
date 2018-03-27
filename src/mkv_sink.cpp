@@ -19,7 +19,7 @@ namespace {
 
 namespace fs = boost::filesystem;
 
-std::string temp_filename() {
+fs::path temp_filename() {
   static fs::path temp_dir;
   if (temp_dir.empty()) {
     boost::system::error_code ec;
@@ -30,7 +30,7 @@ std::string temp_filename() {
   boost::system::error_code ec;
   const auto temp_file_name = fs::unique_path("%%%%-%%%%-%%%%-%%%%.mkv", ec);
   CHECK_EQ(ec.value(), 0) << "failed to get temporary file name: " << ec.message();
-  return (temp_dir / temp_file_name).string();
+  return temp_dir / temp_file_name;
 }
 
 class mkv_file_writer {
@@ -42,7 +42,7 @@ class mkv_file_writer {
 
     LOG(INFO) << "Creating format context for file " << _filename;
     _format_context = avutils::output_format_context(
-        "matroska", _filename, [filename = _filename](AVFormatContext * ctx) {
+        "matroska", _filename.string(), [filename = _filename](AVFormatContext * ctx) {
           if (ctx->pb != nullptr) {
             LOG(INFO) << "Writing trailer section into file " << filename;
             av_write_trailer(ctx);
@@ -53,7 +53,7 @@ class mkv_file_writer {
     CHECK(_format_context) << "could not allocate format context for " << _filename;
 
     LOG(INFO) << "Initializing matroska sink for file " << _filename;
-    auto encoder = reconstruct_encoder(metadata, _filename);
+    auto encoder = reconstruct_encoder(metadata);
 
     LOG(INFO) << "Creating video stream for file " << _filename;
     AVStream *video_stream = avformat_new_stream(_format_context.get(), nullptr);
@@ -104,7 +104,7 @@ class mkv_file_writer {
     av_packet_unref(&packet);
   }
 
-  std::string filename() const { return _filename; }
+  fs::path filename() const { return _filename; }
 
   std::chrono::system_clock::time_point start_ts() const {
     CHECK(_started_processing);
@@ -117,12 +117,11 @@ class mkv_file_writer {
   }
 
  private:
-  std::shared_ptr<AVCodecContext> reconstruct_encoder(const encoded_metadata &metadata,
-                                                      const std::string &filename) {
+  std::shared_ptr<AVCodecContext> reconstruct_encoder(const encoded_metadata &metadata) {
     CHECK(metadata.image_size);
 
     auto encoder = avutils::encoder_context(avutils::codec_id(metadata.codec_name));
-    CHECK(encoder) << "could not allocate encoder context for " << filename;
+    CHECK(encoder) << "could not allocate encoder context for " << _filename;
 
     if ((_format_context->oformat->flags & AVFMT_GLOBALHEADER) != 0) {
       encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
@@ -133,7 +132,7 @@ class mkv_file_writer {
     return encoder;
   }
 
-  const std::string _filename;
+  const fs::path _filename;
   std::shared_ptr<AVFormatContext> _format_context{nullptr};
   int _video_stream_index{-1};
   bool _started_processing{false};
@@ -189,28 +188,44 @@ class mkv_sink_impl : public streams::subscriber<encoded_packet>,
 
  private:
   void release_writer() {
-    const std::string old_name = _file_writer->filename();
-    const std::string new_name = filename();
+    const fs::path old_name = _file_writer->filename();
+    const fs::path new_name = filename();
     _file_writer.reset();
-    LOG(INFO) << "Renaming " << old_name << " to " << new_name;
-    const int ret = std::rename(old_name.c_str(), new_name.c_str());
-    CHECK_EQ(ret, 0) << "Failed to rename " << old_name << " to " << new_name << ": "
-                     << strerror(ret);
+    // Can't use std::rename() or boost::filesystem::rename(),
+    // if old and new locations are one different volumes.
+    // Otherwise, getting "Invalid cross-device link" (18).
+    LOG(INFO) << "Copying " << old_name << " to " << new_name;
+    boost::system::error_code ec;
+    fs::copy(old_name, new_name, ec);
+    CHECK_EQ(ec.value(), 0) << "Failed to rename " << old_name << " to " << new_name
+                            << ": " << ec.message();
+    LOG(INFO) << "Deleting " << old_name << " to " << new_name;
+    fs::remove(old_name, ec);
+    if (ec.value() != 0) {
+      LOG(ERROR) << "Failed to rename " << old_name << " to " << new_name << ": "
+                 << ec.message();
+    }
     LOG(INFO) << "Successfully renamed " << old_name << " to " << new_name;
   }
 
-  std::string filename() const {
+  fs::path filename() const {
     if (!_segment_duration) {
       return _path.string();
     }
 
+    const auto start_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    _file_writer->start_ts().time_since_epoch())
+                                    .count();
+    const auto end_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  _file_writer->last_ts().time_since_epoch())
+                                  .count();
     fs::path result{_path.stem()};
     result += "-";
-    result += std::to_string(_file_writer->start_ts().time_since_epoch().count());
+    result += std::to_string(start_epoch_ms);
     result += "-";
-    result += std::to_string(_file_writer->last_ts().time_since_epoch().count());
+    result += std::to_string(end_epoch_ms);
     result += _path.extension();
-    return (_path.parent_path() / result).string();
+    return _path.parent_path() / result;
   }
 
   void on_next(encoded_packet &&packet) override {
