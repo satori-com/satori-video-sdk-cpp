@@ -53,6 +53,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         _timestamp = nf.t;
         _departure_time = nf.dt;
         _creation_time = nf.arrival_time;
+        _key_frame = nf.key_frame;
       }
 
       const auto data_or_error = base64::decode(nf.base64_data);
@@ -65,6 +66,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
         frame.id = _id;
         frame.timestamp = _timestamp;
         frame.creation_time = _creation_time;
+        frame.key_frame = _key_frame;
 
         reset();
 
@@ -88,6 +90,7 @@ streams::op<network_packet, encoded_packet> decode_network_stream() {
     std::chrono::system_clock::time_point _departure_time;
     std::chrono::system_clock::time_point _creation_time;
     std::string _aggregated_data;
+    bool _key_frame;
   };
 
   return [](streams::publisher<network_packet> &&src) {

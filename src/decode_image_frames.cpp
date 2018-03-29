@@ -141,6 +141,9 @@ class image_decoder_op {
     }
 
     void operator()(const encoded_frame &f) {
+      LOG(INFO) << "f size " << f.data.size() << ", key frame " << f.key_frame << ", id " << f.id << ", t " << std::chrono::duration_cast<std::chrono::milliseconds>(
+              f.timestamp.time_since_epoch())
+              .count();
       LOG(4) << this << " on_image_frame";
       messages_received.Increment();
       bytes_received.Increment(f.data.size());
