@@ -133,6 +133,9 @@ class url_source_impl {
  private:
   void read_loop() {
     while (_active) {
+      av_init_packet(&_pkt);
+      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
+
       int ret = av_read_frame(_input_context.get(), &_pkt);
       if (ret == AVERROR_EOF) {
         LOG(INFO) << "url source is complete: " << _url;
@@ -146,7 +149,6 @@ class url_source_impl {
         continue;
       }
 
-      auto release = gsl::finally([this]() { av_packet_unref(&_pkt); });
       if (_pkt.stream_index == _stream_idx) {
         LOG(4) << "packet from url " << _url;
         if (_packets == 0) {
