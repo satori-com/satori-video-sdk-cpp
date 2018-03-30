@@ -80,6 +80,8 @@ po::options_description generic_output_options() {
 po::options_description url_input_options() {
   po::options_description url_options("URL options");
   url_options.add_options()("input-url", po::value<std::string>(), "Input video URL");
+  url_options.add_options()("input-url-parameters", po::value<std::string>(),
+                            "Input video URL parameters");
   return url_options;
 }
 
@@ -250,7 +252,9 @@ streams::publisher<encoded_packet> encoded_publisher(
   }
 
   if (video_cfg.input_url) {
-    return url_source(video_cfg.input_url.get());
+    return url_source(*video_cfg.input_url, video_cfg.input_url_parameters
+                                                ? *video_cfg.input_url_parameters
+                                                : "");
   }
 
   ABORT() << "should not happen";
@@ -471,6 +475,9 @@ input_video_config::input_video_config(const po::variables_map &vm)
                             : boost::optional<std::string>{}),
       input_url(vm.count("input-url") > 0 ? vm["input-url"].as<std::string>()
                                           : boost::optional<std::string>{}),
+      input_url_parameters{vm.count("input-url-parameters") > 0
+                               ? vm["input-url-parameters"].as<std::string>()
+                               : boost::optional<std::string>{}},
       input_camera(vm.count("input-camera") > 0),
       loop(vm.count("loop") > 0),
       time_limit(vm.count("time-limit") > 0 ? vm["time-limit"].as<int>()
@@ -496,6 +503,9 @@ input_video_config::input_video_config(const nlohmann::json &config)
       input_url(config.find("input_url") != config.end()
                     ? config["input_url"].get<std::string>()
                     : boost::optional<std::string>{}),
+      input_url_parameters{config.find("input_url_parameters") != config.end()
+                               ? config["input_url_parameters"].get<std::string>()
+                               : boost::optional<std::string>{}},
       input_camera(config.find("input_camera") != config.end()),
       loop(config.find("loop") != config.end()),
       time_limit(config.find("time_limit") != config.end()

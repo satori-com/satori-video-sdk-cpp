@@ -83,7 +83,7 @@ class url_source_impl {
   }
 
   std::error_condition start(const std::string &options) {
-    AVDictionary *options_dict = nullptr;
+    AVDictionary *options_dict{nullptr};
     int err = av_dict_parse_string(&options_dict, options.c_str(), "=", ";", 0);
     if (err < 0) {
       LOG(ERROR) << "can't parse options: " << options;
@@ -155,6 +155,7 @@ class url_source_impl {
           _start_time = _clock.now();
         }
         _packets++;
+        // TODO: check how to measure _pkt.pts jitter
         int64_t pts = _pkt.pts;
         if (pts < 0) {
           pts = 0;

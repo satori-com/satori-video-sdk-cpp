@@ -43,6 +43,7 @@ struct input_video_config {
   const boost::optional<std::string> input_video_file;
   const boost::optional<std::string> input_replay_file;
   const boost::optional<std::string> input_url;
+  const boost::optional<std::string> input_url_parameters;
   const boost::optional<std::string> input_channel;
   const bool input_camera;
   const bool loop;
