@@ -12,9 +12,10 @@ auto& processing_times_millis =
     prometheus::BuildHistogram()
         .Name("frame_batch_processing_times_millis")
         .Register(metrics_registry())
-        .Add({}, std::vector<double>{0,  1,  2,  5,  10,  15,  20,  25,  30,  40, 50,
-                                     60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900,
-                                     1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000});
+        .Add({}, std::vector<double>{0,    1,    2,    5,    10,   15,   20,   25,   30,
+                                     40,   50,   60,   70,   80,   90,   100,  200,  300,
+                                     400,  500,  600,  700,  800,  900,  1000, 2000, 3000,
+                                     4000, 5000, 6000, 7000, 8000, 9000, 10000});
 auto& frame_size =
     prometheus::BuildHistogram()
         .Name("frame_batch_size")
@@ -143,7 +144,11 @@ std::vector<image_frame> bot_instance::extract_frames(
       continue;
     }
 
-    if (frame->width != _image_metadata.width) {
+    if (frame->width != _image_metadata.width
+        || frame->height != _image_metadata.height) {
+      CHECK(_image_metadata.width == 0)
+          << "frame resolution has been changed: " << _image_metadata.width << "x"
+          << _image_metadata.height << " -> " << frame->width << "x" << frame->height;
       _image_metadata.width = frame->width;
       _image_metadata.height = frame->height;
       std::copy(frame->plane_strides, frame->plane_strides + max_image_planes,
