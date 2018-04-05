@@ -17,7 +17,8 @@ namespace impl {
 
 class threaded_worker_op {
  public:
-  explicit threaded_worker_op(const std::string &name) : _name(name) {}
+  explicit threaded_worker_op(const std::string &name, boost::optional<size_t> max_queued_frames)
+      : _name(name), _max_queued_frames(max_queued_frames) {}
 
   template <typename T>
   class instance : publisher_impl<std::queue<T>> {
@@ -25,9 +26,11 @@ class threaded_worker_op {
 
     class source : drain_source_impl<element_t>, subscriber<T> {
      public:
-      source(const std::string &name, publisher<T> &&src,
+      source(const std::string &name, boost::optional<size_t> max_queued_frames, publisher<T> &&src,
              streams::subscriber<element_t> &sink)
-          : _name(name), drain_source_impl<element_t>(sink) {
+          : _name(name),
+            _max_queued_frames(max_queued_frames),
+            drain_source_impl<element_t>(sink) {
         _worker_thread = std::make_unique<std::thread>(&source::worker_thread_loop, this);
 
         while (!_worker_thread_ready) {
@@ -58,6 +61,10 @@ class threaded_worker_op {
       void on_next(T &&t) override {
         std::lock_guard<std::mutex> guard(_mutex);
         CHECK_NOTNULL(_src) << this << " " << _name;
+        if (_max_queued_frames && _buffer.size() >= _max_queued_frames.get()) {
+          LOG(ERROR) << this << " input queue is full";
+          return;
+        }
         _buffer.emplace(std::move(t));
         _on_send.notify_one();
       }
@@ -170,6 +177,7 @@ class threaded_worker_op {
 
       std::atomic_bool _worker_thread_ready{false};
       const std::string _name;
+      const boost::optional<size_t> _max_queued_frames;
       std::mutex _mutex;
       std::condition_variable _on_send;
 
@@ -185,31 +193,34 @@ class threaded_worker_op {
 
    public:
     static publisher<std::queue<T>> apply(publisher<T> &&src, threaded_worker_op &&op) {
-      return publisher<std::queue<T>>(new instance(op._name, std::move(src)));
+      return publisher<std::queue<T>>(
+          new instance(op._name, op._max_queued_frames, std::move(src)));
     }
 
-    instance(const std::string &name, publisher<T> &&src)
-        : _name(name), _src(std::move(src)) {}
+    instance(const std::string &name, boost::optional<size_t> max_queued_frames, publisher<T> &&src)
+        : _name(name), _max_queued_frames(max_queued_frames), _src(std::move(src)) {}
 
     void subscribe(subscriber<element_t> &s) override {
-      new source(_name, std::move(_src), s);
+      new source(_name, _max_queued_frames, std::move(_src), s);
     }
 
    private:
     const std::string _name;
+    const boost::optional<size_t> _max_queued_frames;
     publisher<T> _src;
   };
 
  private:
   const std::string _name;
+  const boost::optional<size_t> _max_queued_frames;
 };
 
 }  // namespace impl
 
 // threaded worker transforms publisher<T> into publisher<std::queue<T>> by
 // spawning new thread and performing all element delivery in it.
-inline auto threaded_worker(const std::string &name) {
-  return impl::threaded_worker_op(name);
+inline auto threaded_worker(const std::string &name, boost::optional<size_t> max_queued_frames = {}) {
+  return impl::threaded_worker_op(name, max_queued_frames);
 }
 
 }  // namespace streams

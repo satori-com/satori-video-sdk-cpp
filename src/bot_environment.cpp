@@ -47,6 +47,10 @@ po::options_description bot_custom_options() {
       "debug-file", po::value<std::string>(),
       "saves debug messages to a file instead of sending to a channel");
 
+  bot_execution_options.add_options()("max-queued-frames",
+                                      po::value<size_t>(),
+                                      "limits bot input queue size");
+
   return bot_configuration_options.add(bot_execution_options)
       .add(metrics_options())
       .add(generic);
@@ -138,7 +142,10 @@ bot_configuration::bot_configuration(const po::variables_map& vm)
       debug_file(vm.count("debug-file") > 0 ? vm["debug-file"].as<std::string>()
                                             : boost::optional<std::string>{}),
       video_cfg(vm),
-      bot_config(init_config(vm)) {}
+      bot_config(init_config(vm)),
+      max_queued_frames(vm.count("max-queued-frames") > 0
+                            ? vm["max-queued-frames"].as<size_t>()
+                            : boost::optional<size_t>{}) {}
 
 bot_configuration::bot_configuration(const nlohmann::json& config)
     : id(config["id"].get<std::string>()),
@@ -148,6 +155,9 @@ bot_configuration::bot_configuration(const nlohmann::json& config)
       debug_file(config.find("debug_file") != config.end()
                      ? config["debug_file"].get<std::string>()
                      : boost::optional<std::string>{}),
+      max_queued_frames(config.find("max-queued-frames") != config.end()
+                            ? config["max-queued-frames"].get<size_t>()
+                            : boost::optional<size_t>{}),
       video_cfg(config),
       bot_config(config.find("config") != config.end() ? config["config"]
                                                        : nlohmann::json(nullptr)) {}
@@ -245,8 +255,8 @@ void bot_environment::start_bot(const bot_configuration& config) {
   auto single_frame_source = cli_streams::decoded_publisher(
       _io_service, _rtm_client, config.video_cfg, _bot_descriptor.pixel_format);
   if (!batch) {
-    _source =
-        std::move(single_frame_source) >> streams::threaded_worker("processing_worker");
+    _source = std::move(single_frame_source)
+              >> streams::threaded_worker("processing_worker", config.max_queued_frames);
   } else {
     _source =
         std::move(single_frame_source) >> streams::map([](owned_image_packet&& pkt) {
@@ -296,7 +306,7 @@ void bot_environment::start_bot(const bot_configuration& config) {
 
   _source = std::move(_source) >> streams::signal_breaker({SIGINT, SIGTERM, SIGQUIT})
             >> streams::map([& multiframes_counter = _multiframes_counter](
-                   std::queue<owned_image_packet> && pkt) mutable {
+                                std::queue<owned_image_packet>&& pkt) mutable {
                 multiframes_counter++;
                 constexpr int period = 100;
                 if ((multiframes_counter % period) == 0) {

@@ -35,6 +35,7 @@ struct bot_configuration {
   const boost::optional<std::string> debug_file;
   const cli_streams::input_video_config video_cfg;
   const nlohmann::json bot_config;
+  const boost::optional<size_t> max_queued_frames;
 };
 
 class bot_environment : public job_controller,
