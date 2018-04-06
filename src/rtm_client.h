@@ -8,7 +8,6 @@
 #include <functional>
 #include <json.hpp>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <system_error>
 #include <thread>

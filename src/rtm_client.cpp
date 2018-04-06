@@ -9,7 +9,6 @@
 #include <boost/regex.hpp>
 #include <boost/variant.hpp>
 #include <gsl/gsl>
-#include <iostream>
 #include <json.hpp>
 #include <memory>
 #include <queue>
@@ -430,7 +429,6 @@ class secure_client : public client, public boost::static_visitor<> {
 
   void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override {
-    CHECK(!callbacks) << "not implemented";
     if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
@@ -458,19 +456,26 @@ class secure_client : public client, public boost::static_visitor<> {
 
     const auto before_publish = std::chrono::system_clock::now();
     _publish_times.emplace(request_id, before_publish);
-    write(std::move(buffer), [ before_publish, document = std::move(document) ](
-                                 boost::system::error_code ec) {
-      const auto after_publish = std::chrono::system_clock::now();
-      rtm_publish_time_microseconds.Observe(
-          std::chrono::duration_cast<std::chrono::microseconds>(after_publish
-                                                                - before_publish)
-              .count());
-      if (ec.value() != 0) {
-        LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message()
-                   << ", message " << document;
-        rtm_client_error.Add({{"type", "publish"}}).Increment();
-      }
-    });
+    write(std::move(buffer),
+          [ before_publish, document = std::move(document),
+            callbacks ](boost::system::error_code ec) {
+            const auto after_publish = std::chrono::system_clock::now();
+            rtm_publish_time_microseconds.Observe(
+                std::chrono::duration_cast<std::chrono::microseconds>(after_publish
+                                                                      - before_publish)
+                    .count());
+            if (ec.value() != 0) {
+              LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message()
+                         << ", message " << document;
+              rtm_client_error.Add({{"type", "publish"}}).Increment();
+              if (callbacks != nullptr) {
+                callbacks->on_error(make_error_condition(client_error::PUBLISH_ERROR));
+              }
+            }
+            if (callbacks != nullptr) {
+              callbacks->on_ok();
+            }
+          });
   }
 
   void subscribe(const std::string &channel, const subscription &sub,
