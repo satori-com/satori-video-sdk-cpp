@@ -43,32 +43,10 @@ struct error_callbacks {
   virtual void on_error(std::error_condition ec) = 0;
 };
 
-struct channel_position {
-  uint32_t gen{0};
-  uint64_t pos{0};
-
-  std::string str() const { return std::to_string(gen) + ":" + std::to_string(pos); }
-
-  static channel_position parse(const std::string &str) {
-    char *str_pos = nullptr;
-    auto gen = strtoll(str.c_str(), &str_pos, 10);
-    CHECK_LE(gen, std::numeric_limits<uint32_t>::max());
-    if ((str_pos == nullptr) || str_pos == str.c_str() || *str_pos != ':') {
-      return {0, 0};
-    }
-    auto pos = strtoull(str_pos + 1, &str_pos, 10);
-    CHECK_LE(pos, std::numeric_limits<uint64_t>::max());
-    if ((str_pos == nullptr) || (*str_pos != 0)) {
-      return {0, 0};
-    }
-    return {static_cast<uint32_t>(gen), static_cast<uint64_t>(pos)};
-  }
-};
-
 struct publish_callbacks : error_callbacks {
   ~publish_callbacks() override = default;
 
-  virtual void on_ok(const channel_position & /*position*/) {}
+  virtual void on_ok() {}
 };
 
 struct publisher {
@@ -99,7 +77,6 @@ struct history_options {
 struct subscription_options {
   bool force{false};
   bool fast_forward{true};
-  boost::optional<channel_position> position;
   history_options history;
 };
 
