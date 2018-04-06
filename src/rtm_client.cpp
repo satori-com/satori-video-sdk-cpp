@@ -473,9 +473,9 @@ class secure_client : public client, public boost::static_visitor<> {
     });
   }
 
-  void subscribe_channel(const std::string &channel, const subscription &sub,
-                         subscription_callbacks &callbacks,
-                         const subscription_options *options) override {
+  void subscribe(const std::string &channel, const subscription &sub,
+                 subscription_callbacks &callbacks,
+                 const subscription_options *options) override {
     if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
@@ -505,12 +505,6 @@ class secure_client : public client, public boost::static_visitor<> {
         rtm_client_error.Add({{"type", "subscribe"}}).Increment();
       }
     });
-  }
-
-  void subscribe_filter(const std::string & /*filter*/, const subscription & /*sub*/,
-                        subscription_callbacks & /*callbacks*/,
-                        const subscription_options * /*options*/) override {
-    ABORT() << "NOT IMPLEMENTED";
   }
 
   void unsubscribe(const subscription &sub_to_delete) override {
@@ -549,16 +543,6 @@ class secure_client : public client, public boost::static_visitor<> {
       return;
     }
     ABORT() << "didn't find subscription";
-  }
-
-  channel_position position(const subscription & /*sub*/) override {
-    ABORT() << "NOT IMPLEMENTED";
-    return {0, 0};
-  }
-
-  bool is_up(const subscription & /*sub*/) override {
-    ABORT() << "NOT IMPLEMENTED";
-    return false;
   }
 
  private:
@@ -943,25 +927,14 @@ void resilient_client::publish(const std::string &channel, nlohmann::json &&mess
   _client->publish(channel, std::move(message), callbacks);
 }
 
-void resilient_client::subscribe_channel(const std::string &channel,
-                                         const subscription &sub,
-                                         subscription_callbacks &callbacks,
-                                         const subscription_options *options) {
+void resilient_client::subscribe(const std::string &channel, const subscription &sub,
+                                 subscription_callbacks &callbacks,
+                                 const subscription_options *options) {
   CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
       << "Invocation from " << threadutils::get_current_thread_name();
 
   _subscriptions.push_back({channel, &sub, &callbacks, options});
-  _client->subscribe_channel(channel, sub, callbacks, options);
-}
-
-void resilient_client::subscribe_filter(const std::string & /*filter*/,
-                                        const subscription & /*sub*/,
-                                        subscription_callbacks & /*callbacks*/,
-                                        const subscription_options * /*options*/) {
-  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
-      << "Invocation from " << threadutils::get_current_thread_name();
-
-  ABORT() << "not implemented";
+  _client->subscribe(channel, sub, callbacks, options);
 }
 
 void resilient_client::unsubscribe(const subscription &sub) {
@@ -971,20 +944,6 @@ void resilient_client::unsubscribe(const subscription &sub) {
   _client->unsubscribe(sub);
   std::remove_if(_subscriptions.begin(), _subscriptions.end(),
                  [&sub](const subscription_info &si) { return &sub == si.sub; });
-}
-
-channel_position resilient_client::position(const subscription &sub) {
-  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
-      << "Invocation from " << threadutils::get_current_thread_name();
-
-  return _client->position(sub);
-}
-
-bool resilient_client::is_up(const subscription &sub) {
-  CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
-      << "Invocation from " << threadutils::get_current_thread_name();
-
-  return _client->is_up(sub);
 }
 
 std::error_condition resilient_client::start() {
@@ -1036,7 +995,7 @@ void resilient_client::restart() {
 
   LOG(1) << "restoring subscriptions";
   for (const auto &sub : _subscriptions) {
-    _client->subscribe_channel(sub.channel, *sub.sub, *sub.callbacks, sub.options);
+    _client->subscribe(sub.channel, *sub.sub, *sub.callbacks, sub.options);
   }
 
   LOG(1) << "client restart done";
@@ -1061,36 +1020,20 @@ void thread_checking_client::publish(const std::string &channel, nlohmann::json 
   _client->publish(channel, std::move(message), callbacks);
 }
 
-void thread_checking_client::subscribe_channel(const std::string &channel,
-                                               const subscription &sub,
-                                               subscription_callbacks &callbacks,
-                                               const subscription_options *options) {
+void thread_checking_client::subscribe(const std::string &channel,
+                                       const subscription &sub,
+                                       subscription_callbacks &callbacks,
+                                       const subscription_options *options) {
   if (std::this_thread::get_id() != _io_thread_id) {
     LOG(WARNING) << "Forwarding request from thread "
                  << threadutils::get_current_thread_name();
     _io.post([this, channel, &sub, &callbacks, options]() {
-      _client->subscribe_channel(channel, sub, callbacks, options);
+      _client->subscribe(channel, sub, callbacks, options);
     });
     return;
   }
 
-  _client->subscribe_channel(channel, sub, callbacks, options);
-}
-
-void thread_checking_client::subscribe_filter(const std::string &filter,
-                                              const subscription &sub,
-                                              subscription_callbacks &callbacks,
-                                              const subscription_options *options) {
-  if (std::this_thread::get_id() != _io_thread_id) {
-    LOG(WARNING) << "Forwarding request from thread "
-                 << threadutils::get_current_thread_name();
-    _io.post([this, filter, &sub, &callbacks, options]() {
-      _client->subscribe_filter(filter, sub, callbacks, options);
-    });
-    return;
-  }
-
-  _client->subscribe_filter(filter, sub, callbacks, options);
+  _client->subscribe(channel, sub, callbacks, options);
 }
 
 void thread_checking_client::unsubscribe(const subscription &sub) {
@@ -1101,16 +1044,6 @@ void thread_checking_client::unsubscribe(const subscription &sub) {
   }
 
   _client->unsubscribe(sub);
-}
-
-channel_position thread_checking_client::position(const subscription & /*sub*/) {
-  ABORT() << "not implemented";
-  return channel_position{0, 0};
-}
-
-bool thread_checking_client::is_up(const subscription & /*sub*/) {
-  ABORT() << "not implemented";
-  return false;
 }
 
 std::error_condition thread_checking_client::start() {

@@ -12,7 +12,7 @@ class rtm_channel_impl : rtm::subscription_callbacks {
                    const std::string &channel, const rtm::subscription_options &options,
                    streams::observer<channel_data> &sink)
       : _subscriber(subscriber), _sink(sink) {
-    _subscriber->subscribe_channel(channel, _subscription, *this, &options);
+    _subscriber->subscribe(channel, _subscription, *this, &options);
   }
 
   ~rtm_channel_impl() override { _subscriber->unsubscribe(_subscription); }

@@ -106,19 +106,11 @@ struct subscription_options {
 struct subscriber {
   virtual ~subscriber() = default;
 
-  virtual void subscribe_channel(const std::string &channel, const subscription &sub,
-                                 subscription_callbacks &callbacks,
-                                 const subscription_options *options = nullptr) = 0;
-
-  virtual void subscribe_filter(const std::string &filter, const subscription &sub,
-                                subscription_callbacks &callbacks,
-                                const subscription_options *options = nullptr) = 0;
+  virtual void subscribe(const std::string &channel, const subscription &sub,
+                         subscription_callbacks &callbacks,
+                         const subscription_options *options = nullptr) = 0;
 
   virtual void unsubscribe(const subscription &sub) = 0;
-
-  virtual channel_position position(const subscription &sub) = 0;
-
-  virtual bool is_up(const subscription &sub) = 0;
 };
 
 class client : public publisher, public subscriber {
@@ -150,19 +142,11 @@ class resilient_client : public client, error_callbacks {
   void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override;
 
-  void subscribe_channel(const std::string &channel, const subscription &sub,
-                         subscription_callbacks &callbacks,
-                         const subscription_options *options) override;
-
-  void subscribe_filter(const std::string &filter, const subscription &sub,
-                        subscription_callbacks &callbacks,
-                        const subscription_options *options) override;
+  void subscribe(const std::string &channel, const subscription &sub,
+                 subscription_callbacks &callbacks,
+                 const subscription_options *options) override;
 
   void unsubscribe(const subscription &sub) override;
-
-  channel_position position(const subscription &sub) override;
-
-  bool is_up(const subscription &sub) override;
 
   std::error_condition start() override;
 
@@ -199,19 +183,11 @@ class thread_checking_client : public client {
   void publish(const std::string &channel, nlohmann::json &&message,
                publish_callbacks *callbacks) override;
 
-  void subscribe_channel(const std::string &channel, const subscription &sub,
-                         subscription_callbacks &callbacks,
-                         const subscription_options *options) override;
-
-  void subscribe_filter(const std::string &filter, const subscription &sub,
-                        subscription_callbacks &callbacks,
-                        const subscription_options *options) override;
+  void subscribe(const std::string &channel, const subscription &sub,
+                 subscription_callbacks &callbacks,
+                 const subscription_options *options) override;
 
   void unsubscribe(const subscription &sub) override;
-
-  channel_position position(const subscription &sub) override;
-
-  bool is_up(const subscription &sub) override;
 
   std::error_condition start() override;
 

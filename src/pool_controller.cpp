@@ -33,7 +33,7 @@ pool_job_controller::pool_job_controller(boost::asio::io_service &io,
 void pool_job_controller::start() {
   LOG(INFO) << "joining pool " << _pool << " job_type=" << _job_type
             << " node_id=" << node_id;
-  _client->subscribe_channel(_pool, _pool_sub, *this, nullptr);
+  _client->subscribe(_pool, _pool_sub, *this, nullptr);
   _hb_timer = std::make_unique<boost::asio::deadline_timer>(_io);
   on_heartbeat({});
 }
