@@ -113,13 +113,13 @@ class file_source_impl {
       LOG(4) << "packet from file " << _filename;
       encoded_frame frame;
       frame.data = std::string{_pkt.data, _pkt.data + _pkt.size};
-      frame.id = {_last_pos, _pkt.pos};
+      _last_pos++;
+      frame.id = {_last_pos, _last_pos};
       auto ts = 1000 * _pkt.pts * _stream->time_base.num / _stream->time_base.den;
       frame.timestamp = _start + std::chrono::milliseconds(ts);
       frame.creation_time = std::chrono::system_clock::now();
       frame.key_frame = static_cast<bool>(_pkt.flags & AV_PKT_FLAG_KEY);
       observer.on_next(frame);
-      _last_pos = _pkt.pos + 1 /* because our intervals are [i1, i2] */;
     }
   }
 

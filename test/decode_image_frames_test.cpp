@@ -169,12 +169,12 @@ BOOST_AUTO_TEST_CASE(id_test) {
   BOOST_TEST(when_done.ok());
 
   BOOST_TEST(ids.size() == 6);
-  BOOST_TEST(ids[0] == id(0, 48));
-  BOOST_TEST(ids[1] == id(49, 28975));
-  BOOST_TEST(ids[2] == id(28976, 32918));
-  BOOST_TEST(ids[3] == id(38322, 44809));
-  BOOST_TEST(ids[4] == id(44810, 47582));
-  BOOST_TEST(ids[5] == id(32919, 38321));
+  BOOST_TEST(ids[0] == id(1, 1));
+  BOOST_TEST(ids[1] == id(2, 2));
+  BOOST_TEST(ids[2] == id(3, 3));
+  BOOST_TEST(ids[3] == id(5, 5));
+  BOOST_TEST(ids[4] == id(6, 6));
+  BOOST_TEST(ids[5] == id(4, 4));
 }
 
 int main(int argc, char *argv[]) {
