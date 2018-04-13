@@ -12,6 +12,7 @@
 #include <json.hpp>
 #include <memory>
 #include <queue>
+#include <unordered_map>
 #include <utility>
 
 #include "cbor_json.h"
@@ -892,9 +893,9 @@ class secure_client : public client, public boost::static_visitor<> {
   uint64_t _last_request_id{0};
   boost::beast::multi_buffer _read_buffer{read_buffer_size};
   std::map<std::string, subscription_impl> _subscriptions;
-  std::map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
+  std::unordered_map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
   boost::asio::deadline_timer _ping_timer;
-  std::map<uint64_t, std::chrono::system_clock::time_point> _ping_times;
+  std::unordered_map<uint64_t, std::chrono::system_clock::time_point> _ping_times;
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
