@@ -10,10 +10,10 @@
 #include <boost/variant.hpp>
 #include <gsl/gsl>
 #include <json.hpp>
+#include <limits>
 #include <memory>
 #include <queue>
 #include <unordered_map>
-#include <utility>
 
 #include "cbor_json.h"
 #include "logging.h"
@@ -255,14 +255,6 @@ std::ostream &operator<<(std::ostream &out, subscription_status const &s) {
   }
 }
 
-struct subscription_impl {
-  const std::string channel;
-  const subscription &sub;
-  subscription_callbacks &callbacks;
-  subscription_status status;
-  uint64_t pending_request_id{UINT64_MAX};
-};
-
 enum class client_state { STOPPED = 1, RUNNING = 2, PENDING_STOPPED = 3 };
 
 std::ostream &operator<<(std::ostream &out, client_state const &s) {
@@ -301,6 +293,92 @@ struct get_done_cb_visitor : public boost::static_visitor<const request_done_cb 
   const request_done_cb &operator()(const ping_request &request) const {
     return request.done_cb;
   }
+};
+
+constexpr uint64_t invalid_request_id = std::numeric_limits<uint64_t>::max();
+
+uint64_t new_request_id() {
+  static uint64_t request_id{1};
+  return request_id++;
+}
+
+struct subscription_info {
+  const std::string channel;
+  const subscription &sub;
+  subscription_callbacks &callbacks;
+  subscription_status status;
+  uint64_t request_id{invalid_request_id};
+};
+
+class subscriptions_map {
+ public:
+  subscription_info &add(const std::string &channel, const subscription &sub,
+                         subscription_callbacks &callbacks) {
+    CHECK_EQ(_channels_map.count(channel), 0) << "already exists for channel " << channel;
+    CHECK_EQ(_subs_map.count(&sub), 0) << "already exists for sub " << channel;
+
+    auto it =
+        _sub_infos.emplace(_sub_infos.end(), subscription_info{channel, sub, callbacks});
+
+    _channels_map.emplace(channel, it);
+    _subs_map.emplace(&sub, it);
+
+    return *it;
+  }
+
+  boost::optional<subscription_info &> find_by_channel(const std::string &channel) const {
+    auto it = _channels_map.find(channel);
+    if (it == _channels_map.end()) {
+      return boost::none;
+    }
+    return *(it->second);
+  }
+
+  boost::optional<subscription_info &> find_by_sub(const subscription &sub) const {
+    auto it = _subs_map.find(&sub);
+    if (it == _subs_map.end()) {
+      return boost::none;
+    }
+    return *(it->second);
+  }
+
+  boost::optional<subscription_info &> find_by_request_id(uint64_t id) {
+    auto it =
+        std::find_if(_sub_infos.begin(), _sub_infos.end(),
+                     [id](const subscription_info &sub) { return sub.request_id == id; });
+
+    if (it == _sub_infos.end()) {
+      return boost::none;
+    }
+
+    return *it;
+  }
+
+  bool delete_by_sub(const subscription &sub) {
+    auto it = _subs_map.find(&sub);
+    if (it == _subs_map.end()) {
+      return false;
+    }
+
+    auto sub_info_it = it->second;
+    _subs_map.erase(&sub_info_it->sub);
+    _channels_map.erase(sub_info_it->channel);
+    _sub_infos.erase(sub_info_it);
+    return true;
+  }
+
+  void clear() {
+    _channels_map.clear();
+    _subs_map.clear();
+    _sub_infos.clear();
+  }
+
+ private:
+  std::list<subscription_info> _sub_infos;
+  std::unordered_map<std::string, std::list<subscription_info>::iterator> _channels_map;
+  // TODO: using object addresses may not be reliable
+  std::unordered_map<const subscription *, std::list<subscription_info>::iterator>
+      _subs_map;
 };
 
 class secure_client : public client, public boost::static_visitor<> {
@@ -437,16 +515,17 @@ class secure_client : public client, public boost::static_visitor<> {
     CHECK_EQ(_client_state, client_state::RUNNING)
         << "RTM client is not running, channel " << channel << ", message " << message;
 
+    // TODO: avoid parsing JSON string
     nlohmann::json document =
         R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}, "id":"<not_set>"})"_json;
 
-    CHECK(document.is_object());
+    CHECK(document.is_object()) << "bad document: " << document;
 
     auto &body = document["body"];
     body["channel"] = channel;
     body["message"] = message;
 
-    const uint64_t request_id = ++_last_request_id;
+    const uint64_t request_id = new_request_id();
     document["id"] = request_id;
 
     std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
@@ -488,15 +567,16 @@ class secure_client : public client, public boost::static_visitor<> {
     }
     CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
-    subscribe_request request{++_last_request_id, channel};
+    const uint64_t request_id = new_request_id();
+    subscribe_request request{request_id, channel};
     if (options != nullptr) {
       request.age = options->history.age;
       request.count = options->history.count;
     }
 
-    _subscriptions.emplace(std::make_pair(
-        channel, subscription_impl{channel, sub, callbacks,
-                                   subscription_status::PENDING_SUBSCRIBE, request.id}));
+    auto &sub_info = _channel_subscriptions.add(channel, sub, callbacks);
+    sub_info.request_id = request_id;
+    sub_info.status = subscription_status::PENDING_SUBSCRIBE;
 
     nlohmann::json document = request.to_json();
     std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
@@ -520,35 +600,28 @@ class secure_client : public client, public boost::static_visitor<> {
     }
     CHECK_EQ(_client_state, client_state::RUNNING) << "RTM client is not running";
 
-    for (auto &it : _subscriptions) {
-      const std::string &sub_id = it.first;
-      subscription_impl &sub = it.second;
-      // TODO: using object addresses is not reliable
-      if (&sub.sub != &sub_to_delete) {
-        continue;
+    const auto found = _channel_subscriptions.find_by_sub(sub_to_delete);
+    CHECK(found) << "didn't find subscription";
+
+    const uint64_t request_id = new_request_id();
+    unsubscribe_request request{request_id, found->channel};
+    nlohmann::json document = request.to_json();
+    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+
+    rtm_bytes_written.Increment(buffer.size());
+
+    found->request_id = request_id;
+    found->status = subscription_status::PENDING_UNSUBSCRIBE;
+    LOG(1) << "requested unsubscribe: " << document;
+
+    write(std::move(buffer), [document =
+                                  std::move(document)](boost::system::error_code ec) {
+      if (ec.value() != 0) {
+        LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message()
+                   << ", message " << document;
+        rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
       }
-
-      unsubscribe_request request{++_last_request_id, sub_id};
-      nlohmann::json document = request.to_json();
-      std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
-
-      rtm_bytes_written.Increment(buffer.size());
-
-      sub.pending_request_id = request.id;
-      sub.status = subscription_status::PENDING_UNSUBSCRIBE;
-      LOG(1) << "requested unsubscribe: " << document;
-
-      write(std::move(buffer), [document =
-                                    std::move(document)](boost::system::error_code ec) {
-        if (ec.value() != 0) {
-          LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message()
-                     << ", message " << document;
-          rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
-        }
-      });
-      return;
-    }
-    ABORT() << "didn't find subscription";
+    });
   }
 
  private:
@@ -586,7 +659,7 @@ class secure_client : public client, public boost::static_visitor<> {
           LOG(INFO) << this << " async_read operation is cancelled";
           CHECK(_client_state == client_state::PENDING_STOPPED);
           _client_state = client_state::STOPPED;
-          _subscriptions.clear();
+          _channel_subscriptions.clear();
         } else if (_client_state == client_state::RUNNING) {
           rtm_client_error.Add({{"type", "read"}}).Increment();
           LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
@@ -651,7 +724,7 @@ class secure_client : public client, public boost::static_visitor<> {
         return;
       }
 
-      const auto request_id = ++_last_request_id;
+      const auto request_id = new_request_id();
       _ping_times.emplace(request_id, std::chrono::system_clock::now());
       ping(request_id, [this](boost::system::error_code const &ec_ping) {
         LOG(4) << this << " ping write ec=" << ec_ping;
@@ -710,33 +783,30 @@ class secure_client : public client, public boost::static_visitor<> {
 
     if (action == "rtm/subscription/data") {
       CHECK(pdu.find("body") != pdu.end()) << "no body in pdu: " << pdu;
-      auto &body = pdu["body"];
-
+      const auto &body = pdu["body"];
       CHECK(body.find("subscription_id") != body.end())
           << "no subscription_id in body: " << pdu;
-      std::string subscription_id = body["subscription_id"];
-      auto it = _subscriptions.find(subscription_id);
-      CHECK(it != _subscriptions.end());
-      subscription_impl &sub = it->second;
-      CHECK(sub.status == subscription_status::CURRENT
-            || sub.status == subscription_status::PENDING_UNSUBSCRIBE);
-      if (sub.status == subscription_status::PENDING_UNSUBSCRIBE) {
-        LOG(2) << "Got data for subscription pending deletion";
+      const std::string channel = body["subscription_id"];
+
+      const auto found = _channel_subscriptions.find_by_channel(channel);
+      CHECK(found) << "no subscription for data: " << pdu;
+      if (found->status == subscription_status::PENDING_UNSUBSCRIBE) {
+        LOG(2) << "Got data for subscription pending deletion " << pdu;
         return;
       }
-
+      CHECK_EQ(found->status, subscription_status::CURRENT)
+          << "not in expected state for " << pdu;
       CHECK(body.find("messages") != body.end()) << "no messages in body: " << pdu;
-      auto &messages = body["messages"];
+      const auto &messages = body["messages"];
       CHECK(messages.is_array()) << "messages is not an array: " << pdu;
 
-      rtm_messages_received.Add({{"channel", sub.channel}}).Increment();
-      rtm_messages_bytes_received.Add({{"channel", sub.channel}}).Increment(byte_size);
+      rtm_messages_received.Add({{"channel", channel}}).Increment();
+      rtm_messages_bytes_received.Add({{"channel", channel}}).Increment(byte_size);
       rtm_messages_in_pdu.Observe(messages.size());
 
       for (const auto &m : messages) {
-        // TODO: eliminate copies of m
-        channel_data data{m, arrival_time};
-        sub.callbacks.on_data(sub.sub, std::move(data));
+        // TODO: avoid copying of m
+        found->callbacks.on_data(found->sub, {m, arrival_time});
       }
     } else if (action == "rtm/subscription/error") {
       LOG(ERROR) << "subscription error: " << pdu;
@@ -752,68 +822,48 @@ class secure_client : public client, public boost::static_visitor<> {
     } else if (action == "rtm/subscribe/ok") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
       const uint64_t id = pdu["id"];
-      for (auto &it : _subscriptions) {
-        const std::string &sub_id = it.first;
-        subscription_impl &sub = it.second;
-        if (sub.pending_request_id == id) {
-          LOG(1) << "got subscribe confirmation for subscription " << sub_id
-                 << " in status " << sub.status << ": " << pdu;
-          CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
-          sub.pending_request_id = UINT64_MAX;
-          sub.status = subscription_status::CURRENT;
-          return;
-        }
-      }
-      ABORT() << "got unexpected subscribe confirmation: " << pdu;
+      auto found = _channel_subscriptions.find_by_request_id(id);
+      CHECK(found) << "got unexpected subscribe confirmation: " << pdu;
+      CHECK_EQ(found->status, subscription_status::PENDING_SUBSCRIBE)
+          << "unexpected subscription status for " << found->channel << ": " << pdu;
+      LOG(1) << "got subscribe confirmation for " << found->channel << ": " << pdu;
+      found->request_id = invalid_request_id;
+      found->status = subscription_status::CURRENT;
     } else if (action == "rtm/subscribe/error") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
       const uint64_t id = pdu["id"];
-      for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
-        const std::string &sub_id = it->first;
-        subscription_impl &sub = it->second;
-        if (sub.pending_request_id == id) {
-          LOG(ERROR) << "got subscribe error for subscription " << sub_id << " in status "
-                     << sub.status << ": " << pdu;
-          CHECK(sub.status == subscription_status::PENDING_SUBSCRIBE);
-          rtm_subscribe_error_total.Increment();
-          _callbacks.on_error(client_error::SUBSCRIBE_ERROR);
-          _subscriptions.erase(it);
-          return;
-        }
-      }
-      ABORT() << "got unexpected subscribe error: " << pdu;
+      auto found = _channel_subscriptions.find_by_request_id(id);
+      CHECK(found) << "got unexpected subscribe error: " << pdu;
+      CHECK_EQ(found->status, subscription_status::PENDING_SUBSCRIBE)
+          << "unexpected subscription status for " << found->channel << ": " << pdu;
+      LOG(ERROR) << "got subscribe error for " << found->channel << ": " << pdu;
+      rtm_subscribe_error_total.Increment();
+      found->callbacks.on_error(client_error::SUBSCRIBE_ERROR);
+      CHECK(_channel_subscriptions.delete_by_sub(found->sub))
+          << "failed to delete: " << pdu;
     } else if (action == "rtm/unsubscribe/ok") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
       const uint64_t id = pdu["id"];
-      for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
-        const std::string &sub_id = it->first;
-        subscription_impl &sub = it->second;
-        if (sub.pending_request_id == id) {
-          LOG(1) << "got unsubscribe confirmation for subscription " << sub_id
-                 << " in status " << sub.status << ": " << pdu;
-          CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
-          it = _subscriptions.erase(it);
-          return;
-        }
-      }
-      ABORT() << "got unexpected unsubscribe confirmation: " << pdu;
+      auto found = _channel_subscriptions.find_by_request_id(id);
+      CHECK(found) << "got unexpected unsubscribe confirmation: " << pdu;
+      CHECK_EQ(found->status, subscription_status::PENDING_UNSUBSCRIBE)
+          << "got unexpected unsubscribe confirmation for " << found->channel << ": "
+          << pdu;
+      LOG(1) << "got unsubscribe confirmation for " << found->channel << ": " << pdu;
+      CHECK(_channel_subscriptions.delete_by_sub(found->sub))
+          << "failed to delete: " << pdu;
     } else if (action == "rtm/unsubscribe/error") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
-      const uint64_t id = pdu["id"];  // check type
-      for (auto it = _subscriptions.begin(); it != _subscriptions.end(); ++it) {
-        const std::string &sub_id = it->first;
-        subscription_impl &sub = it->second;
-        if (sub.pending_request_id == id) {
-          LOG(ERROR) << "got unsubscribe error for subscription " << sub_id
-                     << " in status " << sub.status << ": " << pdu;
-          CHECK(sub.status == subscription_status::PENDING_UNSUBSCRIBE);
-          rtm_unsubscribe_error_total.Increment();
-          _callbacks.on_error(client_error::UNSUBSCRIBE_ERROR);
-          _subscriptions.erase(it);
-          return;
-        }
-      }
-      ABORT() << "got unexpected unsubscribe error: " << pdu;
+      const uint64_t id = pdu["id"];
+      auto found = _channel_subscriptions.find_by_request_id(id);
+      CHECK(found) << "got unexpected unsubscribe error: " << pdu;
+      CHECK_EQ(found->status, subscription_status::PENDING_UNSUBSCRIBE)
+          << "got unexpected unsubscribe error for " << found->channel << ": " << pdu;
+      LOG(ERROR) << "got unsubscribe error for " << found->channel << ": " << pdu;
+      rtm_unsubscribe_error_total.Increment();
+      found->callbacks.on_error(client_error::UNSUBSCRIBE_ERROR);
+      CHECK(_channel_subscriptions.delete_by_sub(found->sub))
+          << "failed to delete: " << pdu;
     } else if (action == "/error") {
       ABORT() << "got unexpected error: " << pdu;
     } else {
@@ -890,9 +940,8 @@ class secure_client : public client, public boost::static_visitor<> {
   asio::ip::tcp::resolver _tcp_resolver;
   boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
       _ws;
-  uint64_t _last_request_id{0};
   boost::beast::multi_buffer _read_buffer{read_buffer_size};
-  std::map<std::string, subscription_impl> _subscriptions;
+  subscriptions_map _channel_subscriptions;
   std::unordered_map<uint64_t, std::chrono::system_clock::time_point> _publish_times;
   boost::asio::deadline_timer _ping_timer;
   std::unordered_map<uint64_t, std::chrono::system_clock::time_point> _ping_times;
