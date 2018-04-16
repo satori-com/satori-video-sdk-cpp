@@ -42,17 +42,17 @@ struct error_callbacks {
   virtual void on_error(std::error_condition ec) = 0;
 };
 
-struct publish_callbacks : error_callbacks {
-  ~publish_callbacks() override = default;
+struct request_callbacks : error_callbacks {
+  ~request_callbacks() override = default;
 
-  virtual void on_ok() {}
+  virtual void on_ok() = 0;
 };
 
 struct publisher {
   virtual ~publisher() = default;
 
   virtual void publish(const std::string &channel, nlohmann::json &&message,
-                       publish_callbacks *callbacks = nullptr) = 0;
+                       request_callbacks *callbacks = nullptr) = 0;
 };
 
 // Subscription interface of RTM.
@@ -83,7 +83,7 @@ struct subscriber {
   virtual ~subscriber() = default;
 
   virtual void subscribe(const std::string &channel, const subscription &sub,
-                         subscription_callbacks &callbacks,
+                         subscription_callbacks &data_callbacks,
                          const subscription_options *options = nullptr) = 0;
 
   virtual void unsubscribe(const subscription &sub) = 0;
@@ -116,10 +116,10 @@ class resilient_client : public client, error_callbacks {
                             error_callbacks &callbacks);
 
   void publish(const std::string &channel, nlohmann::json &&message,
-               publish_callbacks *callbacks) override;
+               request_callbacks *callbacks) override;
 
   void subscribe(const std::string &channel, const subscription &sub,
-                 subscription_callbacks &callbacks,
+                 subscription_callbacks &data_callbacks,
                  const subscription_options *options) override;
 
   void unsubscribe(const subscription &sub) override;
@@ -135,7 +135,7 @@ class resilient_client : public client, error_callbacks {
   struct subscription_info {
     std::string channel;
     const subscription *sub;
-    subscription_callbacks *callbacks;
+    subscription_callbacks *data_callbacks;
     const subscription_options *options;
   };
 
@@ -157,10 +157,10 @@ class thread_checking_client : public client {
                                   std::unique_ptr<client> client);
 
   void publish(const std::string &channel, nlohmann::json &&message,
-               publish_callbacks *callbacks) override;
+               request_callbacks *callbacks) override;
 
   void subscribe(const std::string &channel, const subscription &sub,
-                 subscription_callbacks &callbacks,
+                 subscription_callbacks &data_callbacks,
                  const subscription_options *options) override;
 
   void unsubscribe(const subscription &sub) override;

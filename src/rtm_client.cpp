@@ -302,7 +302,7 @@ uint64_t new_request_id() {
   return request_id++;
 }
 
-struct subscription_info {
+struct subscription_details {
   const std::string channel;
   const subscription &sub;
   subscription_callbacks &callbacks;
@@ -312,13 +312,13 @@ struct subscription_info {
 
 class subscriptions_map {
  public:
-  subscription_info &add(const std::string &channel, const subscription &sub,
-                         subscription_callbacks &callbacks) {
+  subscription_details &add(const std::string &channel, const subscription &sub,
+                            subscription_callbacks &callbacks) {
     CHECK_EQ(_channels_map.count(channel), 0) << "already exists for channel " << channel;
     CHECK_EQ(_subs_map.count(&sub), 0) << "already exists for sub " << channel;
 
-    auto it =
-        _sub_infos.emplace(_sub_infos.end(), subscription_info{channel, sub, callbacks});
+    auto it = _sub_infos.emplace(_sub_infos.end(),
+                                 subscription_details{channel, sub, callbacks});
 
     _channels_map.emplace(channel, it);
     _subs_map.emplace(&sub, it);
@@ -326,7 +326,8 @@ class subscriptions_map {
     return *it;
   }
 
-  boost::optional<subscription_info &> find_by_channel(const std::string &channel) const {
+  boost::optional<subscription_details &> find_by_channel(
+      const std::string &channel) const {
     auto it = _channels_map.find(channel);
     if (it == _channels_map.end()) {
       return boost::none;
@@ -334,7 +335,7 @@ class subscriptions_map {
     return *(it->second);
   }
 
-  boost::optional<subscription_info &> find_by_sub(const subscription &sub) const {
+  boost::optional<subscription_details &> find_by_sub(const subscription &sub) const {
     auto it = _subs_map.find(&sub);
     if (it == _subs_map.end()) {
       return boost::none;
@@ -342,10 +343,10 @@ class subscriptions_map {
     return *(it->second);
   }
 
-  boost::optional<subscription_info &> find_by_request_id(uint64_t id) {
-    auto it =
-        std::find_if(_sub_infos.begin(), _sub_infos.end(),
-                     [id](const subscription_info &sub) { return sub.request_id == id; });
+  boost::optional<subscription_details &> find_by_request_id(uint64_t id) {
+    auto it = std::find_if(
+        _sub_infos.begin(), _sub_infos.end(),
+        [id](const subscription_details &sub) { return sub.request_id == id; });
 
     if (it == _sub_infos.end()) {
       return boost::none;
@@ -374,10 +375,11 @@ class subscriptions_map {
   }
 
  private:
-  std::list<subscription_info> _sub_infos;
-  std::unordered_map<std::string, std::list<subscription_info>::iterator> _channels_map;
+  std::list<subscription_details> _sub_infos;
+  std::unordered_map<std::string, std::list<subscription_details>::iterator>
+      _channels_map;
   // TODO: using object addresses may not be reliable
-  std::unordered_map<const subscription *, std::list<subscription_info>::iterator>
+  std::unordered_map<const subscription *, std::list<subscription_details>::iterator>
       _subs_map;
 };
 
@@ -385,15 +387,15 @@ class secure_client : public client, public boost::static_visitor<> {
  public:
   explicit secure_client(const std::string &host, const std::string &port,
                          const std::string &appkey, uint64_t client_id,
-                         error_callbacks &callbacks, asio::io_service &io_service,
-                         asio::ssl::context &ssl_ctx)
+                         error_callbacks &common_error_callbacks,
+                         asio::io_service &io_service, asio::ssl::context &ssl_ctx)
       : _host{host},
         _port{port},
         _appkey{appkey},
         _tcp_resolver{io_service},
         _ws{io_service, ssl_ctx},
         _client_id{client_id},
-        _callbacks{callbacks},
+        _common_error_callbacks{common_error_callbacks},
         _ping_timer{io_service} {
     _control_callback = [this](boost::beast::websocket::frame_type type,
                                const boost::beast::string_view &payload) {
@@ -507,7 +509,7 @@ class secure_client : public client, public boost::static_visitor<> {
   }
 
   void publish(const std::string &channel, nlohmann::json &&message,
-               publish_callbacks *callbacks) override {
+               request_callbacks *callbacks) override {
     if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
       return;
@@ -515,20 +517,16 @@ class secure_client : public client, public boost::static_visitor<> {
     CHECK_EQ(_client_state, client_state::RUNNING)
         << "RTM client is not running, channel " << channel << ", message " << message;
 
-    // TODO: avoid parsing JSON string
-    nlohmann::json document =
-        R"({"action":"rtm/publish", "body":{"channel":"<not_set>", "message":"<not_set>"}, "id":"<not_set>"})"_json;
-
-    CHECK(document.is_object()) << "bad document: " << document;
-
-    auto &body = document["body"];
+    nlohmann::json pdu = nlohmann::json::object();
+    pdu["action"] = "rtm/publish";
+    auto &body = pdu["body"];
+    body = nlohmann::json::object();
     body["channel"] = channel;
     body["message"] = message;
-
     const uint64_t request_id = new_request_id();
-    document["id"] = request_id;
+    pdu["id"] = request_id;
 
-    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+    std::string buffer = use_cbor ? json_to_cbor(pdu) : pdu.dump();
 
     rtm_messages_sent.Add({{"channel", channel}}).Increment();
     rtm_messages_bytes_sent.Add({{"channel", channel}}).Increment(buffer.size());
@@ -536,30 +534,29 @@ class secure_client : public client, public boost::static_visitor<> {
 
     const auto before_publish = std::chrono::system_clock::now();
     _publish_times.emplace(request_id, before_publish);
-    write(std::move(buffer),
-          [ before_publish, document = std::move(document),
-            callbacks ](boost::system::error_code ec) {
-            const auto after_write = std::chrono::system_clock::now();
-            rtm_write_delay_microseconds.Observe(
-                std::chrono::duration_cast<std::chrono::microseconds>(after_write
-                                                                      - before_publish)
-                    .count());
-            if (ec.value() != 0) {
-              LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message()
-                         << ", message " << document;
-              rtm_client_error.Add({{"type", "publish"}}).Increment();
-              if (callbacks != nullptr) {
-                callbacks->on_error(make_error_condition(client_error::PUBLISH_ERROR));
-              }
-            }
-            if (callbacks != nullptr) {
-              callbacks->on_ok();
-            }
-          });
+    write(std::move(buffer), [ before_publish, pdu = std::move(pdu),
+                               callbacks ](boost::system::error_code ec) {
+      const auto after_write = std::chrono::system_clock::now();
+      rtm_write_delay_microseconds.Observe(
+          std::chrono::duration_cast<std::chrono::microseconds>(after_write
+                                                                - before_publish)
+              .count());
+      if (ec.value() != 0) {
+        LOG(ERROR) << "publish request failure: [" << ec << "] " << ec.message()
+                   << ", message " << pdu;
+        rtm_client_error.Add({{"type", "publish"}}).Increment();
+        if (callbacks != nullptr) {
+          callbacks->on_error(make_error_condition(client_error::PUBLISH_ERROR));
+        }
+      }
+      if (callbacks != nullptr) {
+        callbacks->on_ok();
+      }
+    });
   }
 
   void subscribe(const std::string &channel, const subscription &sub,
-                 subscription_callbacks &callbacks,
+                 subscription_callbacks &data_callbacks,
                  const subscription_options *options) override {
     if (_client_state == client_state::PENDING_STOPPED) {
       LOG(1) << "RTM client is pending stop";
@@ -574,20 +571,19 @@ class secure_client : public client, public boost::static_visitor<> {
       request.count = options->history.count;
     }
 
-    auto &sub_info = _channel_subscriptions.add(channel, sub, callbacks);
+    auto &sub_info = _channel_subscriptions.add(channel, sub, data_callbacks);
     sub_info.request_id = request_id;
     sub_info.status = subscription_status::PENDING_SUBSCRIBE;
 
-    nlohmann::json document = request.to_json();
-    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+    nlohmann::json pdu = request.to_json();
+    std::string buffer = use_cbor ? json_to_cbor(pdu) : pdu.dump();
 
     rtm_bytes_written.Increment(buffer.size());
-    LOG(1) << "requested subscribe: " << document;
-    write(std::move(buffer), [document =
-                                  std::move(document)](boost::system::error_code ec) {
+    LOG(1) << "requested subscribe: " << pdu;
+    write(std::move(buffer), [pdu = std::move(pdu)](boost::system::error_code ec) {
       if (ec.value() != 0) {
         LOG(ERROR) << "subscribe request failure: [" << ec << "] " << ec.message()
-                   << ", message " << document;
+                   << ", message " << pdu;
         rtm_client_error.Add({{"type", "subscribe"}}).Increment();
       }
     });
@@ -605,20 +601,19 @@ class secure_client : public client, public boost::static_visitor<> {
 
     const uint64_t request_id = new_request_id();
     unsubscribe_request request{request_id, found->channel};
-    nlohmann::json document = request.to_json();
-    std::string buffer = use_cbor ? json_to_cbor(document) : document.dump();
+    nlohmann::json pdu = request.to_json();
+    std::string buffer = use_cbor ? json_to_cbor(pdu) : pdu.dump();
 
     rtm_bytes_written.Increment(buffer.size());
 
     found->request_id = request_id;
     found->status = subscription_status::PENDING_UNSUBSCRIBE;
-    LOG(1) << "requested unsubscribe: " << document;
+    LOG(1) << "requested unsubscribe: " << pdu;
 
-    write(std::move(buffer), [document =
-                                  std::move(document)](boost::system::error_code ec) {
+    write(std::move(buffer), [pdu = std::move(pdu)](boost::system::error_code ec) {
       if (ec.value() != 0) {
         LOG(ERROR) << "unsubscribe request failure: [" << ec << "] " << ec.message()
-                   << ", message " << document;
+                   << ", message " << pdu;
         rtm_client_error.Add({{"type", "unsubscribe"}}).Increment();
       }
     });
@@ -663,7 +658,7 @@ class secure_client : public client, public boost::static_visitor<> {
         } else if (_client_state == client_state::RUNNING) {
           rtm_client_error.Add({{"type", "read"}}).Increment();
           LOG(ERROR) << this << " asio error: [" << ec << "] " << ec.message();
-          _callbacks.on_error(client_error::ASIO_ERROR);
+          _common_error_callbacks.on_error(client_error::ASIO_ERROR);
         } else {
           LOG(INFO) << this << " ignoring asio error because in state " << _client_state
                     << ": [" << ec << "] " << ec.message();
@@ -716,7 +711,7 @@ class secure_client : public client, public boost::static_visitor<> {
           LOG(ERROR) << this << " ping timer error for ping timer: [" << ec_timer << "] "
                      << ec_timer.message();
           rtm_client_error.Add({{"type", "ping_timer"}}).Increment();
-          _callbacks.on_error(client_error::ASIO_ERROR);
+          _common_error_callbacks.on_error(client_error::ASIO_ERROR);
         } else {
           LOG(INFO) << this << " ignoring asio error for ping timer because in state "
                     << _client_state << ": [" << ec_timer << "] " << ec_timer.message();
@@ -735,7 +730,7 @@ class secure_client : public client, public boost::static_visitor<> {
             LOG(ERROR) << this << " asio error for ping operation: [" << ec_ping << "] "
                        << ec_ping.message();
             rtm_client_error.Add({{"type", "ping"}}).Increment();
-            _callbacks.on_error(client_error::ASIO_ERROR);
+            _common_error_callbacks.on_error(client_error::ASIO_ERROR);
           } else {
             LOG(INFO) << this
                       << " ignoring asio error for ping operation because in state "
@@ -811,14 +806,14 @@ class secure_client : public client, public boost::static_visitor<> {
     } else if (action == "rtm/subscription/error") {
       LOG(ERROR) << "subscription error: " << pdu;
       rtm_subscription_error_total.Increment();
-      _callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
+      _common_error_callbacks.on_error(client_error::SUBSCRIPTION_ERROR);
     } else if (action == "rtm/publish/ok") {
       process_publish_confirmation(pdu, arrival_time);
     } else if (action == "rtm/publish/error") {
       process_publish_confirmation(pdu, arrival_time);
       LOG(ERROR) << "got publish error: " << pdu;
       rtm_publish_error_total.Increment();
-      _callbacks.on_error(client_error::PUBLISH_ERROR);
+      _common_error_callbacks.on_error(client_error::PUBLISH_ERROR);
     } else if (action == "rtm/subscribe/ok") {
       CHECK(pdu.find("id") != pdu.end()) << "no id in pdu: " << pdu;
       const uint64_t id = pdu["id"];
@@ -873,26 +868,26 @@ class secure_client : public client, public boost::static_visitor<> {
 
   void write(std::string &&data, request_done_cb &&done_cb) {
     LOG(4) << "write " << data.size();
-    _requests.push(write_request{std::move(data), std::move(done_cb)});
+    _pending_requests.push(write_request{std::move(data), std::move(done_cb)});
     drain_requests();
   }
 
   void ping(uint64_t request_id, request_done_cb &&done_cb) {
     LOG(4) << "ping";
-    _requests.push(ping_request{request_id, std::move(done_cb)});
+    _pending_requests.push(ping_request{request_id, std::move(done_cb)});
     drain_requests();
   }
 
   void drain_requests() {
-    LOG(4) << "drain requests " << _requests.size();
-    rtm_pending_requests.Set(_requests.size());
-    if (_requests.empty() || _request_in_flight) {
+    LOG(4) << "drain requests " << _pending_requests.size();
+    rtm_pending_requests.Set(_pending_requests.size());
+    if (_pending_requests.empty() || _request_in_flight) {
       LOG(4) << "drain requests early return";
       return;
     }
 
     _request_in_flight = true;
-    const auto &request = _requests.front();
+    const auto &request = _pending_requests.front();
     boost::apply_visitor(*this, request);
   }
 
@@ -922,9 +917,9 @@ class secure_client : public client, public boost::static_visitor<> {
 
  private:
   void on_request_done(boost::system::error_code ec) {
-    const auto &request = _requests.front();
+    const auto &request = _pending_requests.front();
     boost::apply_visitor(get_done_cb_visitor{}, request)(ec);
-    _requests.pop();
+    _pending_requests.pop();
     _request_in_flight = false;
     drain_requests();
   }
@@ -935,7 +930,7 @@ class secure_client : public client, public boost::static_visitor<> {
   const std::string _port;
   const std::string _appkey;
   const uint64_t _client_id;
-  error_callbacks &_callbacks;
+  error_callbacks &_common_error_callbacks;
 
   asio::ip::tcp::resolver _tcp_resolver;
   boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >
@@ -948,7 +943,7 @@ class secure_client : public client, public boost::static_visitor<> {
   std::function<void(boost::beast::websocket::frame_type type,
                      boost::beast::string_view payload)>
       _control_callback;
-  std::queue<io_request> _requests;
+  std::queue<io_request> _pending_requests;
   bool _request_in_flight{false};
 };
 
@@ -975,7 +970,7 @@ resilient_client::resilient_client(asio::io_service &io_service,
       _error_callbacks(callbacks) {}
 
 void resilient_client::publish(const std::string &channel, nlohmann::json &&message,
-                               publish_callbacks *callbacks) {
+                               request_callbacks *callbacks) {
   CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
       << "Invocation from " << threadutils::get_current_thread_name();
 
@@ -983,13 +978,13 @@ void resilient_client::publish(const std::string &channel, nlohmann::json &&mess
 }
 
 void resilient_client::subscribe(const std::string &channel, const subscription &sub,
-                                 subscription_callbacks &callbacks,
+                                 subscription_callbacks &data_callbacks,
                                  const subscription_options *options) {
   CHECK_EQ(std::this_thread::get_id(), _io_thread_id)
       << "Invocation from " << threadutils::get_current_thread_name();
 
-  _subscriptions.push_back({channel, &sub, &callbacks, options});
-  _client->subscribe(channel, sub, callbacks, options);
+  _subscriptions.push_back({channel, &sub, &data_callbacks, options});
+  _client->subscribe(channel, sub, data_callbacks, options);
 }
 
 void resilient_client::unsubscribe(const subscription &sub) {
@@ -1050,7 +1045,7 @@ void resilient_client::restart() {
 
   LOG(1) << "restoring subscriptions";
   for (const auto &sub : _subscriptions) {
-    _client->subscribe(sub.channel, *sub.sub, *sub.callbacks, sub.options);
+    _client->subscribe(sub.channel, *sub.sub, *sub.data_callbacks, sub.options);
   }
 
   LOG(1) << "client restart done";
@@ -1062,7 +1057,7 @@ thread_checking_client::thread_checking_client(asio::io_service &io,
     : _io(io), _io_thread_id(io_thread_id), _client(std::move(client)) {}
 
 void thread_checking_client::publish(const std::string &channel, nlohmann::json &&message,
-                                     publish_callbacks *callbacks) {
+                                     request_callbacks *callbacks) {
   if (std::this_thread::get_id() != _io_thread_id) {
     LOG(WARNING) << "Forwarding request from thread "
                  << threadutils::get_current_thread_name();
@@ -1077,18 +1072,18 @@ void thread_checking_client::publish(const std::string &channel, nlohmann::json 
 
 void thread_checking_client::subscribe(const std::string &channel,
                                        const subscription &sub,
-                                       subscription_callbacks &callbacks,
+                                       subscription_callbacks &data_callbacks,
                                        const subscription_options *options) {
   if (std::this_thread::get_id() != _io_thread_id) {
     LOG(WARNING) << "Forwarding request from thread "
                  << threadutils::get_current_thread_name();
-    _io.post([this, channel, &sub, &callbacks, options]() {
-      _client->subscribe(channel, sub, callbacks, options);
+    _io.post([this, channel, &sub, &data_callbacks, options]() {
+      _client->subscribe(channel, sub, data_callbacks, options);
     });
     return;
   }
 
-  _client->subscribe(channel, sub, callbacks, options);
+  _client->subscribe(channel, sub, data_callbacks, options);
 }
 
 void thread_checking_client::unsubscribe(const subscription &sub) {
