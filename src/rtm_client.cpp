@@ -156,9 +156,9 @@ auto &rtm_subscription_error_total = prometheus::BuildCounter()
                                          .Register(metrics_registry())
                                          .Add({});
 
-auto &rtm_publish_time_microseconds =
+auto &rtm_write_delay_microseconds =
     prometheus::BuildHistogram()
-        .Name("rtm_publish_time_microseconds")
+        .Name("rtm_write_delay_microseconds")
         .Register(metrics_registry())
         .Add({}, std::vector<double>{0,    1,    5,     10,    25,    50,    100,
                                      250,  500,  750,   1000,  2000,  3000,  4000,
@@ -539,9 +539,9 @@ class secure_client : public client, public boost::static_visitor<> {
     write(std::move(buffer),
           [ before_publish, document = std::move(document),
             callbacks ](boost::system::error_code ec) {
-            const auto after_publish = std::chrono::system_clock::now();
-            rtm_publish_time_microseconds.Observe(
-                std::chrono::duration_cast<std::chrono::microseconds>(after_publish
+            const auto after_write = std::chrono::system_clock::now();
+            rtm_write_delay_microseconds.Observe(
+                std::chrono::duration_cast<std::chrono::microseconds>(after_write
                                                                       - before_publish)
                     .count());
             if (ec.value() != 0) {
