@@ -2,6 +2,20 @@
 
 [All Video SDK documentation](../README.md)
 
+## Table of contents
+* [Configure a bot](#configure-a-bot)
+* [Debug and profile a bot](#debug-and-profile-a-bot)
+* [Publish messages from a bot](#publish-messages-from-a-bot)
+* [Work with video streams](#work-with-video-streams)
+    * [Watch a video stream](#watch-a-video-stream)
+    * [Watch a video file](#watch-a-video-file)
+    * [Watch video from a camera](#watch-video-from-a-camera)
+* [Publish video](#publish-video)
+    * [Publish video from a video file](#publish-video-from-a-video-file)
+    * [Publish video from a macOS laptop camera](#publish-video-from-a-macos-laptop-camera)
+* [Record video](#record-video)
+    * [Record a video stream to a file](#record-a-video-stream-to-a-file)
+
 ## Configure a bot
 
 The bot framework passes the JSON specified by the `--config` option or the contents
@@ -47,11 +61,11 @@ and profiler. To disable `gperftools`, you need to re-build your bot:
 
 ## Publish messages from a bot
 
-To publish a message from a bot, call [`bot_message`](reference.md#bot-message).
+To publish a message from a bot, call [`bot_message()`](reference.md#bot_message).
 
 The `bot_message_kind` parameter is an enumeration that specifies the destination channel. See
-[SDK channel names](reference.md#sdk-channel-names) for a list of the enumerations and corresponding
-channel names.
+[SDK channel names](reference.md#sdk-channel-names) for a list of the `enum` constants and corresponding
+channel names for `bot_message_kind`.
 
 For example, in your image processing callback you can publish a message to the analytics channel:
 
@@ -79,7 +93,7 @@ creates environment management scripts called `activate.sh` and `deactive.sh`:
 * `$ <project_dir>/source deactive.sh` change your environment back to its previous settings. To learn more, see
 [Test the SDK utilities](build_bot.md#test-the-sdk-utilities).
 
-### Watch a Satori video stream
+### Watch a video stream
 Given the following:
 * endpoint: `xxxxxxx.api.satori.com`
 * appkey: `00112233445566778899AABBCCDDEEFF`
@@ -137,7 +151,7 @@ $ ./satori_video_publisher --input-video-file=my_video_file.mp4 \
 ```
 Remember to run `$ source deactivate.sh` when you're done.
 
-## Publish video from a macOS laptop camera
+### Publish video from a macOS laptop camera
 Given the following:
 * endpoint: `xxxxxxx.api.satori.com`
 * appkey: `00112233445566778899AABBCCDDEEFF`
@@ -157,6 +171,8 @@ Remember to run `$ source deactivate.sh` when you're done.
 ## Record video
 
 ### Record a video stream to a file
+Record a video stream, optionally with time and frame limits.
+
 Given the following:
 * endpoint: `xxxxxxx.api.satori.com`
 * appkey: `00112233445566778899AABBCCDDEEFF`
@@ -170,4 +186,10 @@ $./satori_video_recorder --output-video-file=my_video_file.mkv \
                         --appkey="00112233445566778899AABBCCDDEEFF" \
                         --channel="input_channel"
 ```
+
+* To limit the recording to a certain number of seconds, add the parameter `--time-limit`. For example,
+`time-limit 30` limits the video to 30 seconds.
+* To limit the recording to a certain number of video frames, add the parameter `--frame-limit`. For example,
+`frame-limit 1000` limits the video to 1000 frames.
+
 Remember to run `$ source deactivate.sh` when you're done.

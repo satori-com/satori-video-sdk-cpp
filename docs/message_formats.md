@@ -2,170 +2,65 @@
 
 [All Video SDK documentation](../README.md)
 
-Satori's proprietary image processing software publishes analytics messages in standard formats that other Satori
-systems use. These messages use simple JSON-formatted structures. Although you can use any format you want, using the
-Video SDK formats helps your bot connect with Satori systems.
+## Table of contents
+* [API fields](#api-fields)
+* [Analysis messages](#analysis-messages)
+* [Debug messages](#debug-messages)
+* [Configuration messages](#configuration-messages)
+* [Metrics messages](#metrics-messages)
 
-To publish an analytics message from a video bot, call `bot_message()` with the `kind` parameter set to `ANALYSIS`. For
-example:
-```c++
-bot_message(context, bot_message_kind::ANALYSIS, result_message);
-```
+## Overview
+Video bots use the Satori publish-subscribe platform for communication, so input and output take
+the form of JSON messages:
+* To send analysis and debug output, you publish a message with the video API function `bot_message()`.
+* You receive configuration input in the callback function `process_command()`. You can also publish messages
+from this function.
+* The API publishes to the metrics channel the Prometheus metrics you store in the bot context metrics registry.
+* The API itself ingests video stream and video meta-data messages.
 
-To learn more about `bot_message()` see [Publish messages from a bot](tasks.md#publish-messages-from-a-bot).
+You can use any format you want to publish analysis and debug messages from your bot. You can also use any format
+you want to publish configuration messages to the control channel.
 
-### Detected objects
-A `detected_objects` message contains information about objects detected in the specified frames. In the Satori
-system, a detected object is something in the frame that the image processing algorithm matched to an object of interest.
-The message is simply a record that the object is found in the frame.
+## API fields
+The API adds can add two fields to messages you publish using `bot_message()` or `process_command()`:
+* `"from": "<bot_id>"`: An identifier for the bot that you specify on the bot program command line with the `--id` parameter.
+If you don't specify the parameter, the API doesn't add this field.
+* `"i": [frame1,frame2]`: Frame identifier, defined by the API struct [`frame_id`](reference.md#frame-id). The
+field has two 64-bit integers containing frame numbers `frame1` and `frame2`. If `frame1==frame2`, the id specifies a
+single frame; otherwise, it specifies a range of frames from `frame1` to `frame2`, inclusive. The default value is
+frame{[0,0]}, which the API interprets as the current frame.
 
-The following JSON object is an example of a `detected_object` message you might publish with `bot_message`:
+**Notes:**
+* `bot_id`: The API inserts the exact value you specify on the command line.
+* `frame_id`: When the API invokes `process_image()`, it passes in the current frame as an
+[`image_frame` struct](reference.md#image-frame). This struct has a `frame_id` member that contains the id of the
+frame.
+
+## Analysis messages
+To publish an analysis message containing the results of `process_image()`, call
+[`bot_message()`](reference.md#bot-message) with the `kind` parameter set to the API `enum` constant
+`bot_message_kind::ANALYSIS`.
+
+## Debug messages
+To publish a debug message, call [`bot_message()`](reference.md#bot-message) with the `kind` parameter set to the
+API `enum` constant `bot_message_kind::DEBUG`.
+
+## Configuration messages
+The API passes messages it receives in the control channel to the `process_command()` callback function you
+define, using the parameter `message`. This parameter is specified as a JSON object.
+
+The following JSON object is an example of a configuration used to set the feature size in a motion detector bot:
 ```json
 {
-    "detected_objects" : [
-        {
-            "rect": [0.147, 0.208, 0.147, 0.146],
-            "id" : "motorcycle",
-            "tag" : "vehicle",
-            "color" : "yellow"
-        },
-        {
-            "rect": [0.109, 0.108, 0.127, 0.150],
-            "id" : "car",
-            "tag" : "vehicle",
-            "color" : "yellow"
-        }
-    ]
-}
-```
-
-|     Entity                                       |   Value type       |  Description
-| :----------------------------------------------- | :----------------: | :------------------------------------------------------------------------------------------------------------ |
- `"detected_objects"`                              |  string            | Handle this data as detected objects                                                                          |
- (list of objects)                                 |  object\[\]        | A list of the objects detected                                                                                |
- (object)                                          |  object            | Attributes of each detected object                                                                            |
- `"rect"`:`[x, y, width, height]`                  |  array of number   | Dimensions of the rectangle that encloses an object format                                                    |
- `id`:\<identifier>                                |  string            | **Optional** identifier that's specific to this object                                                        |
- `tag`:\<tag>                                      |  string            | **Optional** tag for this type of object                                                                      |
- `color`:\<color>                                  |  string            | **Optional** color to use for the enclosing rectangle when displayed                                          |
- `bot_id`:\<bot_id>                                |  string            | **Automatic** Value of the `--id` parameter specified in the bot configuration (Inserted by the framework)    |
- `frame_id`:\<frame_id>                            |  number            | **Automatic** Value of the `id` parameter specified in the call to `bot_message()` (Inserted by the framework |
-
-For `rect`, the dimensions are fractions of a unit video frame with origin `0.0, 1.0` (top left), width `1.0`, and height `1.0`.
-
-* To learn more about `bot_id`, see [Video bot command-line parameters](reference.md#video-bot-command-line-parameters).
-* To learn more about `frame_id`, see [`frame_id`](reference.md#frame-id).
-* To learn more about `bot_message()` see [Publish messages from a bot](tasks.md#publish-messages-from-a-bot)
-
-### Counted objects
-
-A `counted_objects` message contains information about objects in the specified frames that another program is
-expected to count. In the Satori system, a counted object is something in the frame that the image processing algorithm
-matched to an object that should be counted. A subscriber program receives counted object messages and decides what
-to count.
-
-The following JSON object is an example of a `counted_object` message you might publish with `bot_message`:
-```json
-{
-    "counted_objects" : [
-        {
-            "rect": [0.229, 0.508, 0.200, 0.300],
-            "id" : "car",
-            "tag" : "vehicle",
-            "color" : "yellow"
-        },
-        {
-            "rect": [0.300, 0.400, 0.127, 0.150],
-            "id" : "car",
-            "tag" : "vehicle",
-            "color" : "yellow"
-        }
-    ]
-}
-```
-
-|     Entity                                       |   Value type       |  Description
-| :----------------------------------------------- | :----------------: | :------------------------------------------------------------------------------------------------------------ |
- `"counted_objects"`                               |  string            | Handle this data as counted  objects                                                                          |
- (list of objects)                                 |  object\[\]        | A list of the objects counted                                                                                 |
- (object)                                          |  object            | Attributes of each counted object                                                                             |
- `"rect"`:`[x, y, width, height]`                  |  array of number   | Dimensions of the rectangle that encloses an object format                                                    |
- `id`:\<identifier>                                |  string            | **Optional** identifier that's specific to this object                                                        |
- `tag`:\<tag>                                      |  string            | **Optional** tag for this type of object                                                                      |
- `color`:\<color>                                  |  string            | **Optional** color to use for the enclosing rectangle when displayed                                          |
- `bot_id`:\<bot_id>                                |  string            | **Automatic** Value of the `--id` parameter specified in the bot configuration (Inserted by the framework)    |
- `frame_id`:\<frame_id>                            |  number            | **Automatic** Value of the `id` parameter specified in the call to `bot_message()` (Inserted by the framework |
-
-For `rect`, the dimensions are fractions of a unit video frame with origin `0.0, 1.0` (top left), width `1.0`, and height `1.0`.
-
-* To learn more about `bot_id`, see [Video bot command-line parameters](reference.md#video-bot-command-line-parameters).
-* To learn more about `frame_id`, see [`frame_id`](reference.md#frame-id).
-* To learn more about `bot_message()` see [Publish messages from a bot](tasks.md#publish-messages-from-a-bot)
-
-### Label messages
-A `labels` message contains information about the labels detected for the specified frames. Labels are text strings
-assigned by the image processing software to entities it detects in the frames.
-
-The following JSON object is an example of a `labels` message you might publish with `bot_message`:
-```json
-{
-    "labels" : [
-        { "text" : "horse"},
-        { "text" : "submarine"}
-    ]
-}
-```
-|     Entity             |   Value type | Description                                                                                                      |
-| :--------------------- | :----------: | :--------------------------------------------------------------------------------------------------------------- |
- `"labels"`              |  string      | The objects described in this message are labels detected in the frames                                          |
- (list of objects)       |  object\[\]  | A list of labels                                                                                                 |
- (object)                |  object      | A label                                                                                                          |
- `"text"`:\<string>      |  string      | The label text                                                                                                   |
- `bot_id`:\<bot_id>      |  string      | **Automatic** Value of the `--id` parameter specified in the bot configuration (Inserted by the framework).      |
- `frame_id`:\<frame_id>  |  number      | **Automatic** Value of the `id` parameter specified in the call to `bot_message()` (Inserted by the framework).  |
-
-* To learn more about `bot_id`, see [Video bot command-line parameters](reference.md#video-bot-command-line-parameters).
-* To learn more about `frame_id`, see [`frame_id`](reference.md#frame-id).
-* To learn more about `bot_message()` see [Publish messages from a bot](tasks.md#publish-messages-from-a-bot)
-
-### Debug message
-
-A `message` message contains debug information about unusual conditions encountered by a bot.
-The following JSON object is an example of a `labels` message you might publish with `bot_message`:
-```json
-{
-    "message" : "Tracking failed",
-    "rect": [0.225, 0.2167, 0.0625, 0.0584]
-}
-```
-|     Entity                      |  Value type   | Description                                                                                                     |
-| :------------------------------ | :-----------: | :-------------------------------------------------------------------------------------------------------------- |
- `"message"`                      |  string       | The objects in this message are debug messages                                                                  |
- (string)                         |  string       | A debug message                                                                                                 |
- `"rect"`:`[x, y, width, height]` |  string       | The rectangle in the frame that's associated with the problem.                                                  |
- `bot_id`:\<bot_id>               |  string       | **Automatic** Value of the `--id` parameter specified in the bot configuration (Inserted by the framework).     |
- `frame_id`:\<frame_id>           |  number       | **Automatic** Value of the `id` parameter specified in the call to `bot_message()` (Inserted by the framework). |
-
-For `rect`, the dimensions are fractions of a unit video frame with origin `0.0, 1.0` (top left), width `1.0`, and height `1.0`.
-
-* To learn more about `bot_id`, see [Video bot command-line parameters](reference.md#video-bot-command-line-parameters).
-* To learn more about `frame_id`, see [`frame_id`](reference.md#frame-id).
-* To learn more about `bot_message()` see [Publish messages from a bot](tasks.md#publish-messages-from-a-bot)
-
-### Configuration message
-The bot framework passes configuration settings from the command line to your configuration callback function. This
-occurs only once, when your bot is initializing.
-
-The following JSON object is an example of a configuration you might receive in the `message` parameter of your
-configuration callback:
-```json
-{
-    "action": "configure",
-    "body": {
-      "set_threshold" : 67
+    "params": {
+      "featureSize" : 7.0
     }
 }
 ```
-This message provides a threshold value for converting images. After your configuration callback receives this
-setting, put its values into your bot context so that your image processing callback has access to them.
+This message provides a threshold value for detecting objects.
 
+When you receive updated configurations from the control channel, move the values to the
+`instance_data` member of [`bot_context`](reference.md#bot-context) to make them available to your `process_image()`
+callback function.
+
+# Metrics messages

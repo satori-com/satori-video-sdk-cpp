@@ -2,9 +2,31 @@
 
 [All Video SDK documentation](../README.md)
 
+## Table of contents
+* [SDK API](#sdk-api)
+    * [Base includes](#base-includes)
+    * [OpenCV includes](#opencv-includes)
+    * [Constants](#constants)
+    * [Function types](#function-types)
+    * [Structs](#structs)
+    * [Enums](#enums)
+    * [Functions](#functions)
+* [OpenCV-compatible API](#opencv-compatible-api)
+    * [OpenCV types](#opencv-types)
+    * [OpenCV structs](#opencv-structs)
+    * [OpenCV functions](#opencv-functions)
+* [Template video bots](#template-video-bots)
+* [Supported video data formats](#supported-video-data-formats)
+* [SDK channel names](#sdk-channel-names)
+* [Video bot command-line parameters](#video-bot-command-line-parameters)
+* [Command-line tools](#command-line-tools)
+    * [satori_video_publisher](#satori-video-publisher)
+    * [satori_video_player](#satori-video-player)
+    * [satori_video_recorder](#satori-video-recorder)
+
 ## SDK API
 
-### Base
+### Base includes
 The base API for the video SDK is declared in the header file [`video_bot.h`](../include/satorivideo/video_bot.h).
 
 The API also uses the following libraries:
@@ -13,17 +35,18 @@ The API also uses the following libraries:
 |-------------------------------------------------------------------------------------|-------------|
 | [JSON for Modern C++](https://nlohmann.github.io/json/index.html)                   | json.hpp    |
 | [Loguru Header-only C++ Logging Library](https://emilk.github.io/loguru/index.html) | loguru.hpp  |
+| [Prometheus Library for Modern C++](https://github.com/jupp0r/prometheus-cpp)       | (several)   |
 
 The bot build process uses `conan` to install these files.
 
-### OpenCV
+### OpenCV includes
 If you want to use the OpenCV image processing library in your video bot, you also need the following libraries:
 
-| File                                                            | Description                |
-|-----------------------------------------------------------------|----------------------------|
-| [`opencv_bot.h`](../include/satorivideo/opencv/opencv_bot.h)    | OpenCV video bot API       |
-| [`opencv_utils.h](../include/satorivideo/opencv/opencv_utils.h) | OpenCV video bot utilities |
-| `opencv.hpp` for OpenCV2 (installed during the build)           | OpenCV API                 |
+| File                                                             | Description                |
+|------------------------------------------------------------------|----------------------------|
+| [`opencv_bot.h`](../include/satorivideo/opencv/opencv_bot.h)     | OpenCV video bot API       |
+| [`opencv_utils.h`](../include/satorivideo/opencv/opencv_utils.h) | OpenCV video bot utilities |
+| `opencv.hpp` for OpenCV2Z3221`221` (installed during the build)  | OpenCV API                 |
 
 The bot build process uses `conan` to install these files.
 
@@ -36,7 +59,7 @@ The bot build process uses `conan` to install these files.
 
 Unsigned integer set to 4. Defines the maximum number of data planes a frame can contain.
 
-### API types
+### Function types
 
 #### `bot_img_callback_t`
 Function type for an image processing callback. Defined by the following struct:<br>
@@ -79,7 +102,7 @@ Data type for a time-independent identifier for a video frame. The framework ass
 you refer to a frame or frames without having to use a time code.
 
 When a `frame_id` value is for a single frame, `i1 == i2`. When you want to refer to a sequence of frames in an 
-analysis message, you set `i1 < i2`. See the input arguments for [`bot_message()`](#bot-message).
+analysis message, you set `i1 < i2`. See the input arguments for [`bot_message()`](#bot_message).
 
 #### `image_frame`
 | Field name         | Type                      | Description                         |
@@ -114,8 +137,8 @@ from a channel. If the input is from a file or camera, the metadata comes direct
 | `mode`             | `execution_mode`       | Execution mode in which the framework should run            |
 | `metrics_registry` | `prometheus::Registry` | The `prometheus-cpp` registry for the bot                   |
 
-Use `bot_context` to define a variable you pass to the framework. The framework persists [`bot_context`](#bot-context)
-during the lifetime of your bot. In [`bot_context`](#bot-context), use `instance_data` instead of global variables.
+Use `bot_context` to define a variable you pass to the framework. The framework persists [`bot_context`](#bot_context)
+during the lifetime of your bot. In [`bot_context`](#bot_context), use `instance_data` instead of global variables.
 
 Set `instance_data` in your control callback during initialization. The framework
 passes it to you when it invokes your callbacks.
@@ -127,12 +150,12 @@ passes it to you when it invokes your callbacks.
 | `img_callback`     | `bot_img_callback_t`  | Image processing callback                            |
 | `ctrl_callback`    | `bot_ctrl_callback_t` | Control callback                                     |
 
-Information you pass to the bot framework by calling [`bot_register()`](#bot-register).
+Information you pass to the bot framework by calling [`bot_register()`](#bot_register).
 ***
 ### Enums
 #### `execution_mode`
 
-| Enumeration        |  Description                                               |
+| `enum` constant    |  Description                                               |
 |--------------------|------------------------------------------------------------|
 | `LIVE`             | Drop frames in order to stay in sync with the video stream |
 | `BATCH`            | Pass every frame to the processing callback                |
@@ -147,19 +170,19 @@ frame, so no frames are dropped. This mode is only available for files.
 **Only use `batch` mode for testing.**
 
 #### `image_pixel_format`
-| Enumeration  |  Description                         |
-|--------------|--------------------------------------|
-| `RGB0`       | Pixels in the input are in RGB format|
-| `BGR`        | Pixels in the input are in BGR format|
+| `enum` constant  |  Description                         |
+|------------------|--------------------------------------|
+| `RGB0`           | Pixels in the input are in RGB format|
+| `BGR`            | Pixels in the input are in BGR format|
 
 #### `bot_message_kind`
-| Enumeration   |  Description                         |
-|---------------|--------------------------------------|
-| `ANALYSIS`    | Publish message to analysis channel  |
-| `DEBUG`       | Publish message to debug channel     |
-| `CONTROL`     | Publish message to control channel   |
+| `enum` constant   |  Description                         |
+|-------------------|--------------------------------------|
+| `ANALYSIS`        | Publish message to analysis channel  |
+| `DEBUG`           | Publish message to debug channel     |
+| `CONTROL`         | Publish message to control channel   |
 
-When you call [`bot_message()`](#bot-message) to publish a message, use [`bot_message_kind`](#bot-message-kind) to
+When you call [`bot_message()`](#bot_message) to publish a message, use `bot_message_kind` to
 indicate the destination channel. The framework automatically provides you with these channels
 (See [SDK channel names](#sdk-channel-names)).
 
@@ -179,7 +202,7 @@ returns `void`
 In your code, define `<image_processor>` using the specified signature. The bot framework invokes this function
 and passes it each video frame it decodes.
 
-See also [`bot_image_callback_t`](reference.md#bot-img-callback-t).
+See also [`bot_image_callback_t`](#bot_img_callback_t).
 
 #### Configuration message callback
 `<control_processor>(bot_context &context, const nlohmann::json *message)`
@@ -199,7 +222,7 @@ The framework invokes the callback during initialization, so that you can set up
 To send a configuration to the configuration callback, run your bot with the `--config <inline_json>` or
 `--config-file <json_file_name>` runtime parameters.
 
-See also [`bot_ctrl_callback_t`](#bot-ctrl-callback-t)
+See also [`bot_ctrl_callback_t`](#bot_ctrl_callback_t)
 
 #### bot_message()
 `bot_message(bot_context &context, bot_message_kind kind, nlohmann::json &message, const frame_id &id = frame_id{0, 0})`
@@ -242,8 +265,8 @@ returns `int`
 
 Starts the main event loop in the framework.
 
-## OpenCV API
-The OpenCV API provides access to OpenCV support in the framework.
+## OpenCV-compatible API
+The OpenCV compatibility API provides access to OpenCV support in the framework.
 
 The API has one struct and three functions that substitute for functions in the normal API:
 
@@ -291,7 +314,7 @@ because the `cv::Mat` object contains higher-level abstractions for the informat
 
 Registers your OpenCV bot with the framework
 #### opencv_bot_main()
-`opencv_bot_main((int argc, char *argv[])`
+`opencv_bot_main(int argc, char *argv[])`
 
 | Parameter | Type      | Description                   |
 |-----------|-----------|-------------------------------|
@@ -337,18 +360,24 @@ Each subdirectory has this structure:
 **Note:** You don't have to use Docker or CMake, but you do have to use `conan` to install the SDK libraries and their
 dependencies.
 
+## Supported video data formats
+The framework supports the following frameworks:<br>
+• MPEG-4 Part 10 (H.264) and MPEG-4 Part 2 compressed video. File extension is `.mp4`.<br>
+• Matroska Multimedia Container (**MKV**). File extension is `.mkv`.<br>
+• WebM. File extension is `.webm`.<br>
+
 ## SDK channel names
 The bot framework automatically provides channels for publishing and receiving information. Their names are
 based on the incoming video stream channel you provide. The following table lists the channel names that the bot framework
 provides for an incoming video stream channel named `stream_channel`:
 
-| Use                                           | Enumeration | I/O    | Channel name              |
-|-----------------------------------------------|-------------|--------|---------------------------|
-| Incoming video stream                         |      -      | Input  | `stream_channel`          |
-| Image processing results (analysis)           | `ANALYSIS`  | Output | `stream_channel/analysis` |
-| Codec and stream information                  |      -      | Output | `stream_channel/metadata` |
-| Debug messages                                | `DEBUG`     | Output | `stream_channel/debug`    |
-| Control messages for configuring bot behavior | `CONTROL`   | Input  | `stream_channel/control`  |
+| Use                                           | `enum` constant | I/O    | Channel name              |
+|-----------------------------------------------|-----------------|--------|---------------------------|
+| Incoming video stream                         |      -          | Input  | `stream_channel`          |
+| Image processing results (analysis)           | `ANALYSIS`      | Output | `stream_channel/analysis` |
+| Codec and stream information                  |      -          | Output | `stream_channel/metadata` |
+| Debug messages                                | `DEBUG`         | Output | `stream_channel/debug`    |
+| Control messages for configuring bot behavior | `CONTROL`       | Input  | `stream_channel/control`  |
 
 ## Video bot command-line parameters
 Use command-line parameters to configure the operation of your video bot. You can also use the `--config-file` or the
@@ -376,7 +405,7 @@ Use command-line parameters to configure the operation of your video bot. You ca
        [--analysis-file <analysisfile>]
        [--debug-file <debugfile>]
        [-v <verbosity>]
-       [--metrics-bind-address <metrics_url> --metrics-push-channel <metrics_channel>]
+       [--metrics-bind-address <metrics_url>
        [--metrics-push-job     <metrics_job_value>]
        [--metrics-push-instance <metrics_instance_value>]
        [--pool <bot_service_pool>
@@ -495,14 +524,11 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 HTTP address of the Prometheus metrics server. Format is `http://<address>:<port>`. To view the metrics,
 open `http://<address>:<port>/metrics` in a browser.
 
-`--metrics-push-channel <metrics_channel>`
-Publish Prometheus metrics to this Satori channel.
-
 `--metrics-push-job <metrics_job_value>`
-Add this string as the value of the job property in metrics messages that the bot publishes.
+Add this string as the value of the job property in metrics data that the bot pushes to the Prometheus server.
 
 `--metrics-push-instance <metrics_instance_value>`
-Add this string as the value of the instance property in metrics messages that the bot publishes.
+Add this string as the value of the instance property in metrics data that the bot pushes to the Prometheus server.
 
 `--pool <bot_service_pool>`
 
@@ -539,15 +565,15 @@ child properties of the "model_files" property:
 In your configuration, you can use any property key except "action" and "body". Avoid using the property value
 "configure".
 
-## Command-line utilities
-The Video SDK command-line utilities publish, record, and playback video streams.
+## Command-line tools
+The Video SDK command-line tools publish, record, and playback video streams.
 
-The most important utility is `satori_video_publisher`, which publishes streaming video from a camera or file to a
+The most important tool is `satori_video_publisher`, which publishes streaming video from a camera or file to a
 Satori channel. It's the primary tool for creating the input to a video bot.
 
-The `satori_video_recorder` utility records streaming video to a file. The source can be another video file or a camera.
+The `satori_video_recorder` tool records streaming video to a file. The source can be another video file or a camera.
 
-To play back a video file or display camera input, use the `satori_video_player` utility.
+To play back a video file or display camera input, use the `satori_video_player` tool.
 ### `satori_video_publisher`
 
 Publish a video stream to a channel
@@ -565,7 +591,6 @@ satori_video_publisher [options] --input-url <URL> --endpoint <wsendpoint> --app
         [--loop]
         [--output-resolution [<res>|original]]
         [--keep-proportions [true | false]]
-        [--metrics-push-channel <metrics_channel>
         [--metrics-push-job     <metrics_job_value>]
         [--metrics-push-instance <metrics_instance_value>]
         [-v <verbosity>]
@@ -612,7 +637,7 @@ Destination channel name. `<output_channel_name>` is the root name for the other
 
 `--loop`
 
-For `--input-video-file` or `--input-replay-file`, tells the utility to publish the file in a continuous loop.
+For `--input-video-file` or `--input-replay-file`, tells the tool to publish the file in a continuous loop.
 
 `--output-resolution res`
 
@@ -643,19 +668,15 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 
 `--help`
 
-Display usage hints for the utility.
-
-`--metrics-push-channel <metrics_channel>`
-
-Publish Prometheus metrics to this Satori channel.
+Display usage hints for the tool.
 
 `--metrics-push-job <metrics_job_value>`
 
-Add this string as the value of the job property in metrics messages that the utility publishes.
+Add this string as the value of the job property in metrics data that the tool writes to the push server.
 
 `--metrics-push-instance <metrics_instance_value>`
 
-Add this string as the value of the instance property in metrics messages that the utility publishes.
+Add this string as the value of the instance property in metrics data that the tool writes to the push server.
 
 ### `satori_video_player`
 Play video from a source in a GUI window.
@@ -719,17 +740,17 @@ Play video from a URL that represents a video source. Use this parameter to play
 
 `--loop`
 
-For `--input-video-file` or `--input-replay-file`, tells the utility to play the video in a loop.
+For `--input-video-file` or `--input-replay-file`, tells the tool to play the video in a loop.
 
-**Note:** If you specify this parameter and the file *doesn't* contain a video loop, the utility hangs.
+**Note:** If you specify this parameter and the file *doesn't* contain a video loop, the tool hangs.
 
 `--time-limit <tlimit>`
 
-After `<tlimit>` seconds, the utility exits.
+After `<tlimit>` seconds, the tool exits.
 
 `--frame-limit <flimit>`
 
-The utility exits after processing `<flimit>` frames.
+The tool exits after processing `<flimit>` frames.
 
 `--input-resolution [<res>|original]`
 
@@ -765,7 +786,7 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 
 `--help`
 
-Display usage hints for the utility.
+Display usage hints for the tool.
 
 ### `satori_video_recorder`
 Record video input to a file.
@@ -824,11 +845,11 @@ Record video from the macOS laptop camera.
 
 `--time-limit <tlimit>`
 
-After `<tlimit>` seconds, the utility exits.
+After `<tlimit>` seconds, the tool exits.
 
 `--frame-limit <flimit>`
 
-The utility exits after processing `<flimit>` frames.
+The tool exits after processing `<flimit>` frames.
 
 `--input-resolution [<res>|original]`
 
@@ -852,7 +873,7 @@ Record to `<ofile>`. The name is path-relative.
 
 Space, in bytes, to reserve at the beginning of the output file for **cues** (indexes) that improve seeking. In most
 cases, 50000 is enough for one hour of video. If the input format is Matroska (.mkv) and you don't specify a value
-for `<space>`, the utility writes cues to the end of the file.
+for `<space>`, the tool writes cues to the end of the file.
 
 `-v <verbosity>`
 
@@ -874,4 +895,4 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 
 `--help`
 
-Display usage hints for the utility.
+Display usage hints for the \*.

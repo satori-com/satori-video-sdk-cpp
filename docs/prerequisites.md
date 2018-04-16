@@ -2,6 +2,16 @@
 
 [All Video SDK documentation](../README.md)
 
+## Table of contents
+* [Platform prerequisites](#platform-prerequisites)
+* [Tools prerequisites](#tools-prerequisites)
+    * [macOS](#macos)
+    * [Linux](#linux)
+    * [conan setup](#conan-setup)
+    * [SDK dependencies](#sdk-dependencies)
+* [Satori prerequisites](#satori-prerequisites)
+
+## Overview
 The video SDK has these groups of prerequisites:
 
 * **Platform:** Hardware and OS requirements to build and run a video bot
@@ -68,3 +78,19 @@ can use them in your program:
 * libprometheus-cpp: Prometheus metrics library
 * json
 
+## Satori prerequisites
+A video bot uses Satori publish-subscribe channels to receive streaming video and publish results and other messages.
+To access these channels, the bot needs credentials that you get from the Satori Dev Portal.
+
+**To get channel credentials:**
+
+1. Navigate to the [Satori Dev Portal](https://developer.satori.com).
+2. If you don't already have a Satori account, sign up for one.
+3. When you have a Satori account, log in to the Dev Portal.
+4. To create a new project for your video bot, select **Start a project**:
+   1. Enter a name for the project and click **Start a project**:
+   2. Copy the appkey and endpoint for the project. You need to provide these credentials whenever you access a Satori channel.
+   3. If you want fine-grained channel control, create user roles and channel permissions. To learn more, see
+      the topic [Access Control](https://www.satori.com/docs/using-satori/authentication) in *Satori Docs*.
+   4. Ignore the Streambots™ settings. Video bots don't use Streambot™ technology.
+5. Click **Save** and exit the Dev Portal.
