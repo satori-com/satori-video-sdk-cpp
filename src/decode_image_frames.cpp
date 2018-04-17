@@ -154,6 +154,7 @@ class image_decoder_op {
       {
         stopwatch<> s;
         av_init_packet(_packet.get());
+        _ids.push(f.id);
         _packet->flags |= f.key_frame ? AV_PKT_FLAG_KEY : 0;
         _packet->data = (uint8_t *)f.data.data();
         _packet->size = static_cast<int>(f.data.size());
@@ -244,8 +245,8 @@ class image_decoder_op {
 
       while (_filter->try_retrieve(*_filtered_frame)) {
         owned_image_frame frame = avutils::to_image_frame(*_filtered_frame);
-        frame.id = {_filtered_frame->pkt_pos,
-                    _filtered_frame->pkt_pos + _filtered_frame->pkt_duration};
+        frame.id = _ids.front();
+        _ids.pop();
 
         av_frame_unref(_filtered_frame.get());
         deliver_on_next(owned_image_packet{std::move(frame)});
@@ -301,6 +302,7 @@ class image_decoder_op {
     std::shared_ptr<AVFrame> _frame;
     std::shared_ptr<AVFrame> _filtered_frame;
     std::unique_ptr<av_filter> _filter;
+    std::queue<frame_id> _ids;
   };
 
  private:
