@@ -32,6 +32,7 @@ enum class client_error : unsigned char {
   UNSUBSCRIBE_ERROR = 7,
   ASIO_ERROR = 8,
   INVALID_MESSAGE = 9,
+  // TODO: distinguish between network errors and RTM error replies
   PUBLISH_ERROR = 10
 };
 
@@ -45,6 +46,7 @@ struct error_callbacks {
 struct request_callbacks : error_callbacks {
   ~request_callbacks() override = default;
 
+  // publish, subscribe and unsubscribe support channel positions
   virtual void on_ok() = 0;
 };
 
@@ -84,9 +86,11 @@ struct subscriber {
 
   virtual void subscribe(const std::string &channel, const subscription &sub,
                          subscription_callbacks &data_callbacks,
+                         request_callbacks *callbacks = nullptr,
                          const subscription_options *options = nullptr) = 0;
 
-  virtual void unsubscribe(const subscription &sub) = 0;
+  virtual void unsubscribe(const subscription &sub,
+                           request_callbacks *callbacks = nullptr) = 0;
 };
 
 class client : public publisher, public subscriber {
@@ -119,10 +123,10 @@ class resilient_client : public client, error_callbacks {
                request_callbacks *callbacks) override;
 
   void subscribe(const std::string &channel, const subscription &sub,
-                 subscription_callbacks &data_callbacks,
+                 subscription_callbacks &data_callbacks, request_callbacks *callbacks,
                  const subscription_options *options) override;
 
-  void unsubscribe(const subscription &sub) override;
+  void unsubscribe(const subscription &sub, request_callbacks *callbacks) override;
 
   std::error_condition start() override;
 
@@ -136,6 +140,7 @@ class resilient_client : public client, error_callbacks {
     std::string channel;
     const subscription *sub;
     subscription_callbacks *data_callbacks;
+    request_callbacks *callbacks;
     const subscription_options *options;
   };
 
@@ -160,10 +165,10 @@ class thread_checking_client : public client {
                request_callbacks *callbacks) override;
 
   void subscribe(const std::string &channel, const subscription &sub,
-                 subscription_callbacks &data_callbacks,
+                 subscription_callbacks &data_callbacks, request_callbacks *callbacks,
                  const subscription_options *options) override;
 
-  void unsubscribe(const subscription &sub) override;
+  void unsubscribe(const subscription &sub, request_callbacks *callbacks) override;
 
   std::error_condition start() override;
 

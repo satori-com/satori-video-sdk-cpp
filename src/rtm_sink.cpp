@@ -1,10 +1,13 @@
+#include "video_streams.h"
+
+#include <chrono>
 #include <iostream>
+#include <thread>
 
 #include "data.h"
 #include "metrics.h"
 #include "satori_video.h"
 #include "streams/streams.h"
-#include "video_streams.h"
 
 namespace satori {
 namespace video {
@@ -23,21 +26,23 @@ auto &frame_publish_delay_milliseconds =
                                      7000, 8000, 9000, 10000});
 
 class rtm_sink_impl : public streams::subscriber<encoded_packet>,
+                      rtm::request_callbacks,
                       boost::static_visitor<void> {
  public:
   rtm_sink_impl(const std::shared_ptr<rtm::publisher> &client,
                 boost::asio::io_service &io_service, const std::string &rtm_channel)
-      : _client(client),
-        _io_service(io_service),
-        _frames_channel(rtm_channel),
-        _metadata_channel(rtm_channel + metadata_channel_suffix) {}
+      : _client{client},
+        _io_service{io_service},
+        _frames_channel{rtm_channel},
+        _metadata_channel{rtm_channel + metadata_channel_suffix} {}
 
   void operator()(const encoded_metadata &m) {
     nlohmann::json packet = m.to_network().to_json();
 
-    _io_service.post([
-      client = _client, channel = _metadata_channel, packet = std::move(packet)
-    ]() mutable { client->publish(channel, std::move(packet), nullptr); });
+    _in_flight++;
+    _io_service.post([ this, packet = std::move(packet) ]() mutable {
+      _client->publish(_metadata_channel, std::move(packet), this);
+    });
   }
 
   void operator()(const encoded_frame &f) {
@@ -46,16 +51,15 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
     for (const network_frame &nf : network_frames) {
       nlohmann::json packet = nf.to_json();
 
+      _in_flight++;
       _io_service.post([
-        client = _client, channel = _frames_channel, packet = std::move(packet),
-        creation_time = f.creation_time
+        this, packet = std::move(packet), creation_time = f.creation_time
       ]() mutable {
-        const auto before_publish = std::chrono::system_clock::now();
         frame_publish_delay_milliseconds.Observe(
-            std::chrono::duration_cast<std::chrono::milliseconds>(before_publish
-                                                                  - creation_time)
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now() - creation_time)
                 .count());
-        client->publish(channel, std::move(packet), nullptr);
+        _client->publish(_frames_channel, std::move(packet), this);
       });
     }
 
@@ -73,12 +77,23 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
 
   void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
 
-  void on_complete() override { delete this; }
+  void on_complete() override {
+    int i = 0;
+    while (_in_flight > 0 && i++ < 100) {
+      LOG(2) << "Waiting for packets to be published: " << _in_flight;
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    CHECK_EQ(_in_flight, 0) << "Not all packets were published: " << _in_flight;
+    LOG(2) << "Packets were published";
+    delete this;
+  }
 
   void on_subscribe(streams::subscription &s) override {
     _src = &s;
     _src->request(1);
   }
+
+  void on_ok() override { _in_flight--; }
 
   const std::shared_ptr<rtm::publisher> _client;
   boost::asio::io_service &_io_service;
@@ -86,6 +101,7 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
   const std::string _metadata_channel;
   streams::subscription *_src;
   uint64_t _frames_counter{0};
+  std::atomic_uint32_t _in_flight{0};
 };
 }  // namespace
 
