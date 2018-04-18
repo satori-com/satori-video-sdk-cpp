@@ -17,15 +17,15 @@ struct metrics_config {
   metrics_config() = default;
   explicit metrics_config(const boost::program_options::variables_map& vm);
 
-  std::string bind_address;
-  std::string push_channel;
-  std::string push_job;
-  std::string push_instance;
+  boost::optional<std::string> bind_address;
+  boost::optional<std::string> push_channel;
+  boost::optional<std::string> push_job;
+  boost::optional<std::string> push_instance;
 };
 
 prometheus::Registry& metrics_registry();
 
-boost::program_options::options_description metrics_options();
+boost::program_options::options_description metrics_options(bool allow_push = false);
 
 void init_metrics(const metrics_config& config, boost::asio::io_service& io_service);
 

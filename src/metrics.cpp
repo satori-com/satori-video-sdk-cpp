@@ -108,11 +108,11 @@ class metrics {
   }
 
   void expose_metrics(rtm::publisher* publisher) {
-    if (!_config.bind_address.empty()) {
+    if (_config.bind_address) {
       expose_http_metrics();
     }
 
-    if (!_config.push_channel.empty()) {
+    if (_config.push_channel) {
       CHECK(_io_service);
       CHECK(publisher) << "rtm publisher not provided";
       _publisher = publisher;
@@ -123,11 +123,11 @@ class metrics {
 
   void expose_http_metrics() const {
     try {
-      auto exposer = new prometheus::Exposer(_config.bind_address);
+      auto exposer = new prometheus::Exposer(_config.bind_address.get());
       exposer->RegisterCollectable(_registry);
-      LOG(INFO) << "Metrics exposed on " << _config.bind_address << "/metrics";
+      LOG(INFO) << "Metrics exposed on " << _config.bind_address.get() << "/metrics";
     } catch (const std::exception& e) {
-      LOG(ERROR) << "Can't start metrics server on " << _config.bind_address << " : "
+      LOG(ERROR) << "Can't start metrics server on " << _config.bind_address.get() << " : "
                  << e.what();
     }
   }
@@ -164,14 +164,14 @@ class metrics {
     msg["content-type"] = "text/plain";
     msg["metrics"] = data;
 
-    if (!_config.push_job.empty()) {
-      msg["job"] = _config.push_job;
+    if (_config.push_job) {
+      msg["job"] = _config.push_job.get();
     }
-    if (!_config.push_instance.empty()) {
-      msg["instance"] = _config.push_instance;
+    if (_config.push_instance) {
+      msg["instance"] = _config.push_instance.get();
     }
 
-    _publisher->publish(_config.push_channel, std::move(msg));
+    _publisher->publish(_config.push_channel.get(), std::move(msg));
   }
 
   void start_updating_process_metrics() {
@@ -221,28 +221,34 @@ metrics& global_metrics() {
 
 prometheus::Registry& metrics_registry() { return global_metrics().registry(); }
 
-po::options_description metrics_options() {
+po::options_description metrics_options(bool allow_push) {
   po::options_description options("Monitoring options");
-  options.add_options()("metrics-bind-address",
-                        po::value<std::string>()->default_value(""),
+  options.add_options()("metrics-bind-address", po::value<std::string>(),
                         "address:port for metrics server.");
-  options.add_options()("metrics-push-channel",
-                        po::value<std::string>()->default_value(""),
-                        "rtm channel to push metrics to.");
-  options.add_options()("metrics-push-job", po::value<std::string>()->default_value(""),
-                        "job value to report while pushing metrics.");
-  options.add_options()("metrics-push-instance",
-                        po::value<std::string>()->default_value(""),
-                        "instance value to report while pushing metrics.");
-
+  if (allow_push) {
+    options.add_options()("metrics-push-channel", po::value<std::string>(),
+                          "rtm channel to push metrics to.");
+    options.add_options()("metrics-push-job", po::value<std::string>(),
+                          "job value to report while pushing metrics.");
+    options.add_options()("metrics-push-instance", po::value<std::string>(),
+                          "instance value to report while pushing metrics.");
+  }
   return options;
 }
 
 metrics_config::metrics_config(const boost::program_options::variables_map& vm)
-    : bind_address(vm["metrics-bind-address"].as<std::string>()),
-      push_channel(vm["metrics-push-channel"].as<std::string>()),
-      push_job(vm["metrics-push-job"].as<std::string>()),
-      push_instance(vm["metrics-push-instance"].as<std::string>()) {}
+    : bind_address(vm.count("metrics-bind-address") > 0
+                       ? vm["metrics-bind-address"].as<std::string>()
+                       : boost::optional<std::string>{}),
+      push_channel(vm.count("metrics-push-channel") > 0
+                       ? vm["metrics-push-channel"].as<std::string>()
+                       : boost::optional<std::string>{}),
+      push_job(vm.count("metrics-push-job") > 0
+                   ? vm["metrics-push-job"].as<std::string>()
+                   : boost::optional<std::string>{}),
+      push_instance(vm.count("metrics-push-instance") > 0
+                        ? vm["metrics-push-instance"].as<std::string>()
+                        : boost::optional<std::string>{}) {}
 
 void init_metrics(const metrics_config& config, boost::asio::io_service& io_service) {
   global_metrics().init(config, io_service);
