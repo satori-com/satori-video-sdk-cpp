@@ -215,6 +215,7 @@ std::list<bot_output> bot_instance::operator()(nlohmann::json& msg) {
   }
 
   if (_bot_id.empty() || msg["to"] != _bot_id) {
+    LOG(INFO) << "message for a different bot: " << msg;
     return std::list<bot_output>{};
   }
 
