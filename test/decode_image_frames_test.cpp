@@ -172,9 +172,9 @@ BOOST_AUTO_TEST_CASE(id_test) {
   BOOST_TEST(ids[0] == id(1, 1));
   BOOST_TEST(ids[1] == id(2, 2));
   BOOST_TEST(ids[2] == id(3, 3));
-  BOOST_TEST(ids[3] == id(4, 4));
-  BOOST_TEST(ids[4] == id(5, 5));
-  BOOST_TEST(ids[5] == id(6, 6));
+  BOOST_TEST(ids[3] == id(5, 5));
+  BOOST_TEST(ids[4] == id(6, 6));
+  BOOST_TEST(ids[5] == id(4, 4));
 }
 
 int main(int argc, char *argv[]) {
