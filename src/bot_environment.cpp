@@ -292,9 +292,9 @@ void bot_environment::start_bot(const bot_configuration& config) {
   }
 
   if (_rtm_client) {
-    _control_sink = &rtm::sink(_rtm_client, _io_service, control_channel);
+    _control_sink = &rtm::sink(_rtm_client, _io_service, config.video_cfg.input_channel.get() + control_channel_suffix);
     _control_source =
-        rtm::channel(_rtm_client, control_channel, {})
+        rtm::channel(_rtm_client, config.video_cfg.input_channel.get() + control_channel_suffix, {})
         >> streams::map([](rtm::channel_data&& t) { return std::move(t.payload); });
   } else {
     _control_sink = &streams::ostream_sink(std::cout);

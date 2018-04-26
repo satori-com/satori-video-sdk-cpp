@@ -10,7 +10,7 @@
 // RTM channel for bot control commands.
 // Bot will be automatically subscribed to this channel.
 // A user has to implement bot control callbacks.
-constexpr char control_channel[] = "control";
+constexpr char control_channel_suffix[] = "/control";
 
 // RTM subchannel for frames data.
 // Bot will be automatically subscribed to this channel.

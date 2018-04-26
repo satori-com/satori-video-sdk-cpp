@@ -209,7 +209,7 @@ std::list<bot_output> bot_instance::operator()(nlohmann::json& msg) {
     return aggregated;
   }
 
-  if (!msg.is_object()) {
+  if (!msg.is_object() || msg.find("to") == msg.end()) {
     LOG(ERROR) << "unsupported kind of message: " << msg;
     return std::list<bot_output>{};
   }
