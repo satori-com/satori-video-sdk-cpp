@@ -46,8 +46,15 @@ using select_function_t =
 
 struct drop_strategy {
   void update(const nlohmann::json& config) {
-    CHECK(config.is_object()) << "config is not an object: " << config;
-    CHECK(config.find("action") != config.end()) << "no action in config: " << config;
+    if (!config.is_object()) {
+        LOG(4) << "config is not an object, drop strategy unaffected";
+        return;
+    }
+
+    if (config.find("action") == config.end()) {
+        LOG(4) << "no action in config, drop strategy unaffected";
+        return;
+    }
 
     if (config["action"] == "configure") {
       auto& body = config["body"];
@@ -58,6 +65,9 @@ struct drop_strategy {
       if (drop_strategy != "as_needed" && drop_strategy != "never") {
         ABORT() << "Unsupported drop strategy: " << config;
       }
+
+      LOG(4) << "new drop strategy: " << drop_strategy;
+
       if (drop_strategy == "never") {
         select_function = drop_strategy_never;
         return;
