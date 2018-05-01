@@ -78,13 +78,20 @@ class rtm_sink_impl : public streams::subscriber<encoded_packet>,
   void on_error(std::error_condition ec) override { ABORT() << ec.message(); }
 
   void on_complete() override {
-    int i = 0;
-    while (_in_flight > 0 && i++ < 100) {
+    const std::chrono::seconds time_to_wait{30};
+    const std::chrono::system_clock::time_point begin = std::chrono::system_clock::now();
+    while (_in_flight > 0
+           && std::chrono::duration_cast<std::chrono::seconds>(
+                  std::chrono::system_clock::now() - begin)
+                  < time_to_wait) {
       LOG(2) << "Waiting for packets to be published: " << _in_flight;
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      std::this_thread::sleep_for(std::chrono::seconds{1});
     }
-    CHECK_EQ(_in_flight, 0) << "Not all packets were published: " << _in_flight;
-    LOG(2) << "Packets were published";
+    if (_in_flight > 0) {
+      LOG(ERROR) << "Not all packets were published: " << _in_flight;
+    } else {
+      LOG(INFO) << "Packets were published";
+    }
     delete this;
   }
 
