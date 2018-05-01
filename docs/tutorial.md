@@ -22,6 +22,8 @@ The tutorial describes these steps:
 3. Create the bot code
 4. Publish the video file to the input channel
 5. Test the bot against the input channel
+6. Publish configuration messages to the control channel
+7. Test the configuration messages
 
 ## Conventions
 To make the steps easier to follow, the tutorial uses the following conventions:
@@ -129,6 +131,7 @@ At the beginning of `motion_detector_bot.cpp`, add the following:
 #include <satorivideo/opencv/opencv_bot.h>
 #include <satorivideo/opencv/opencv_utils.h>
 #include <satorivideo/video_bot.h>
+#include <cstdlib>
 // Boost timer library
 #include <boost/timer/timer.hpp>
 // GNU scientific library
@@ -494,12 +497,12 @@ Add the following code immediately after the definition of `process_image()`:
     /*
     * Receives update configurations and stores them in the bot context.
     *
-    * The motion detector bot expects a message that has the form
+    * This example motion detector bot expects a message that has the form
     * {
-    *   "params": { "featureSize": &lt;size&gt; }
+    *   "to": "motion_tutorial", params": { "featureSize": &lt;size&gt; }
     * }
     */
-    nlohmann::json process_command(sv::bot_context &context, const nlohmann::json &command) {
+    nlohmann::json process_command(sv::bot_context &context, const nlohmann::json &command_message) {
       /*
       * The bot context has pre-defined members, such as the metrics registry. Use the instance_data member to store
       * your own data. The tutorial uses instance_data to store members of the `state` struct.
@@ -511,23 +514,60 @@ Add the following code immediately after the definition of `process_image()`:
       */
       if (s == nullptr) {
         context.instance_data = s = new state(context);
-        LOG_S(INFO) << "bot initialized";
+        LOG_S(INFO) << "Bot configuration initialized";
       }
       // The received message should be a JSON object
       if (!command.is_object()) {
-        LOG_S(ERROR) << "Control message is not a JSON object: " << command;
+        LOG_S(ERROR) << "Control message is not a JSON object: " << command_message;
         return nullptr;
       }
-      // Retrieves the value of the "params" key in the message
-      if (command.find("params") != command.end()) {
+      /*
+      * This implementation of process_command() returns an "ack" message if it successfully processes a command
+      * message. This message includes the field "ack": true (The SDK doesn't do this automatically; you have to
+      * set up the message yourself).
+      *
+      * The SDK publishes the message back to the control channel. Because the SDK is also subscribed to the control
+      * the ack message arrives back in process_command(). In general, you can do whatever you want with the ack
+      * message. To avoid an endless loop, detect ack messages and ignore them. You can subscribe to the control
+      * channel from another bot and process ack messages separately.
+      * In this tutorial, process_command logs receipt of the ack and returns null to the SDK.
+      */
+      if ((command_message.find("ack") != command.message()) {
+          // This message is fully handled, so process_command() returns null to the SDK
+          return nullptr;
+      }
+      /*
+      * The command message doesn't contain the "ack" field, so it must contain new configuration parameters.
+      * This block sets the parameters in the bot context to the values in the command message.
+      */
+      if (command_message.find("params") != command_message.end()) {
         auto &params = command["params"];
-        LOG_S(INFO) << "received params command: " << command;
+        LOG_S(INFO) << "Received config parameters: " << command_message;
         // Move the parameters to the context
         s->params.merge_json(params);
         /*
-        * Publishes the "params" field to the control channel
+        * Gets the bot id from the command message. The "to" field is guaranteed to be present, because the SDK
+        * returns an error and skips process_command() if the message doesn't contain the field
         */
-        return {{"params", s->params.to_json()}};
+        std::string bot_id = command_message["to"]
+        /*
+        * Returns the ack message to the SDK, which publishes it back to the control channel.
+        * Sets up a JSON object that contains the following:
+        * {"ack": true, "to": "motion_tutorial", "params": "featureSize": 5.0}
+        * - "params" field contains the parameters in the original command message.
+        * - "to" field contains the bot id specified on the command line.
+        */
+        // Initializes the return object by setting it to the "ack" field
+        nlohmann::json return_object = {{"ack", true}};
+        // Inserts the bot id field
+        nlohmann::json to_object = {{"to", bot_id}}
+        return_object.insert(to_object.begin(), to_object.end());
+        // Inserts the configuration parameters from the incoming message
+        nlohmann::json config_object = s->params.to_json();
+        return_object.insert(config_object.begin(), config_object.end());
+        LOG_S(INFO) << "Return ack message: " << return_object.dump();
+        // Returns the ack
+        return return_object;
       }
       // Control reaches here if the "params" key isn't found
       LOG_S(ERROR) << "Control message doesn't contain params key " << command;
@@ -538,7 +578,8 @@ Add the following code immediately after the definition of `process_image()`:
 
 **Discussion**
 With this function in place, you can change the feature size parameter, even when the bot is running. The new feature
-size takes effect the next time `process_image()` retrieves feature size from the bot context.
+size takes effect the next time `process_image()` retrieves feature size from the bot context. The function also
+publishes an acknowledgement, which lets you confirm that the bot processed the message.
 
 ### Build the video bot
 1. Navigate to your `motion-detector-bot` directory.
@@ -594,17 +635,25 @@ program.
 Leave the virtual environment on as you do the next steps.
 
 ### Test the video bot
-Test the video bot, first with a smoke test and then with a functional test
+Test the video bot:
+
+1. [Smoke test](#smoke-test)
+2. [Video test](#video-test)
+3. [Config test](#config-test)
 
 #### Smoke test
+
 1. Navigate to your `motion-detector-bot/build/bin` directory.
 2. Run the bot:<br>
 `(conanenv) $ ./motion-detector-bot`
 3. The bot displays the usage message for video bots, including all of the possible parameters.
 
-#### Functional test
-To do a functional test of the video bot, you need to publish streaming video to the input channel, run the bot, and
-look at the results in Dev Portal.
+#### video test
+To do a functional test of the video processing part of the bot:
+
+1. Publish streaming video to the input channel.
+2. Run the bot.
+3. Look at the results in Dev Portal.
 
 **Subscribe to the analysis channel in Dev Portal**
 
@@ -621,8 +670,10 @@ To publish the video file:
 1. Check that you have the appkey and endpoint you obtained from Dev Portal in the step
 [Set up prerequisites](#set-up-prerequisites).
 2. Copy the video file `camera_output_file.mp4` to `motion-detector-bot/build`.
-3. Navigate to `motion-detector-bot/build`.
-4. Using the `--loop` parameter to repeat the video, publish the video to the input channel:
+3. In a terminal window, navigate to `motion-detector-bot/build`.
+4. To set up your environment for the video bot tools, enter `$ source ./activate.sh`. Your command prompt is now
+prefixed with the string `(conanenv)`.
+5. Using the `--loop` parameter to repeat the video, publish the video to the input channel:
 ```bash
 (conanenv) $ satori_video_publisher --input-video-file camera_output_file.mp4 --loop \
 --endpoint <your_endpoint> --appkey <your_appkey> --output-channel videostream
@@ -630,7 +681,7 @@ To publish the video file:
 
 **Run the video bot**
 `(conanenv) $ bin/motion-detector-bot --endpoint <your_endpoint> --appkey <your_appkey> \
---input-channel videostream --id "motion_tutorial"`
+--input-channel videostream --id motion_tutorial`
 
 **Examine the results**
 Navigate back to Dev Portal. On the **Console** tab, you should still be subscribed to `videostream/analysis`. You
@@ -669,11 +720,96 @@ Its contents look similar to the following JSON:
 }
 ```
 
+Leave the bot running so you can test the control function.
+
 **Discussion**
 
 * The "detected_objects" array may contain more elements, depending on the contents of each image frame.
 * The "from" field contains the value you specified for the `--id` parameter when you ran the bot.
 * The "i" field contains the beginning and ending frame for the results in this message.
 
+#### Config test
+To test the configuration part of the video bot:
+
+1. In Dev Portal, subscribe to the control channel.
+2. In Dev Portal, publish configuration messages to the control channel
+3. Review the log messages from the bot and the messages published to the control channel from the bot.
+
+**Subscribe to the control channel in Dev Portal**
+
+1. Navigate to the project you created in Dev Portal, then click the **Console** tab.
+2. In the text field that contains the hint **Enter channel**, enter `videostream/control`, then click outside the
+field. The message **Successfully subscribed** appears after the **Code** field. Nothing appears, because you're not yet
+publishing messages to the channel.
+
+Leave the console displayed.
+
+**Publish configuration messages to the control channel**
+
+1. In the lower right-hand corner of the console, click the orange text icon to display the **Publish Message** panel.
+2. Enter the following JSON on the first line:<br>
+`{ "to": "motion_tutorial", "params": {"featureSize": 5.0}}`<br>
+3. On the second line, enter 100.
+4. Click **Send**
+
+This publishes the test control message 100 times, which helps you find and review the test results.
+
+**Examine the results**
+Navigate back to Dev Portal. On the **Console** tab, you should still be subscribed to `videostream/control`. You
+should see messages in the window that appears after the **Code** field. Click on a message to expand it.
+Its contents look similar to the following JSON:
+```
+{
+  "ack": true,
+  "featureSize": 5,
+  "from": "motion_tutorial",
+  "i": [
+    0,
+    0
+  ],
+  "to": "motion_tutorial"
+}
+```
+
+You may also see messages that you published to the control channel from Dev Portal.
+
+Return to the terminal window in which your video bot is running. The bot logs several messages as it starts up, ending
+with a message similar to<br>
+```
+[decoder_videost ]      threaded_worker.h:94       0| 0x1051cd2c0 decoder_videostream started worker thread`
+```
+
+Following this message, the bot logs messages from your control callback function, similar to:
+```
+motion_detector_main.cpp:288      0| process_command: Received config parameters: {"params":{"featureSize":5.0},"to":"motion_tutorial"}
+motion_detector_main.cpp:314      0| Return ack message: {"ack":true,"featureSize":5,"to":"motion_tutorial"}
+```
+
+The first line shows that `process_command()` received a configuration message from the control channel. The
+second line shows that `process_command()` successfully processed the message and published an acknowledgement back to
+the control channel.
+
+At the end of the log output, you see lines similar to the following:
+```
+process_command: Received ack message= {"ack":true,"featureSize":5,"from":"motion_tutorial","i":[0,0],"to":"motion_tutorial"}
+```
+
+These lines show that `process_command()` received ack messages from the SDK, logged them, but didn't do any more
+processing.
+
+**Discussion**
+* When you deploy a video bot to production, you should reduce the number of `LOG_S(INFO)` calls you make. Consider
+publishing information messages to the `debug` channel that the SDK provides for you.
+* Instead of logging acks, skip them and let another bot process them.<br><br>
+For example, implement a single control bot that manages several video bots. The control bot
+receives configuration updates from a frontend, publishes them to the control channel, and verifies that each video bot
+has received them by looking for ack messages.<br>
+When all the video bots have published an ack, the control bot publishes a second message that tells the video bots to move
+the new configurations to the bot context.
+* **Remember that messages published to the control must always contain the field `"to": "<bot_id>"` where `<bot_id>` is
+the value of the `--id` parameter on the command line.** If you leave out this field, the SDK logs an error and
+doesn't send the message to your control callback.
+
 You've completed the video SDK tutorial. If you haven't already, read the [Satori Video SDK for C++ Concepts](concepts.md)
 to learn more about the video SDK.
+

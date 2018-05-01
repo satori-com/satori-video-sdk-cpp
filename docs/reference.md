@@ -62,7 +62,7 @@ Unsigned integer set to 4. Defines the maximum number of data planes a frame can
 ### Function types
 
 #### `bot_img_callback_t`
-Function type for an image processing callback. Defined by the following struct:<br>
+Function type for an image processing callback, as an alias defined by the following function template:<br>
 `using bot_img_callback_t = std::function<void(bot_context &context, const image_frame &frame)>;`
 
 | Parameter     | Type            | Description                             |
@@ -70,22 +70,55 @@ Function type for an image processing callback. Defined by the following struct:
 | `context`     | `bot_context`   | (Read-write) Global context for the bot |
 | `image_frame` | `image_frame`   | (Read-only) Video frame                 |
 
- returns `void`
+returns `void`
 
-See [Image processing callback](#image-processing-callback).
+After it decodes a video frame from the incoming video stream, the SDK invokes a function you define and passes it
+the frame. Use this function to process the video frame.
+
+Create a function using the signature specified by this format, then store the function reference in
+bot_descriptor.img_callback.
 
 #### bot_ctrl_callback_t
-Function type for a configuration message callback. Defined by the following struct:<br>
+Function type for a configuration message callback, as an alias defined by the following function template:<br>
 `using bot_ctrl_callback_t = std::function<nlohmann::json (bot_context &context, nlohmann::json &message)>;`
 
 | Parameter  | Type              | Description                                                               |
 |------------|-------------------|---------------------------------------------------------------------------|
 | `context`  | `bot_context`     | (Read-write) Global context for the bot                                   |
-| `message`  | `nlohmann::json &`| (Read) Configuration message, as an nlohmann::json object  |
+| `message`  | `nlohmann::json &`| (Read) Configuration message, as an nlohmann::json object                 |
 
-returns `nlohmann::json`
+returns `nlohmann::json`: A JSON value published to the control channel.
 
-See [Configuration message callback](#configuration-message-callback)
+**Note:** The `message` parameter and return value must use the following formats; otherwise, the SDK aborts the bot.
+
+**`message`**
+```
+  { "to": "<bot_id>", "<key_name>": "<key_value">}
+```
+
+**return value**
+```
+   { "from": "<bot_id>", "<key_name>": "<key_value>" }
+```
+
+| Parameter     | Type                | Description                                                      |
+|---------------|---------------------|------------------------------------------------------------------|
+| `<bot_id>`    | string              | Value specified for the `--id` parameter on the bot command line |
+| `<key_name>`  | valid JSON field id | Any valid JSON string                                            |
+| `<key_value>` | valid JSON value    | Any valid JSON value (number, string, boolean, object)           |
+
+
+Whenever it receives a message in the control channel, the SDK invokes a function you define and passes the message to
+it in the `message` parameter. Use this function to dynamically configure your bot. For example, you can send a message
+that changes parameters that control the image processing function.
+
+To pass settings between the control callback and other functions you define, store the settings in
+context.instance_data and pass the context as a parameter. Notice that the image processing callback template is
+already set up to do this.
+
+The function template defines a JSON return value to allow your control function to acknowledge receipt of a control
+message. The SDK publishes the JSON object back to the control channel. In the return value, you should add a field
+that indicates the message is an acknowledgement (**ack**). For example, use the field `"ack": true`.
 
 ### Structs
 
@@ -125,7 +158,7 @@ For example, if the format is YUV, Y is `plane_data[0]`, U is `plane_data[1]` an
  `height`            | `uint16_t`                   | image height in pixels               |
  `plane_strides`     | `uint32_t[MAX_IMAGE_PLANES]` | Size of each **stride** in the image.|
 
-Data type for image metadata. The bot framework gets this data from the metadata channel if the video input comes
+Data type for image metadata. The SDK gets this data from the metadata channel if the video input comes
 from a channel. If the input is from a file or camera, the metadata comes directly from those sources.
 **Note:** A **stride** is an aligned plane.
 
@@ -150,8 +183,8 @@ passes it to you when it invokes your callbacks.
 | `img_callback`     | `bot_img_callback_t`  | Image processing callback                            |
 | `ctrl_callback`    | `bot_ctrl_callback_t` | Control callback                                     |
 
-Information you pass to the bot framework by calling [`bot_register()`](#bot_register).
-***
+Information you pass to the SDK by calling [`bot_register()`](#bot_register).
+
 ### Enums
 #### `execution_mode`
 
@@ -160,7 +193,7 @@ Information you pass to the bot framework by calling [`bot_register()`](#bot_reg
 | `LIVE`             | Drop frames in order to stay in sync with the video stream |
 | `BATCH`            | Pass every frame to the processing callback                |
 
-In live mode, the bot framework sends frames to your image callback based on the
+In live mode, the SDK sends frames to your image callback based on the
 incoming frame rate. If your callback lags behind, the framework drops frames to stay in sync with the frame
 rate. This mode is available for RTM channel streams, camera input, and files.
 **Use live mode for bots running in production.**
@@ -190,7 +223,7 @@ indicate the destination channel. The framework automatically provides you with 
 
 #### Image processing callback
 
-`<image_processor>(bot_context &context, const image_frame &frame)`
+`void name(bot_context &context, const image_frame &frame)`
 
 | Parameter | Type          | Description         |
 |-----------|---------------|---------------------|
@@ -199,13 +232,11 @@ indicate the destination channel. The framework automatically provides you with 
 
 returns `void`
 
-In your code, define `<image_processor>` using the specified signature. The bot framework invokes this function
-and passes it each video frame it decodes.
 
 See also [`bot_image_callback_t`](#bot_img_callback_t).
 
 #### Configuration message callback
-`<control_processor>(bot_context &context, const nlohmann::json *message)`
+`nlohmann::json <function_name>(bot_context &context, const nlohmann::json *message)`
 
 | Parameter | Type            | Description                                                         |
 |-----------|-----------------|---------------------------------------------------------------------|
@@ -367,9 +398,9 @@ The framework supports the following frameworks:<br>
 • WebM. File extension is `.webm`.<br>
 
 ## SDK channel names
-The bot framework automatically provides channels for publishing and receiving information. Their names are
-based on the incoming video stream channel you provide. The following table lists the channel names that the bot framework
-provides for an incoming video stream channel named `stream_channel`:
+The SDK automatically provides channels for publishing and receiving information. Their names are
+based on the incoming video stream channel you provide. The following table lists the channel names that the SDK
+uses for an incoming video stream channel named `stream_channel`:
 
 | Use                                           | `enum` constant | I/O    | Channel name              |
 |-----------------------------------------------|-----------------|--------|---------------------------|
@@ -429,7 +460,7 @@ Port to use for the channel. The default is 443.
 
 `--input-channel <input_channel_name>`
 
-Video input channel name. The bot framework uses this
+Video input channel name. The SDK uses this
 name as the base name for the analysis, control, debug, and metrics
 channels it provides you.
 
@@ -486,7 +517,7 @@ attribute ` "bot" : "<bot_id>"`.
 
 `--config-file <configfile>`
 
-File that contains your configuration options in JSON format. The bot framework passes the JSON in this file to your
+File that contains your configuration options in JSON format. The SDK passes the JSON in this file to your
 control callback.
 
 `--config <json_config>`
@@ -631,7 +662,7 @@ Port to use for the channel. The default is 443.
 
 `--output-channel <output_channel_name>`
 
-Destination channel name. `<output_channel_name>` is the root name for the other channels that the bot framework uses. See
+Destination channel name. `<output_channel_name>` is the root name for the other channels that the SDK uses. See
 [SDK channel names](#sdk-channel-names).
 
 `--loop`

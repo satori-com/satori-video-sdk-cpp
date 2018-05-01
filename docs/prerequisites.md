@@ -71,7 +71,7 @@ $ conan remote update video-conan 'http://video-conan.api.satori.com'
 Installed automatically by conan. Because the build process links them into the video bot, you
 can use them in your program:
 
-* libcbor: CBOR utilities (only the bot framework requires this library, but you can use it if you want)
+* libcbor: CBOR utilities (only the SDK itself requires this library, but you can use it if you want)
 * loguru: Loguru logging system
 * opencv: OpenCV libraries
 * libprometheus-cpp: Prometheus metrics library

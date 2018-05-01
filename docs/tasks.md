@@ -18,7 +18,8 @@
 
 ## Configure a bot
 
-The bot framework passes the JSON specified by the `--config` option or the contents
+### Command-line configuration
+The SDK passes the JSON specified by the `--config` option or the contents
 of the JSON file specified by the `--config-file` option to your configuration callback. The information is in the
 `message` parameter of your callback in JSON format.
 
@@ -40,6 +41,18 @@ In your configuration file `<configfile>`, add this JSON:
 To use the `--config` with the same configuration:
 
 `$ my_bot [other parameters] --config '{ "<param_key>": <"param_value"> [,"<param_key>": <"param_value">] }'`
+
+### Dynamic configuration
+To pass configuration parameters to your bot as it runs, publish a message to the control channel
+(see [SDK channel names](reference.md#sdk-channel-names)). The message must have the proper format (see
+[bot_ctrl_callback_t](reference.md#bot_ctrl_callback_t)); otherwise, the bot aborts.
+
+The SDK invokes your configuration callback function when it receives a control channel message. The function can
+also return a JSON value to acknowledge the message. This is also documented in
+[bot_ctrl_callback_t](reference.md#bot_ctrl_callback_t).
+
+The [Satori Video SDK for C++: Tutorial](tutorial.md) contains an example of receiving and acknowledging a control
+channel message.
 
 ## Debug and profile a bot
 
