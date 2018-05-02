@@ -23,8 +23,8 @@
 ## SDK Overview
 
 The Satori Video SDK is a library of APIs for building bots that analyze compressed, streaming video in the form of messages.
-The SDK subscribes to a channel containing streaming video messages, continuously receive these messages, decompress
-them, and convert them to individual image frames. To analyze these frames, you provide the SDK with an image
+The SDK subscribes to a channel containing streaming video messages, continuously receives these messages, decompresses
+them, and converts them to individual image frames. To analyze these frames, you provide the SDK with an image
 processing callback function that's invoked for each new frame. In this callback, you analyze the frames using your own
 or 3rd-party libraries and publish results via an API call that uses the Satori publish-subscribe platform. This API
 call can also publish debug and metrics messages to their own channels.
@@ -37,6 +37,12 @@ The SDK automatically connects to separate analysis, debug, and metrics channels
 meta-data and configuration channel. The channel names are derived from the name of the input video channel you provide.
 To publish a message, call `bot_message()` function and specify the channel using one of the `bot_message_kind`
 `enum` constants.
+
+The video bot build process statically links the API libraries and external dependencies into the bot executable. This
+simplifies deployment, since the only file you need to deploy is the bot executable itself.
+
+**Note:** This documentation refers to the SDK as a separate component, although it's actually built into the same
+executable as your own code.
 
 The following code snippet shows you the basic structure of a video bot:
 
