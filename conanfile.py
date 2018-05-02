@@ -16,11 +16,11 @@ class SatorivideoConan(ConanFile):
                "Libcbor/0.5.0@satorivideo/master", \
                "Loguru/1.5.0@satorivideo/master", \
                "Openssl/1.1.0g@satorivideo/master", \
-               "PrometheusCpp/2017.12.13@satorivideo/master", \
+               "PrometheusCpp/2018.04.23@satorivideo/master", \
                "SDL/2.0.5@satorivideo/master"
 
     license = "proprietary"
-    version = '0.15.50'
+    version = '0.15.51'
     settings = "os", "compiler", "build_type", "arch"
     default_options = "with_opencv=True", \
                       "with_gperftools=True", \
