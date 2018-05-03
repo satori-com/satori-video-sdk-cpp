@@ -509,17 +509,22 @@ Add the following code immediately after the definition of `process_image()`:
       */
       auto *s = (state *)context.instance_data;
       /*
+      * The received message must always be a JSON object, even during initialization
+      * At initialization, the message contains {"action": "configure", "body": {}}
+      */
+      if (!command_message.is_object()) {
+          LOG_S(ERROR) << "Control message is not a JSON object: " << command_message;
+          return nullptr;
+      }
+      /*
       * The API invokes process_command() during initialization, before it starts ingesting video. Use this first invocation
       * to initialize instance_data.
       */
       if (s == nullptr) {
-        context.instance_data = s = new state(context);
-        LOG_S(INFO) << "Bot configuration initialized";
-      }
-      // The received message should be a JSON object
-      if (!command.is_object()) {
-        LOG_S(ERROR) << "Control message is not a JSON object: " << command_message;
-        return nullptr;
+          context.instance_data = s = new state(context);
+          LOG_S(INFO) << "Bot configuration initialized";
+          // No other processing is needed.
+          return nullptr;
       }
       /*
       * This implementation of process_command() returns an "ack" message if it successfully processes a command
@@ -532,7 +537,7 @@ Add the following code immediately after the definition of `process_image()`:
       * channel from another bot and process ack messages separately.
       * In this tutorial, process_command logs receipt of the ack and returns null to the SDK.
       */
-      if ((command_message.find("ack") != command.message()) {
+      if (command_message.find("ack") != command_message.end()) {
           // This message is fully handled, so process_command() returns null to the SDK
           return nullptr;
       }
@@ -541,7 +546,7 @@ Add the following code immediately after the definition of `process_image()`:
       * This block sets the parameters in the bot context to the values in the command message.
       */
       if (command_message.find("params") != command_message.end()) {
-        auto &params = command["params"];
+        auto &params = command_message["params"];
         LOG_S(INFO) << "Received config parameters: " << command_message;
         // Move the parameters to the context
         s->params.merge_json(params);
@@ -549,7 +554,7 @@ Add the following code immediately after the definition of `process_image()`:
         * Gets the bot id from the command message. The "to" field is guaranteed to be present, because the SDK
         * returns an error and skips process_command() if the message doesn't contain the field
         */
-        std::string bot_id = command_message["to"]
+        std::string bot_id = command_message["to"];
         /*
         * Returns the ack message to the SDK, which publishes it back to the control channel.
         * Sets up a JSON object that contains the following:
@@ -560,7 +565,7 @@ Add the following code immediately after the definition of `process_image()`:
         // Initializes the return object by setting it to the "ack" field
         nlohmann::json return_object = {{"ack", true}};
         // Inserts the bot id field
-        nlohmann::json to_object = {{"to", bot_id}}
+        nlohmann::json to_object = {{"to", bot_id}};
         return_object.insert(to_object.begin(), to_object.end());
         // Inserts the configuration parameters from the incoming message
         nlohmann::json config_object = s->params.to_json();
@@ -570,7 +575,7 @@ Add the following code immediately after the definition of `process_image()`:
         return return_object;
       }
       // Control reaches here if the "params" key isn't found
-      LOG_S(ERROR) << "Control message doesn't contain params key " << command;
+      LOG_S(ERROR) << "Control message doesn't contain params key " << command_message;
 
       return nullptr;
     }
@@ -812,4 +817,3 @@ doesn't send the message to your control callback.
 
 You've completed the video SDK tutorial. If you haven't already, read the [Satori Video SDK for C++ Concepts](concepts.md)
 to learn more about the video SDK.
-

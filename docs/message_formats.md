@@ -3,11 +3,11 @@
 [All Video SDK documentation](../README.md)
 
 ## Table of contents
-* [API fields](#api-fields)
-* [Analysis messages](#analysis-messages)
-* [Debug messages](#debug-messages)
-* [Configuration messages](#configuration-messages)
-* [Metrics messages](#metrics-messages)
+* [Detected objects](#detected-objects)
+* [Counted objects](#counted-objects)
+* [Label messages](#label-messages)
+* [Debug message](#debug-message)
+* [Configuration message](#configuration message)
 
 ## Overview
 Video bots use the Satori publish-subscribe platform for communication, so input and output take
@@ -45,8 +45,8 @@ To publish an analysis message containing the results of `process_image()`, call
 To publish a debug message, call [`bot_message()`](reference.md#bot-message) with the `kind` parameter set to the
 API `enum` constant `bot_message_kind::DEBUG`.
 
-## Configuration messages
-The API passes messages it receives in the control channel to the `process_command()` callback function you
+# Configuration messages
+The SDK passes messages it receives in the control channel to the `process_command()` callback function you
 define, using the parameter `message`. This parameter is specified as a JSON object.
 
 The following JSON object is an example of a configuration used to set the feature size in a motion detector bot:
@@ -62,5 +62,3 @@ This message provides a threshold value for detecting objects.
 When you receive updated configurations from the control channel, move the values to the
 `instance_data` member of [`bot_context`](reference.md#bot-context) to make them available to your `process_image()`
 callback function.
-
-# Metrics messages

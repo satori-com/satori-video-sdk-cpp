@@ -24,21 +24,21 @@ environments.
 
 The Video SDK provides bot templates in the
 [Satori Video SDK Examples](https://github.com/satori-com/satori-video-sdk-cpp-examples) GitHub repository
-Each template includes a skeleton C++ program, as well as `conan` and `cmake` files.
+Each template includes a skeleton C++ program, as well as conan and cmake files.
 
 The SDK source is also available. You don't need it unless you want to modify a part of
 the SDK. The instructions for building and modifying the SDK source are listed in the topic
 [Contributing to the Satori Video SDK for C++ project](contributing.md).
 
 ## Set up files
-Start by setting up the prerequisites and video bot framework.
+To build a local version of a video bot, do the following:
 
 ### Install the prerequisites
 See [Satori Video SDK for C++ Prerequisites](prerequisites.md).
 
-### Clone the video bot example repository
-See the [Satori Video SDK Examples](https://github.com/satori-com/satori-video-sdk-cpp-examples) GitHub repository.
-
+### Clone the video bot example projects
+The example projects are hosted in the GitHub repository
+`satori-com/satori-video-sdk-cpp-examples`.
 ```
 $ git clone https://github.com/satori-com/satori-video-sdk-cpp-examples.git
 ```
@@ -64,8 +64,8 @@ conanfile.txt
 ### Write your image processing program
 Provide code for the following functions (you can change their names if desired):
 
-* `process_image()`: The SDK framework invokes this callback and passes it the current video frame.
-* `process_command()`: The SDK framework invokes this callback during initialization and when it
+* `process_image()`: The SDK invokes this callback and passes it the current video frame.
+* `process_command()`: The SDK invokes this callback during initialization and when it
 receives a message in the control channel.
 
 Update the call to `bot_register()` to refer to the names of the functions you wrote.

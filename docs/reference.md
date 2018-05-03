@@ -29,7 +29,7 @@
 ### Base includes
 The base API for the video SDK is declared in the header file [`video_bot.h`](../include/satorivideo/video_bot.h).
 
-The API also uses the following libraries:
+The SDK also uses the following libraries:
 
 | Library                                                                             | Header file |
 |-------------------------------------------------------------------------------------|-------------|
@@ -46,7 +46,7 @@ If you want to use the OpenCV image processing library in your video bot, you al
 |------------------------------------------------------------------|----------------------------|
 | [`opencv_bot.h`](../include/satorivideo/opencv/opencv_bot.h)     | OpenCV video bot API       |
 | [`opencv_utils.h`](../include/satorivideo/opencv/opencv_utils.h) | OpenCV video bot utilities |
-| `opencv.hpp` for OpenCV2Z3221`221` (installed during the build)  | OpenCV API                 |
+| `opencv.hpp` for OpenCV2 (installed during the build)           | OpenCV API                 |
 
 The bot build process uses `conan` to install these files.
 
@@ -131,7 +131,7 @@ From the `prometheus-cpp` library. Data type for the `metrics_registry` member o
 | `i1`               | `int64_t`| Starting id of frame sequence |
 | `i2`               | `int64_t`| Ending id of frame sequence   |
 
-Data type for a time-independent identifier for a video frame. The framework assigns values sequentially, which lets 
+Data type for a time-independent identifier for a video frame. The SDK assigns values sequentially, which lets
 you refer to a frame or frames without having to use a time code.
 
 When a `frame_id` value is for a single frame, `i1 == i2`. When you want to refer to a sequence of frames in an 
@@ -167,19 +167,20 @@ from a channel. If the input is from a file or camera, the metadata comes direct
 |--------------------|------------------------|-------------------------------------------------------------|
 | `instance_data`    | pointer                | Pointer to a variable you define. Default value is `nullptr`|
 | `frame_metadata`   | `image_metadata`       | Video metadata                                              |
-| `mode`             | `execution_mode`       | Execution mode in which the framework should run            |
+| `mode`             | `execution_mode`       | Execution mode in which the SDK should run                  |
 | `metrics_registry` | `prometheus::Registry` | The `prometheus-cpp` registry for the bot                   |
 
-Use `bot_context` to define a variable you pass to the framework. The framework persists [`bot_context`](#bot_context)
+Use `bot_context` to define a variable you pass to the SDK, which persists [`bot_context`](#bot_context)
 during the lifetime of your bot. In [`bot_context`](#bot_context), use `instance_data` instead of global variables.
 
-Set `instance_data` in your control callback during initialization. The framework
-passes it to you when it invokes your callbacks.
+For example, use `instance_data` to set configuration parameters in your control callback. The SDK passes `bot_context`
+to your image processing callback, and from it you can access `instance_data` to get the config parameters and adjust
+your processing algorithm.
 
 #### `bot_descriptor`
 | Field name         | Type                  | Description                                          |
 |--------------------|-----------------------|------------------------------------------------------|
-| `pixel_format`     | `image_pixel_format`  | Pixel format the framework should use for each frame |
+| `pixel_format`     | `image_pixel_format`  | Pixel format the SDK should use for each frame       |
 | `img_callback`     | `bot_img_callback_t`  | Image processing callback                            |
 | `ctrl_callback`    | `bot_ctrl_callback_t` | Control callback                                     |
 
@@ -194,11 +195,11 @@ Information you pass to the SDK by calling [`bot_register()`](#bot_register).
 | `BATCH`            | Pass every frame to the processing callback                |
 
 In live mode, the SDK sends frames to your image callback based on the
-incoming frame rate. If your callback lags behind, the framework drops frames to stay in sync with the frame
+incoming frame rate. If your callback lags behind, the SDK drops frames to stay in sync with the frame
 rate. This mode is available for RTM channel streams, camera input, and files.
 **Use live mode for bots running in production.**
 
-In batch (test) mode, the framework waits for your image callback to finish before sending it another
+In batch (test) mode, the SDK waits for your image callback to finish before sending it another
 frame, so no frames are dropped. This mode is only available for files.
 **Only use `batch` mode for testing.**
 
@@ -216,14 +217,14 @@ frame, so no frames are dropped. This mode is only available for files.
 | `CONTROL`         | Publish message to control channel   |
 
 When you call [`bot_message()`](#bot_message) to publish a message, use `bot_message_kind` to
-indicate the destination channel. The framework automatically provides you with these channels
+indicate the destination channel. The SDK automatically provides you with these channels
 (See [SDK channel names](#sdk-channel-names)).
 
 ### Functions
 
 #### Image processing callback
 
-`void name(bot_context &context, const image_frame &frame)`
+`void some_name(bot_context &context, const image_frame &frame)`
 
 | Parameter | Type          | Description         |
 |-----------|---------------|---------------------|
@@ -236,7 +237,7 @@ returns `void`
 See also [`bot_image_callback_t`](#bot_img_callback_t).
 
 #### Configuration message callback
-`nlohmann::json <function_name>(bot_context &context, const nlohmann::json *message)`
+`nlohmann::json some_name(bot_context &context, const nlohmann::json *message)`
 
 | Parameter | Type            | Description                                                         |
 |-----------|-----------------|---------------------------------------------------------------------|
@@ -248,7 +249,8 @@ returns `nlohmann::json`
 The `nlohmann::json` class is part of the **basic json** API in the
 [JSON for Modern C++](https://nlohmann.github.io/json/index.html) library.
 
-The framework invokes the callback during initialization, so that you can set up initial conditions.
+The SDK invokes the callback during initialization, so that you can set up initial conditions. It also invokes the
+callback whenever it receives a message in the control channel.
 
 To send a configuration to the configuration callback, run your bot with the `--config <inline_json>` or
 `--config-file <json_file_name>` runtime parameters.
@@ -267,13 +269,13 @@ See also [`bot_ctrl_callback_t`](#bot_ctrl_callback_t)
 
 returns `void`
 
-Publishes a message to one of the channels that the framework automatically provides for your bot
+Publishes a message to one of the channels the SDK automatically provides for your bot
 (See [SDK channel names](#sdk-channel-names)).
 
 Use the `id` parameter to annotate the message with a frame id or range of ids. If `frame.id1==frame.id2`, the
 message is for a single frame. If `frame.id1 < frame.id2`, the message is for a range of frames. Note that
 `frame.id1 > frame.id2` is invalid. If you omit the `id` parameter,
-the default is `frame_id{0, 0}`, which the framework assumes is the current frame.
+the default is `frame_id{0, 0}`, which the SDK assumes is the current frame.
 
 #### bot_register()
 `bot_register(const bot_descriptor &bot)`
@@ -282,7 +284,7 @@ the default is `frame_id{0, 0}`, which the framework assumes is the current fram
 |-----------|------------------|------------------------------------------------------------------------|
 | `bot`     | `bot_descriptor` | Specifies the desired pixel format and the image and control callbacks |
 
-Registers your bot with the framework.
+Registers your bot with the SDK.
 
 #### bot_main()
 `bot_main(int argc, char *argv[])`
@@ -294,18 +296,18 @@ Registers your bot with the framework.
 
 returns `int`
 
-Starts the main event loop in the framework.
+Starts the main event loop in the SDK.
 
 ## OpenCV-compatible API
-The OpenCV compatibility API provides access to OpenCV support in the framework.
+The OpenCV compatibility API provides access to OpenCV support in the SDK.
 
 The API has one struct and three functions that substitute for functions in the normal API:
 
 | Normal API component   | OpenCV component                | Description                                                            |
 |------------------------|---------------------------------|------------------------------------------------------------------------|
-| `bot_descriptor`       | `opencv_bot_descriptor`         | Describes your bot to the framework                                    |
+| `bot_descriptor`       | `opencv_bot_descriptor`         | Describes your bot to the SDK                                          |
 | `bot_image_callback_t` | `opencv_bot_image_callback_t`   | Function template for your OpenCV-compatible image processing callback |
-| `bot_register`         | `opencv_bot_register`           | Registers your bot with the framework                                  |
+| `bot_register`         | `opencv_bot_register`           | Registers your bot with the SDK                                        |
 | `bot_main`             | `opencv_bot_main`               | Starts your bot's main event loop                                      |
 
 ### OpenCV types
@@ -343,7 +345,7 @@ because the `cv::Mat` object contains higher-level abstractions for the informat
 |-----------|-------------------------|-------------------------------------------|
 | `bot`     | `opencv_bot_descriptor` | Specifies the image and control callbacks |
 
-Registers your OpenCV bot with the framework
+Registers your OpenCV bot with the SDK
 #### opencv_bot_main()
 `opencv_bot_main(int argc, char *argv[])`
 
@@ -392,7 +394,7 @@ Each subdirectory has this structure:
 dependencies.
 
 ## Supported video data formats
-The framework supports the following frameworks:<br>
+The SDK supports the following formats:<br>
 • MPEG-4 Part 10 (H.264) and MPEG-4 Part 2 compressed video. File extension is `.mp4`.<br>
 • Matroska Multimedia Container (**MKV**). File extension is `.mkv`.<br>
 • WebM. File extension is `.webm`.<br>
@@ -449,11 +451,10 @@ Satori channel endpoint for the output channel. This value is
 available from your project page in the Satori Dev Portal. The format is
 `<val>.api.satori.com`, where `<val>` is unique to your project.
 
-`--appkey <key>`
-
-Appkey for your project. This value is available from your
-project page in the Satori Dev Portal. The format is a 32-character
-hexadecimal value.
+`--appkey <key>`<br>
+    Specifies the appkey for your project. This value is available from your
+    project page in the Satori Dev Portal. The format is a 32-character
+    hexadecimal value.
 
 `--port <port>`
 
@@ -926,4 +927,4 @@ defaults to `0`, and you don't have to set it explicitly. Similarly, the default
 
 `--help`
 
-Display usage hints for the \*.
+Display usage hints for the utility.

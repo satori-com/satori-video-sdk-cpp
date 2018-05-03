@@ -23,8 +23,8 @@
 ## SDK Overview
 
 The Satori Video SDK is a library of APIs for building bots that analyze compressed, streaming video in the form of messages.
-The SDK subscribes to a channel containing streaming video messages, continuously receives these messages, decompresses
-them, and converts them to individual image frames. To analyze these frames, you provide the SDK with an image
+The SDK subscribes to a channel containing streaming video messages, continuously receive these messages, decompress
+them, and convert them to individual image frames. To analyze these frames, you provide the SDK with an image
 processing callback function that's invoked for each new frame. In this callback, you analyze the frames using your own
 or 3rd-party libraries and publish results via an API call that uses the Satori publish-subscribe platform. This API
 call can also publish debug and metrics messages to their own channels.
@@ -94,11 +94,11 @@ int main(int argc, char *argv[]) {
   return sv::bot_main(argc, argv);
 }
 ```
+**Note:** This documentation refers to the SDK as a separate component, although it's actually built into the same
+executable as your own code.
 
-## Publish-subscribe
-The SDK uses the [Satori](https://www.satori.com/docs/introduction/new-to-satori) publish-subscribe platform, which
-provides reliable, high throughput I/O. It accepts real-time streaming video and can publish image processing results to
-thousands of subscribers at once.
+In this function, you can analyze or transform video frames. Using the API, you can
+publish analysis, metrics, and debug messages to one of the channels that the SDK automatically provides.
 
 ## Video SDK tools and examples
 Besides the API library, the SDK provides command-line tools for video recording and playback. A public GitHub
@@ -206,4 +206,4 @@ One of the channels that the SDK provides is intended for debug messages. To pub
 call `bot_message` and specify the `bot_message_kind::DEBUG` `enum` constant.
 
 The SDK uses [Loguru](https://github.com/emilk/loguru) for logging. You can use it to do your own
-logging, but you can also use any other logging framework you want.
+logging, but you can also use any other logging library you want.
