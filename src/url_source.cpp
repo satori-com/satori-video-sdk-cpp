@@ -32,20 +32,17 @@ auto &destroyed_total = prometheus::BuildCounter()
 auto &complete_total = prometheus::BuildCounter()
                            .Name("url_source_complete_total")
                            .Register(metrics_registry());
-
-const std::string reader_thread_name = "url-read-loop";
-
 }  // namespace
 
 class url_source_impl {
  public:
   url_source_impl(const std::string &url, const std::string &options,
                   streams::observer<encoded_packet> &sink)
-      : _url{url}, _sink{sink} {
+      : _url{url}, _sink{sink}, _reader_thread_name{"url " + url} {
     avutils::init();
     created_total.Add({{"url", _url}}).Increment();
     std::thread([this, options]() {
-      threadutils::set_current_thread_name(reader_thread_name);
+      threadutils::set_current_thread_name(_reader_thread_name);
 
       _reader_thread_id = std::this_thread::get_id();
 
@@ -74,9 +71,10 @@ class url_source_impl {
 
   void stop() {
     if (_reader_thread_id != std::this_thread::get_id()) {
-      LOG(ERROR) << "calling url_source stop from thread "
-                 << threadutils::get_current_thread_name() << " but expected "
-                 << reader_thread_name;
+      LOG(ERROR) << "calling url_source stop from thread {"
+                 << threadutils::get_current_thread_name() << ", "
+                 << std::this_thread::get_id() << "} but expected {"
+                 << _reader_thread_name << ", " << _reader_thread_id << "}";
     }
     LOG(INFO) << "stopping url source";
     _active = false;
@@ -181,6 +179,7 @@ class url_source_impl {
   AVPacket _pkt{nullptr};
   std::shared_ptr<AVCodecContext> _decoder_context;
   std::thread::id _reader_thread_id;
+  const std::string _reader_thread_name;
   std::atomic<bool> _active{true};
   int _stream_idx{-1};
   int64_t _packets{0};
