@@ -59,17 +59,18 @@ bot_instance::bot_instance(const std::string& bot_id, const execution_mode execm
                       prometheus::BuildCounter()
                           .Name("frames_processed_total")
                           .Register(satori::video::metrics_registry())
-                          .Add({}),
+                          .Add({{"id", bot_id}}),
                       prometheus::BuildCounter()
                           .Name("frames_dropped_total")
                           .Register(satori::video::metrics_registry())
-                          .Add({}),
+                          .Add({{"id", bot_id}}),
                       prometheus::BuildHistogram()
                           .Name("frame_processing_times_millis")
                           .Register(satori::video::metrics_registry())
-                          .Add({}, std::vector<double>{0,  1,   2,   5,   10,  15,  20,
-                                                       25, 30,  40,  50,  60,  70,  80,
-                                                       90, 100, 200, 300, 400, 500, 750}),
+                          .Add({{"id", bot_id}},
+                               std::vector<double>{0,  1,   2,   5,   10,  15,  20,
+                                                   25, 30,  40,  50,  60,  70,  80,
+                                                   90, 100, 200, 300, 400, 500, 750}),
                   }} {}
 
 streams::op<bot_input, bot_output> bot_instance::run_bot() {
