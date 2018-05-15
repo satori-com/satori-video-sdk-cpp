@@ -263,7 +263,10 @@ streams::publisher<encoded_packet> encoded_publisher(
 streams::publisher<owned_image_packet> decoded_publisher(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const input_video_config &video_cfg, image_pixel_format pixel_format) {
-  const auto resolution = avutils::parse_image_size(video_cfg.resolution);
+  const auto resolution =
+      (video_cfg.resolution == "original")
+          ? image_size{avutils::original_image_width, avutils::original_image_height}
+          : avutils::parse_image_size(video_cfg.resolution);
   CHECK(resolution.ok()) << "bad resolution: " << video_cfg.resolution;
 
   streams::publisher<owned_image_packet> source =
@@ -387,16 +390,16 @@ bool configuration::validate() const {
   }
 
   if (_cli_options.enable_generic_input_options) {
-    std::string resolution = _vm["input-resolution"].as<std::string>();
-    if (!avutils::parse_image_size(resolution).ok()) {
+    const std::string resolution = _vm["input-resolution"].as<std::string>();
+    if (resolution != "original" && !avutils::parse_image_size(resolution).ok()) {
       std::cerr << "Unable to parse input resolution: " << resolution << "\n";
       return false;
     }
   }
 
   if (_cli_options.enable_generic_output_options) {
-    std::string resolution = _vm["output-resolution"].as<std::string>();
-    if (!avutils::parse_image_size(resolution).ok()) {
+    const std::string resolution = _vm["output-resolution"].as<std::string>();
+    if (resolution != "original" && !avutils::parse_image_size(resolution).ok()) {
       std::cerr << "Unable to parse output resolution: " << resolution << "\n";
       return false;
     }

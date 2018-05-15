@@ -475,12 +475,7 @@ std::shared_ptr<allocated_image> allocate_image(const image_size &size,
 }
 
 streams::error_or<image_size> parse_image_size(const std::string &str) {
-  if (str == "original") {
-    return image_size{original_image_width, original_image_height};
-  }
-
-  int width;
-  int height;
+  int width, height;
   int ret = av_parse_video_size(&width, &height, str.c_str());
   if (ret < 0) {
     LOG(ERROR) << "couldn't parse image size from " << str << ", " << error_msg(ret);

@@ -20,6 +20,10 @@ namespace satori {
 namespace video {
 namespace avutils {
 
+// Used to tell not to downscale original video stream
+constexpr int16_t original_image_width = -1;
+constexpr int16_t original_image_height = -1;
+
 void init();
 
 // Converts FFmpeg error code into human readable message.
