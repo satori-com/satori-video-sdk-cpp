@@ -5,9 +5,9 @@
 #include <boost/optional.hpp>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 
 #include "data.h"
-#include "mkv_options.h"
 #include "rtm_client.h"
 #include "streams/streams.h"
 
@@ -43,10 +43,10 @@ streams::subscriber<encoded_packet> &rtm_sink(
     const std::shared_ptr<rtm::publisher> &client, boost::asio::io_service &io_service,
     const std::string &rtm_channel);
 
-streams::subscriber<encoded_packet> &mkv_sink(
+streams::subscriber<encoded_packet> &video_file_sink(
     const boost::filesystem::path &path,
     const boost::optional<std::chrono::system_clock::duration> &segment_duration,
-    const mkv::format_options &format_options);
+    std::unordered_map<std::string, std::string> &&options);
 
 streams::op<owned_image_packet, encoded_packet> encode_as_mjpeg();
 

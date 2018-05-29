@@ -371,8 +371,8 @@ std::shared_ptr<AVFormatContext> output_format_context(
   AVFormatContext *format_context;
 
   LOG(1) << "Allocating format context for " << filename;
-  avformat_alloc_output_context2(&format_context, nullptr, format.c_str(),
-                                 filename.c_str());
+  const char *format_name = format.empty() ? nullptr : format.c_str();
+  avformat_alloc_output_context2(&format_context, nullptr, format_name, filename.c_str());
   if (format_context == nullptr) {
     LOG(ERROR) << "Failed to allocate format context for " << filename;
     return nullptr;
@@ -380,8 +380,8 @@ std::shared_ptr<AVFormatContext> output_format_context(
   LOG(1) << "Allocated format context for " << filename;
 
   return std::shared_ptr<AVFormatContext>(
-      format_context, [filename, file_cleaner](AVFormatContext *ctx) {
-        LOG(1) << "Deleting format context for file " << filename;
+      format_context, [file_cleaner](AVFormatContext *ctx) {
+        LOG(1) << "Deleting format context for file " << ctx->filename;
         file_cleaner(ctx);
         avformat_free_context(ctx);  // releases streams too
       });

@@ -70,7 +70,6 @@ struct image_size {
 struct encoded_metadata {
   std::string codec_name;
   std::string codec_data;
-  boost::optional<struct image_size> image_size;
 
   nlohmann::json additional_data;
 

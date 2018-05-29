@@ -2,7 +2,6 @@
 
 #include "avutils.h"
 #include "cli_streams.h"
-#include "mkv_options.h"
 #include "streams/asio_streams.h"
 #include "streams/threaded_worker.h"
 #include "video_metrics.h"
@@ -90,7 +89,7 @@ po::options_description file_output_options() {
   output_file_options.add_options()("output-video-file", po::value<std::string>(),
                                     "Output video file");
   output_file_options.add_options()(
-      "reserved-index-space", po::value<int>()->default_value(0),
+      "reserved-index-space", po::value<int>(),
       "(bytes) Tells how much space to reserve at the beginning of "
       "file for cues (indexes) to improve seeking. "
       "Typically 50000 is enough for one hour of video. "
@@ -214,6 +213,7 @@ po::options_description to_boost(const cli_options &opts) {
 }
 }  // namespace
 
+// TODO: add --time-limit here
 streams::publisher<encoded_packet> encoded_publisher(
     boost::asio::io_service &io, const std::shared_ptr<rtm::client> &client,
     const input_video_config &video_cfg) {
@@ -257,7 +257,7 @@ streams::publisher<encoded_packet> encoded_publisher(
                                                 : "");
   }
 
-  ABORT() << "should not happen";
+  ABORT() << "Unreachable code in encoded_publisher()";
 }
 
 streams::publisher<owned_image_packet> decoded_publisher(
@@ -274,13 +274,12 @@ streams::publisher<owned_image_packet> decoded_publisher(
       >> decode_image_frames(resolution.get(), pixel_format, video_cfg.keep_aspect_ratio);
 
   if (video_cfg.time_limit) {
-    source =
-        std::move(source) >> streams::asio::timer_breaker<owned_image_packet>(
-                                 io, std::chrono::seconds(video_cfg.time_limit.get()));
+    source = std::move(source) >> streams::asio::timer_breaker<owned_image_packet>(
+                                      io, std::chrono::seconds(*video_cfg.time_limit));
   }
 
   if (video_cfg.frames_limit) {
-    source = std::move(source) >> streams::take(video_cfg.frames_limit.get());
+    source = std::move(source) >> streams::take(*video_cfg.frames_limit);
   }
 
   return source;
@@ -294,14 +293,17 @@ streams::subscriber<encoded_packet> &encoded_subscriber(
   }
 
   if (config.output_path) {
-    CHECK(config.reserved_index_space);
+    std::unordered_map<std::string, std::string> format_options;
+    if (config.reserved_index_space) {
+      format_options["reserve_index_space"] =
+          std::to_string(*config.reserved_index_space);
+    }
 
-    mkv::format_options mkv_format_options;
-    mkv_format_options.reserved_index_space = *config.reserved_index_space;
-    return mkv_sink(*config.output_path, config.segment_duration, mkv_format_options);
+    return video_file_sink(*config.output_path, config.segment_duration,
+                           std::move(format_options));
   }
 
-  ABORT() << "shouldn't happen";
+  ABORT() << "unreachable code in encoded_subscriber()";
 }
 
 configuration::configuration(int argc, char *argv[], cli_options options,
@@ -548,7 +550,7 @@ output_video_config::output_video_config(const nlohmann::json &config)
               : boost::optional<std::chrono::system_clock::duration>{}},
       reserved_index_space{config.find("reserved-index-space") != config.end()
                                ? config["reserved-index-space"].get<int>()
-                               : 0} {}
+                               : boost::optional<int>{}} {}
 }  // namespace cli_streams
 }  // namespace video
 }  // namespace satori

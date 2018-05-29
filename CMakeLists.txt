@@ -58,8 +58,6 @@ add_library(satorivideo
     src/logging.h
     src/logging_impl.h
     src/metrics.cpp
-    src/mkv_options.h
-    src/mkv_sink.cpp
     src/ostream_sink.cpp
     src/pool_controller.h
     src/pool_controller.cpp
@@ -91,6 +89,7 @@ add_library(satorivideo
     src/version.cpp
     src/video_bot.cpp
     src/video_error.cpp
+    src/video_file_sink.cpp
     src/video_metrics.cpp
     src/video_streams.cpp
     src/vp9_encoder.cpp

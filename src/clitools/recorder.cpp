@@ -131,6 +131,21 @@ class video_stream : private streams::subscriber<encoded_packet> {
   }
 
  private:
+  streams::publisher<encoded_packet> original_encoded_stream(const std::string &channel) {
+    LOG(INFO) << "using original encoded stream";
+    return cli_streams::encoded_publisher(_io, _client, _input_config)
+           >> streams::threaded_worker("in_" + channel) >> streams::flatten();
+  }
+
+  streams::publisher<encoded_packet> transcoded_stream(const std::string &channel) {
+    LOG(INFO) << "using transcoded stream";
+    return cli_streams::decoded_publisher(_io, _client, _input_config,
+                                          image_pixel_format::RGB0)
+           >> streams::threaded_worker("in_" + channel) >> streams::flatten()
+           >> encode_vp9(25) >> streams::threaded_worker("vp9_" + channel)
+           >> streams::flatten();
+  }
+
   void connect() {
     CHECK(_input_config.input_channel.is_initialized());
     CHECK(!_subscription.is_initialized());
@@ -139,11 +154,9 @@ class video_stream : private streams::subscriber<encoded_packet> {
     const std::string channel = _input_config.input_channel.get();
     LOG(INFO) << "starting recorder: " << channel;
 
-    auto publisher = cli_streams::decoded_publisher(_io, _client, _input_config,
-                                                    image_pixel_format::RGB0)
-                     >> streams::threaded_worker("in_" + channel) >> streams::flatten()
-                     >> encode_vp9(25) >> streams::threaded_worker("vp9_" + channel)
-                     >> streams::flatten();
+    auto publisher = (_input_config.resolution == "original")
+                         ? original_encoded_stream(channel)
+                         : transcoded_stream(channel);
 
     _sink = cli_streams::encoded_subscriber(_io, _client, _output_config);
 
