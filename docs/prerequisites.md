@@ -23,15 +23,24 @@ installs these dependencies the first time you build a bot.
 ## Platform prerequisites
 * macOS or Linux
 * C++14 compiler
+    * macOS: clang or gcc
+    * Linux: clang
 
 ## Tools prerequisites
 
 ### macOS:
-* conan
-* cmake
-* autoconf
-* libtool
-* gnu make, version >=3.82
+Install the prerequisites using `brew`:
+* `brew install Ninja`
+* `brew install automake`
+* `$brew install conan`
+* `$brew install cmake`
+* `$brew install autoconf`
+* `$brew install libtool`
+* `$brew install nasm`
+* `$brew install yasm`
+* `$brew install make --with-default-names`
+
+
 
 **Note:**
 * Use `brew install`, except for gnu make
@@ -61,9 +70,24 @@ installs the tool as `make` rather than `gnu-make`.
 
 ### conan setup
 
-Specify the conan remote server:
+Set up the conan remote server.
 
+**Note:** If you previously added the video SDK server, the `remote add` command may return the message:<br>
+`ERROR: Remote 'video-conan' already exists in remotes (use update to modify)`<br>
+You can ignore this error. **Always** run `conan remote update`.
+
+First run
 ```shell
+$ conan remote add video-conan 'http://video-conan.api.satori.com'
+```
+
+**Note:** When you first run `conan`, it creates a registry file and displays the message:
+```bash
+WARN: Remotes registry file missing, creating default one in /<user_path>/.conan/registry.txt
+```
+
+Next, run
+```
 $ conan remote update video-conan 'http://video-conan.api.satori.com'
 ```
 

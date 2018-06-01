@@ -41,35 +41,34 @@ Install the prerequisites described in [Satori Video SDK for C++ Prerequisites](
 a Satori project for the tutorial, and record the appkey and endpoint.
 
 ### Create the bot program
-The bot uses OpenCV-oriented API calls to set up and start the main processing loop. When the loop starts, it calls
-APIs that do the following:
-* Receive streaming video messages from the input channel
-* Convert and decompress the video into individual frames
-* Invoke the `process_image()` callback function you provide, passing in a single frame
-* Publish messages when you call `bot_message()`
-* Invoke the `process_command()` callback function whenever a new message appears in the control channel
+The bot uses OpenCV-oriented API calls to set up and start the main processing loop. When the loop starts, it does
+the following:
+* Receives streaming video messages from the input channel
+* Converts and decompresses the video into individual frames
+* Invokes the image processing callback function you provide, passing in a single frame
+* Publishes messages when you call `bot_message()`
+* Whenever a new message appears in the control channel, invokes the command processing callback function you provide
 
 #### Set up the source directory
 Although the SDK examples repository contains a version of the tutorial code, you should try to follow the tutorial by
-writing the C++ code from scratch. Copy the `empty-bot` example from the repository and edit its files:
+writing the C++ code from scratch. Copy the `empty-bot` example from the repository and modify it:
 
-1. Clone the examples repository from GitHub. In a terminal window, clone the repository to a new directory <directory_path>:<br>
-`$ git clone git@github.com:satori-com/satori-video-sdk-cpp-examples.git <directory_path>`<br>
-(Note: this is the SSH form. You can also use HTTP to get the repository. See the GitHub Help Center for more details.)
-
-2. Copy the `empty-bot` directory to a new `motion-detector-bot` directory:<br>
-`$ cd <directory_path>`<br>
+1. In a browser, navigate to `https://www.github.com/satori-com/satori-video-sdk-cpp-examples`
+2. Click **Clone or download**, then click **Download ZIP**.<br>
+3. Uncompress the zip file and copy the `empty-bot` directory to a new `motion-detector-bot` directory:<br>
 `$ cp -r empty-bot <path>/motion-detector-bot`
-
-3. Navigate to `<path>/motion-detector-bot`.
-4. Delete `src/main.cpp` and `README.md`.
-5. Edit `<path>/motion-detector-bot/CMakelists.txt`:
+4. Navigate to `<path>/motion-detector-bot`.
+5. Delete `src/main.cpp` and `README.md`.
+6. Edit `<path>/motion-detector-bot/CMakelists.txt`:
     * Change all occurrences of `empty-bot` to `motion-detector-bot`.
     * Change all occurrences of `src/main.cpp` to `src/motion-detector-bot.cpp`.
-6. Edit `<path>/motion-detector-bot/conanfile.txt`:
+
+7. Edit `<path>/motion-detector-bot/conanfile.txt`:
+
     * Find the line that contains `SatoriVideo:with_opencv=False`. Change `False` to `True`.
     * Find the line that contains `[generators]`.
     * The next line is `cmake`; after this line, add a new line containing `virtualenv`.
+
 7. Edit `<path>/motion-detector-bot/Dockerfile` and change all occurrences of `empty-bot` to `motion-detector-bot`.
 8. Edit `<path>/motion-detector-bot/Makefile` and change all occurrences of `empty-bot` to `motion-detector-bot`.
 Ignore all the other file references.
@@ -85,20 +84,27 @@ namespace motion_detector_bot {
     * Block A: In subsequent steps, you add structs and functions to this block
     */
     namespace {
+
         /*
         * Block B: In subsequent steps, you add variables and functions to this block
         */
+
     } // end namespace
+
     /*
     * Location for Block A structs
     */
+
     /*
     * Location for Block A functions
     */
+
 } // end motion_detector_bot namespace
+
 /*
 * Motion detector bot program
 */
+
 int main(int argc, char *argv[]) {
   // Disables OpenCV thread optimization
   cv::setNumThreads(0);
@@ -112,9 +118,9 @@ int main(int argc, char *argv[]) {
 
 **Discussion**
 * `opencv_bot_register()` is the OpenCV-enabled version of the video API `bot_register()` function. It
-updates global areas in the API with the names of your image processing and configuration processing callbacks. It also
+updates global areas in the SDK with the names of your image processing and configuration processing callbacks. It also
 sets up other parts of the video bot, including OpenCV.
-* `opencv_bot_main()` is the OpenCV-enabled version of the video API `bot_main()` function. It starts the API's main
+* `opencv_bot_main()` is the OpenCV-enabled version of the video SDK API `bot_main()` function. It starts the SDK's main
 processing loop, which decompresses and decodes streaming video in the input channel and passes individual frames to
 `process_image()`. The main processing loop also invokes `process_command()` when a message arrives from the control
 channel.
@@ -160,11 +166,11 @@ Replace the following comment:
     */
 ```
 
-with the code for the image processing callback `process_image`:
+with the code for the image processing callback, which in this tutorial is called `process_image`:
 
 ```c++
     /*
-    * Invoked each time the API decodes a frame. The API passes in the bot context and an OpenCV Mat object.
+    * Invoked each time the SDK decodes a frame. The SDK passes in the bot context and an OpenCV Mat object.
     */
     void process_image(sv::bot_context &context, const cv::Mat &original_image) {
       /*
@@ -186,8 +192,8 @@ with the code for the image processing callback `process_image`:
 ```
 
 **Discussion**
-`process_image()` is the place to call APIs that analyze individual video frames. The tutorial uses the OpenCV2
-library, but you're free to use any libraries you want.
+The image processing callback is the place to call APIs that analyze individual video frames. The tutorial uses the
+OpenCV library, but you're free to use any libraries you want.
 
 #### Process the image frame
 To analyze the image frame, add calls to OpenCV APIs.
@@ -244,7 +250,7 @@ with the following code, which completes the definition of `process_image()`:
 ```
 
 **Discussion**
-Notice that the `process_image()` function calls OpenCV to analyze frames, but it doesn't do full motion
+Notice that the image processing function calls OpenCV to analyze frames, but it doesn't do full motion
 detection. Instead, it publishes results to the analysis channel. Another bot can subscribe to this channel and
 do further processing to detect motion.
 
@@ -437,8 +443,8 @@ Add the following code just before the definition of `latency_buckets`:
 **Discussion**
 `bot_message()` takes up to four parameters:
 * bot context
-* `bot_message_kind`: Determines which channel the API uses to publish the channel. In this case, the code calls
-`bot_message()` with the `enum` constant for the analysis channel.
+* `bot_message_kind`: Determines which channel the SDK uses to publish the message. In this case, the code calls
+`bot_message()` with the `enum` constant for the analysis channel, `bot_message_kind::ANALYSIS`.
 ##### Add `parameters`
 The `parameters` struct defines functions that copy a new feature size value from an incoming control channel message to
 the `instance_data` member of the bot context.
@@ -474,30 +480,48 @@ Add the following code immediately before the code for `struct state`:
       }
       /*
       * Returns the field "featureSize" with value set to the new feature size.
-      * The API publishes this message to the control channel.
+      * The SDK publishes this message to the control channel.
       */
       nlohmann::json to_json() const { return {{"featureSize", feature_size_value}}; }
     };
 ```
 
-#### Create the configuration function
-To dynamically receive and process image processing parameters, create the `process_command()` configuration function.
+#### Create the command processing function
+To receive and process image processing parameters, create the command processing function. The SDK
+invokes this function in two situations:
+* **Initialization:** Before it starts processing video, the SDK invokes the function and passes in any configuration
+parameters you specify on the bot command line. To learn more about this command line option, see
+the section [Video bot command-line syntax](reference.md#video-bot-command-line-syntax) in the topic
+[Satori Video SDK for C++ Reference](reference.md).
+* **Control channel message:** When the SDK receives a message in the control channel, it invokes the function and
+passes in the message. This feature lets you dynamically update your bot while it's running.
 
-When the API receives a message in the control channel, it invokes `process_command()` with two parameters:
-* `context`: The global bot context. To learn more about this struct, see [`bot_context`](reference.md#bot-context).
+The SDK invokes the command processing function with two parameters:
+* `context`: The global bot context. To learn more about this struct, see [`bot_context`](reference.md#bot_context).
 * `message`: A JSON object containing the received message
 
-Use `process_command()` to receive and update parameters used by your image processing functions. In this tutorial,
-`process_command()` updates the feature size passed to the OpenCV API function `getStructuringElement()`. The size
-sets how big an image feature has to be in order to qualify as an object of interest.
+In this tutorial, the command processing function has the name `process_command()`. It sets the feature size passed to
+the OpenCV API function `getStructuringElement()`. The size sets how big an image feature has to be in order to qualify
+as an object of interest.
+
+The function receives feature size from the command line `--config` parameter during initialization, and it also
+receives feature size from the control channel.
 
 Add the following code immediately after the definition of `process_image()`:
 
 ```cpp
     /*
-    * Receives update configurations and stores them in the bot context.
+    * Receives configurations and stores them in the bot context.
     *
-    * This example motion detector bot expects a message that has the form
+    * The tutorial bot handles two message formats:
+    *
+    * 1. Initialization configuration
+    * {
+    *   "action": "configure", "body": { "featureSize": &lt;size&gt; }
+    *
+    * and
+    *
+    * 2. Updated configuration
     * {
     *   "to": "motion_tutorial", params": { "featureSize": &lt;size&gt; }
     * }
@@ -510,14 +534,13 @@ Add the following code immediately after the definition of `process_image()`:
       auto *s = (state *)context.instance_data;
       /*
       * The received message must always be a JSON object, even during initialization
-      * At initialization, the message contains {"action": "configure", "body": {}}
       */
       if (!command_message.is_object()) {
           LOG_S(ERROR) << "Control message is not a JSON object: " << command_message;
           return nullptr;
       }
       /*
-      * The API invokes process_command() during initialization, before it starts ingesting video. Use this first invocation
+      * The SDK invokes process_command() during initialization, before it starts ingesting video. Use this first invocation
       * to initialize instance_data.
       */
       if (s == nullptr) {
@@ -526,6 +549,43 @@ Add the following code immediately after the definition of `process_image()`:
           // No other processing is needed.
           return nullptr;
       }
+      /*
+      * Handle initial configuration parameters passed on the command line
+      *
+      * The command line parameter is --config '{"featureSize": 5.0}'.
+      * The SDK passes the JSON object to process_command in the message
+      * {"action": "configure", "body": {"featureSize": 5.0}"
+      *
+      */
+      /*
+      * Tests if the incoming message is an initial configuration
+      */
+      if (command_message.find("action") != command_message.end()) {
+          if (command_message["action"] != "configure") {
+              LOG_S(ERROR) << "Invalid value for \"action\" key" << command_message;
+              return nullptr;
+          } else {
+              // Ensures that an "action" message contains a "body" field
+              if (command_message.find("body") != command_message.end()) {
+                  auto &body_params = command_message["body"];
+                  LOG_S(INFO) << "Received config parameters in \"action\": \"configure\": " << command_message;
+                  // Doesn't move an empty object to the bot context
+                  if (body_params != nullptr)
+                  {
+                      s->params.merge_json(body_params);
+                  }
+                  // Because the message doesn't contain a bot id, the function can't return an ack
+                  return nullptr;
+              // end of "body" field processing
+              } else {
+                  LOG_S(ERROR) << "\"action\": \"configure\" message doesn't contain \"body\"" << command_message;
+                  return nullptr;
+              }
+          } // end of "configure" value processing
+      } // end of "action" field processing
+      /*
+      * The message didn't contain the "action" field. Test to see if it's an "ack" message.
+      */
       /*
       * This implementation of process_command() returns an "ack" message if it successfully processes a command
       * message. This message includes the field "ack": true (The SDK doesn't do this automatically; you have to
@@ -620,7 +680,7 @@ built-in camera. For Linux, you have to record video from a webcam.
 #### macOS
 
 1. Turn on the virtual environment for the SDK tools:<br>
-`$ motion-detector-bot/build/activate.sh`
+`$ source motion-detector-bot/build/activate.sh`
 2. Record video from the laptop camera:
 ```terminal
 (conanenv) $ satori_video_recorder --time-limit 30 --input-camera --output-video-file camera_output_file.mp4
@@ -660,15 +720,6 @@ To do a functional test of the video processing part of the bot:
 2. Run the bot.
 3. Look at the results in Dev Portal.
 
-**Subscribe to the analysis channel in Dev Portal**
-
-1. Navigate to the project you created in Dev Portal, then click the **Console** tab.
-2. In the text field that contains the hint **Enter channel**, enter `videostream/analysis`, then click outside the
-field. The message **Successfully subscribed** appears after the **Code** field. Nothing appears, because you're not yet
-publishing messages to the channel.
-
-Leave the console displayed.
-
 **Publish the video file to the input channel**
 To publish the video file:
 
@@ -680,18 +731,21 @@ To publish the video file:
 prefixed with the string `(conanenv)`.
 5. Using the `--loop` parameter to repeat the video, publish the video to the input channel:
 ```bash
-(conanenv) $ satori_video_publisher --input-video-file camera_output_file.mp4 --loop \
---endpoint <your_endpoint> --appkey <your_appkey> --output-channel videostream
+(conanenv) $ satori_video_publisher --input-video-file camera_output_file.mp4 --loop --endpoint <your_endpoint> --appkey <your_appkey> --output-channel videostream
 ```
 
 **Run the video bot**
-`(conanenv) $ bin/motion-detector-bot --endpoint <your_endpoint> --appkey <your_appkey> \
---input-channel videostream --id motion_tutorial`
+In another terminal window, start the video bot:
 
-**Examine the results**
-Navigate back to Dev Portal. On the **Console** tab, you should still be subscribed to `videostream/analysis`. You
-should see messages scrolling through the window that appears after the **Code** field. Click on a message to expand it.
-Its contents look similar to the following JSON:
+```bash
+$ bin/motion-detector-bot --endpoint <your_endpoint> --config '{"featureSize": 5.0}' --appkey <your_appkey> --input-channel videostream --id motion_tutorial
+```
+**Subscribe to the analysis channel in Dev Portal**
+
+1. Navigate to the project you created in Dev Portal, then click the **Console** tab.
+2. In the text field that contains the hint **Enter channel**, enter `videostream/analysis`, then click outside the
+field. You should see messages scrolling through the window that appears after the **Code** field.
+3. Click on a message to expand it. Its contents look similar to the following JSON:
 
 ```json
 {
@@ -742,8 +796,9 @@ To test the configuration part of the video bot:
 
 **Subscribe to the control channel in Dev Portal**
 
-1. Navigate to the project you created in Dev Portal, then click the **Console** tab.
-2. In the text field that contains the hint **Enter channel**, enter `videostream/control`, then click outside the
+1. Navigate to the project you created in Dev Portal. If you're on the **Console** tab, navigate away from it.
+2. Click the **Console** tab.
+3. In the text field that contains the hint **Enter channel**, enter `videostream/control`, then click outside the
 field. The message **Successfully subscribed** appears after the **Code** field. Nothing appears, because you're not yet
 publishing messages to the channel.
 
@@ -754,7 +809,7 @@ Leave the console displayed.
 1. In the lower right-hand corner of the console, click the orange text icon to display the **Publish Message** panel.
 2. Enter the following JSON on the first line:<br>
 `{ "to": "motion_tutorial", "params": {"featureSize": 5.0}}`<br>
-3. On the second line, enter 100.
+3. On the next line, labeled **Count**, enter 100.
 4. Click **Send**
 
 This publishes the test control message 100 times, which helps you find and review the test results.
@@ -776,10 +831,30 @@ Its contents look similar to the following JSON:
 }
 ```
 
-You may also see messages that you published to the control channel from Dev Portal.
+This message confirms that the command processing callback function received the configuration update you published.
 
-Return to the terminal window in which your video bot is running. The bot logs several messages as it starts up, ending
-with a message similar to<br>
+Return to the terminal window in which your video bot is running. The bot logs several messages as it starts up.
+
+**Look for initial configuration**
+Just after the command line that you used to run the bot, look for a log message similar to<br>
+```
+Starting secure RTM client: <endpoint>, appkey: <appkey>
+```
+
+`<endpoint>` and `<appkey>` are the values for your project.
+
+After that line, you should lines similar to the following:
+```
+[main thread     ]       bot_instance.cpp:278      0| configuring bot: {"action":"configure","body":{"featureSize":5.0}}
+[main thread     ]motion_detector_bot.cpp:265      0| Bot configuration initialized
+```
+
+These log messages show you that the bot received the configuration you specified on the command line with the `--config`
+parameter (see the previous step, **Run the video bot**).
+
+**Look for configuration updates**
+
+Next, look further on in the log messages for a message similar to<br>
 ```
 [decoder_videost ]      threaded_worker.h:94       0| 0x1051cd2c0 decoder_videostream started worker thread`
 ```
@@ -794,13 +869,11 @@ The first line shows that `process_command()` received a configuration message f
 second line shows that `process_command()` successfully processed the message and published an acknowledgement back to
 the control channel.
 
-At the end of the log output, you see lines similar to the following:
-```
-process_command: Received ack message= {"ack":true,"featureSize":5,"from":"motion_tutorial","i":[0,0],"to":"motion_tutorial"}
-```
+**Stop `satori_video_publisher` and the tutorial bot**
 
-These lines show that `process_command()` received ack messages from the SDK, logged them, but didn't do any more
-processing.
+1. In the terminal window that's running `satori_video_publisher`, enter `<CTRL>+C` to terminate the program.
+2. In the terminal window that's running the video bot, enter `<CTRL>+C` to terminate the bot.
+
 
 **Discussion**
 * When you deploy a video bot to production, you should reduce the number of `LOG_S(INFO)` calls you make. Consider

@@ -31,10 +31,10 @@ $ my_bot [other parameters] --config-file <configfile>
 
 In your configuration file `<configfile>`, add this JSON:
 
-```json
+```
 {
-    "<param_key>": <"param_value">
-    [,"<param_key>": <"param_value">]
+    "<param_key>": "<param_value>"
+    [,"<param_key>": "<param_value>" ...]
 }
 ```
 
@@ -67,6 +67,7 @@ Use the following tools:
 
 To simplify debugging in production, the bot library links with gperftools' tcmalloc
 and profiler. To disable `gperftools`, you need to re-build your bot:
+
 1. In the root of your bot project, edit the conan package script `conanfile.txt`.
 2. Find the `[options]` section.
 3. Add the line `SatoriVideo:with_gperftools=False`.
@@ -99,12 +100,12 @@ Don't publish messages to your own custom channels unless absolutely necessary. 
 to publish to your own channel, use the [Satori C RTM SDK](https://www.satori.com/docs/rtm-sdks/tutorials/c-sdk-quickstart).
 
 ## Work with video streams
-When you build your video bot, the conan package recipe installs the command-line utilities to your local
+When you build your video bot, the conan package recipe installs the command-line tools to your local
 cache. If you modify the `conanfile.txt` for your project to include the `virtualenv` generator, the build
 creates environment management scripts called `activate.sh` and `deactive.sh`:
-* `$ <project_dir>/source activate.sh` changes your environment to add the command-line utilities to your path.
+* `$ <project_dir>/source activate.sh` changes your environment to add the command-line tools to your path.
 * `$ <project_dir>/source deactive.sh` change your environment back to its previous settings. To learn more, see
-[Test the SDK utilities](build_bot.md#test-the-sdk-utilities).
+[Test the SDK tools](build_bot.md#test-the-sdk-tools).
 
 ### Watch a video stream
 Given the following:

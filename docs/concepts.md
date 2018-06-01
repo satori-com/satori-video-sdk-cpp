@@ -3,7 +3,6 @@
 [All Video SDK documentation](../README.md)
 
 ## Table of Contents
-* [Publish-subscribe](#publish-subscribe)
 * [Video SDK tools and examples](#video-sdk-tools-and-examples)
 * [Image processing architecture](#image-processing-architecture)
     * [Streaming video](#streaming-video)
@@ -16,29 +15,20 @@
     * [Build](#build)
     * [Deploy](#deploy)
     * [Run](#run)
-    * [Testing with execution modes](#testing-with-execution-modes)
+* [Testing with execution modes](#testing-with-execution-modes)
 * [OpenCV support](#opencv-support)
 * [Logging and debugging](#logging-and-debugging)
 
 ## SDK Overview
 
-The Satori Video SDK is a library of APIs for building bots that analyze compressed, streaming video in the form of messages.
+The Satori Video SDK is a set of libraries for building bots that analyze compressed, streaming video in the form of messages.
 The SDK subscribes to a channel containing streaming video messages, continuously receive these messages, decompress
 them, and convert them to individual image frames. To analyze these frames, you provide the SDK with an image
 processing callback function that's invoked for each new frame. In this callback, you analyze the frames using your own
 or 3rd-party libraries and publish results via an API call that uses the Satori publish-subscribe platform. This API
-call can also publish debug and metrics messages to their own channels.
+call can also publish debug messages.
 
-To help you communicate with the bot, the SDK also subscribes to a meta-data and configuration channel. Meta-data messages
-contain codec and other information provided by the video source. Configuration messages contain parameters that control the
-operation of the bot, so you can dynamically adjust the bot's behavior.
-
-The SDK automatically connects to separate analysis, debug, and metrics channels. It also automatically subscribes to the
-meta-data and configuration channel. The channel names are derived from the name of the input video channel you provide.
-To publish a message, call `bot_message()` function and specify the channel using one of the `bot_message_kind`
-`enum` constants.
-
-The video bot build process statically links the API libraries and external dependencies into the bot executable. This
+The video bot build process statically links the SDK libraries and external dependencies into the bot executable. This
 simplifies deployment, since the only file you need to deploy is the bot executable itself.
 
 **Note:** This documentation refers to the SDK as a separate component, although it's actually built into the same
@@ -81,7 +71,7 @@ namespace example_bot {
 * main video bot program
 int main(int argc, char *argv[]) {
   /*
-  * Registers the bot with the API
+  * Registers the bot with the SDK
   * Bot descriptor object contains the image format and the callback functions
   */
   sv::bot_register(sv::bot_descriptor{sv::image_pixel_format::BGR,
@@ -94,15 +84,19 @@ int main(int argc, char *argv[]) {
   return sv::bot_main(argc, argv);
 }
 ```
-**Note:** This documentation refers to the SDK as a separate component, although it's actually built into the same
-executable as your own code.
 
-In this function, you can analyze or transform video frames. Using the API, you can
-publish analysis, metrics, and debug messages to one of the channels that the SDK automatically provides.
+In the image processing function (called `process_image` in this example), you analyze or transform video frames.
+Using the SDK API, you can publish analysis and debug messages to one of the channels that the SDK automatically
+provides.
+
+The SDK invokes the command processing function (called `process_command` in this example) whenever it receives a
+message from the control channel. The SDK automatically subscribes to this channel, and you use it to send configuration
+and control information to your bot. The function can return a message that the SDK publishes to the control channel;
+use this to acknowledge control messages and so forth.
 
 ## Video SDK tools and examples
-Besides the API library, the SDK provides command-line tools for video recording and playback. A public GitHub
-repository contains example video bots that demonstrate how to use the SDK.
+Besides the libraries, the SDK provides command-line tools for video recording and playback, and a public GitHub
+repository that contains example video bots.
 
 ## Image processing architecture
 
@@ -126,7 +120,7 @@ The SDK command-line tool `satori_video_publisher` publishes video from a source
 * **Video stream channel**: Messages containing compressed video
 * **Video meta-data channel**: Codec and other video information
 
-To learn more about the tool, see [Command-Line Utilities](reference.md#command-line-utilities).
+To learn more about the tool, see [Command-line tools](reference.md#command-line-tools).
 
 ### Video bot
 Your C++ video bot analyzes image frames and publishes the results to the analysis channel.
@@ -145,10 +139,11 @@ a push server that your Prometheus server can scrape to collect metrics. The
 [Satori Video SDK for C++ Tutorial](tutorial.md) demonstrates how to use Prometheus in a video bot.
 
 ### Bot configuration
-To dynamically adjust the properties of your image processing function, you can publish a message containing the
-properties to the control channel. For example, the motion detector bot described in
-[Satori Video SDK for C++ Tutorial](tutorial.md) uses `process_command()` to set and update the feature size it uses
-to detect contours in the image.
+To dynamically adjust the configuration of your bot, you can publish a message to the control channel. Whenever the
+SDK receives a message in this channel, it invokes your command processing function. For example, the motion detector
+bot described in [Satori Video SDK for C++ Tutorial](tutorial.md) uses the command processing function to update the
+feature size it uses to detect contours in the image. The function also returns a message, which the SDK publishes to
+the control channel.
 
 ## Build, deploy, and run
 The SDK uses a toolchain to based on `conan`, `cmake`, and GNU `make` to build video bots.
@@ -164,7 +159,7 @@ You must build video bots with the following toolchain:
 * GNU `make` to compile and build the bot.
 
 ### Deploy
-The build process creates a C++ program that is statically linked to the SDK libraries and tools. The
+The build process creates a C++ program that is statically linked to the SDK libraries. The
 built code has no outside dependencies, so you can run a bot on any macOS or Linux platform.
 
 Because you use Satori channels for all input and output, bots are well-suited to running in Docker containers. The
@@ -173,7 +168,6 @@ contains the bot itself. If your bot uses a initial config file, you may need to
 
 Docker isn't required, and you can use other tools as well.
 ### Run
-
 Because video bots are fully compatible with Docker, you can use Kubernetes to automate your video bot
 deployment and operation. Like Docker, Kubernetes isn't required.
 
@@ -181,24 +175,25 @@ deployment and operation. Like Docker, Kubernetes isn't required.
 The SDK includes support for the **OpenCV** library of real-time computer vision functions.
 
 Because OpenCV functions use the OpenCV `Mat` object, the SDK provides an additional OpenCV-oriented API
-that replaces the default API. To learn more about this API, see [OpenCV API](reference.md#opencv-api).
+that replaces the default API. To learn more about this API, see
+[OpenCV-compatible API](reference.md#opencv-compatible-api).
 
 ## Testing with execution modes
 The SDK provides two **execution modes** that let you control how your image processing callback function
 processes frames:
 
-* **LIVE:** The APIs drop frames instead of sending each frame to your callback.<br><br>
+* **LIVE:** The SDK drops frames instead of sending each frame to your callback.<br><br>
 For example, suppose you're running in live mode, and the SDK invokes your callback with frame 1. While you're
 processing this frame, the SDK decodes frames 2 through 6. When your callback returns, the SDK invokes your
 callback with frame 7, dropping the other frames.<br><br>Live mode works with channel streams, files, and cameras.
 **Note: Always use live mode when you run your bot in production.**
 
-* **BATCH:** The SDK waits for your callback before sending the next frame instead of dropping frames. When the SDK
+* **BATCH:** The SDK waits for your callback before sending the next frame, instead of dropping frames. When the SDK
 invokes your callback again, it sends the next sequential frame.<br><br>
 For example, suppose you're running in batch mode, and the SDK invokes your callback with frame 1. While you're
 processing frame 1, the SDK decodes frames 2 through 6. When your callback returns, the SDK invokes your
 callback with *frame 2*. Your callback has the opportunity to process every frame in the stream.<br><br>
-Batch mode only works with files, and it's provided so you can test your bot during development. **Don't use batch mode
+Batch mode only works with files, and it's provided so you can test your bot during development. **Note: Don't use batch mode
 in production.**
 
 ## Logging and debugging
